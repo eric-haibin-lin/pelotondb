@@ -36,6 +36,12 @@ class BWTree {
   std::vector<ItemPointer> ScanAllKeys();
 
   std::vector<ItemPointer> ScanKey(const storage::Tuple *key);
+
+  //pick one value for failure status
+  LPID InstallPage(BWTreeNode *node);
+  bool SwapNode(LPID id, BWTreeNode *node);
+  BWTreeNode *Lookup(LPID id);
+
 };
 
 // Look up the stx btree interface for background.
@@ -43,11 +49,11 @@ class BWTree {
 template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTreeNode {
  protected:
-  std::map<uint32_t, BWTree **> *mapping_table_;
+  BWTree *map_;
 
  public:
-  BWTreeNode(std::map<uint32_t, BWTree **> *mapping_table)
-      : mapping_table_(mapping_table){};
+  BWTreeNode(BWTree *map)
+      : map_(map){};
   virtual bool InsertEntry(const storage::Tuple *key,
                            const ItemPointer location) = 0;
 
