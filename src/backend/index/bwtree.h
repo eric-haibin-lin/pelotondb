@@ -24,7 +24,9 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTree {
 private:
   LPID root;
-  std::map<uint32_t, BWTree*> mapping_table_;
+  std::map<uint32_t, BWTree**> mapping_table_;
+
+public:
   bool InsertEntry(const storage::Tuple *key,
       const ItemPointer location);
 
@@ -46,11 +48,11 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTreeNode {
 
 protected:
-  std::map<uint32_t, BWTree*> *mapping_table_;
+  std::map<uint32_t, BWTree**> *mapping_table_;
 
 public:
 
-  BWTreeNode(std::map<uint32_t, BWTree*> *mapping_table)
+  BWTreeNode(std::map<uint32_t, BWTree**> *mapping_table)
     : mapping_table_ (mapping_table){};
   virtual bool InsertEntry(const storage::Tuple *key,
       const ItemPointer location)=0;
@@ -69,6 +71,35 @@ public:
 
 };
 
+template <typename KeyType, typename ValueType, class KeyComparator>
+class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
+
+private:
+  std::pair<KeyType, LPID> children_map_[];
+
+};
+
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
+
+protected:
+  BWTreeNode * modified_node_;
+
+};
+
+// TODO More delta classes such as
+// delete, insert, merge, split, remove_page, separator
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
+
+private:
+  LPID left_sib_;
+  LPID right_sib_;
+  std::pair<KeyType, ItemPointer> locations_[];
+
+};
 
 
 
