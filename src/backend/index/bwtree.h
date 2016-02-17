@@ -30,11 +30,31 @@ class BWTreeNode;
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTree {
+  // the default LPID for the root node
+  static const LPID DEFAULT_ROOT_LPID = 0;
+
  private:
-  LPID root;
-  std::map<LPID, BWTree<KeyType, ValueType, KeyComparator> **> mapping_table_;
+  // whether unique key is required
+  bool unique_keys_;
+  // the logical page id for the root node
+  LPID root_;
+  // the mapping table
+  std::map<LPID, BWTreeNode<KeyType, ValueType, KeyComparator> **>
+      mapping_table_;
 
  public:
+  BWTree()
+      : unique_keys_(true),
+        root_(DEFAULT_ROOT_LPID){
+            // TODO initialize the root IPage (and maybe a LPage?)
+        };
+
+  BWTree(bool unique_keys)
+      : unique_keys_(unique_keys),
+        root_(DEFAULT_ROOT_LPID){
+            // TODO initialize the root IPage (and maybe a LPage?)
+        };
+
   bool InsertEntry(const storage::Tuple *key, const ItemPointer location);
 
   bool DeleteEntry(const storage::Tuple *key, const ItemPointer location);
@@ -48,8 +68,10 @@ class BWTree {
 
   // TODO pick one value for failure status
   LPID InstallPage(BWTreeNode<KeyType, ValueType, KeyComparator> *node);
+
   bool SwapNode(LPID id, BWTreeNode<KeyType, ValueType, KeyComparator> *node);
-  BWTreeNode<KeyType, ValueType, KeyComparator> *Lookup(LPID id);
+
+  BWTreeNode<KeyType, ValueType, KeyComparator> *GetNode(LPID id);
 };
 
 // Look up the stx btree interface for background.
@@ -97,10 +119,19 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
  private:
   std::pair<KeyType, LPID> *children_map_;
+  // get the LPID of the child at next level, which contains the given key
+  // TODO implement this!
+  BWTreeNode<KeyType, ValueType, KeyComparator> GetChild(KeyType key);
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
+ protected:
+  BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node_;
+};
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+class DeleteDelta : public Delta<KeyType, ValueType, KeyComparator> {
  public:
   std::vector<ItemPointer> Scan(const std::vector<Value> &values,
                                 const std::vector<oid_t> &key_column_ids,
@@ -110,9 +141,19 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   std::vector<ItemPointer> ScanAllKeys();
 
   std::vector<ItemPointer> ScanKey(const storage::Tuple *key);
+};
 
- protected:
-  BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node_;
+template <typename KeyType, typename ValueType, class KeyComparator>
+class InsertDelta : public Delta<KeyType, ValueType, KeyComparator> {
+ public:
+  std::vector<ItemPointer> Scan(const std::vector<Value> &values,
+                                const std::vector<oid_t> &key_column_ids,
+                                const std::vector<ExpressionType> &expr_types,
+                                const ScanDirectionType &scan_direction);
+
+  std::vector<ItemPointer> ScanAllKeys();
+
+  std::vector<ItemPointer> ScanKey(const storage::Tuple *key);
 };
 
 // TODO More delta classes such as
@@ -131,7 +172,7 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   std::vector<ItemPointer> ScanKey(const storage::Tuple *key);
 
  private:
-  // we don't support left_sibling pointer for the moment
+  // left_sibling pointer has to be supported as well
   LPID left_sib_;
   LPID right_sib_;
   std::pair<KeyType, ItemPointer> *locations_;
