@@ -12,17 +12,28 @@
 
 #pragma once
 #include "backend/common/types.h"
+#include "backend/storage/tuple.h"
+#include <map>
+#include <vector>
 
 namespace peloton {
 namespace index {
 
 typedef uint32_t LPID;
 
+// declaration of all the classes
+template <typename KeyType, typename ValueType, class KeyComparator>
+class BWTree;
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+class BWTreeNode;
+
 template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTree {
  private:
   LPID root;
-  std::map<uint32_t, BWTree **> mapping_table_;
+  std::map<uint32_t, BWTree<KeyType, ValueType, KeyComparator> **>
+      mapping_table_;
 
  public:
   bool InsertEntry(const storage::Tuple *key, const ItemPointer location);
@@ -37,11 +48,10 @@ class BWTree {
 
   std::vector<ItemPointer> ScanKey(const storage::Tuple *key);
 
-  //pick one value for failure status
-  LPID InstallPage(BWTreeNode *node);
-  bool SwapNode(LPID id, BWTreeNode *node);
-  BWTreeNode *Lookup(LPID id);
-
+  // TODO pick one value for failure status
+  LPID InstallPage(BWTreeNode<KeyType, ValueType, KeyComparator> *node);
+  bool SwapNode(LPID id, BWTreeNode<KeyType, ValueType, KeyComparator> *node);
+  BWTreeNode<KeyType, ValueType, KeyComparator> *Lookup(LPID id);
 };
 
 // Look up the stx btree interface for background.
@@ -49,11 +59,10 @@ class BWTree {
 template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTreeNode {
  protected:
-  BWTree *map_;
+  BWTree<KeyType, ValueType, KeyComparator> *map_;
 
  public:
-  BWTreeNode(BWTree *map)
-      : map_(map){};
+  BWTreeNode(BWTree<KeyType, ValueType, KeyComparator> *map) : map_(map){};
   virtual bool InsertEntry(const storage::Tuple *key,
                            const ItemPointer location) = 0;
 
@@ -80,7 +89,7 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 template <typename KeyType, typename ValueType, class KeyComparator>
 class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
  protected:
-  BWTreeNode *modified_node_;
+  BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node_;
 };
 
 // TODO More delta classes such as
