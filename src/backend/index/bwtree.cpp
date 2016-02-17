@@ -15,18 +15,16 @@
 namespace peloton {
 namespace index {
 
-/*
- * methods implementation for BWTree
- */
-
+//===--------------------------------------------------------------------===//
+// BWTree Methods
+//===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
-std::vector<ItemPointer> BWTree<KeyType, ValueType, KeyComparator>::Scan(
+std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::Scan(
     const std::vector<Value> &values, const std::vector<oid_t> &key_column_ids,
     const std::vector<ExpressionType> &expr_types,
     const ScanDirectionType &scan_direction) {
-  std::vector<ItemPointer> result;
+  std::vector<ValueType> result;
   assert(mapping_table_.size() > 0);
-  assert(unique_keys_ == true);
 
   // TODO define a macro for easier access to the pages' & addresses
   result = (*(mapping_table_[root_]))
@@ -35,51 +33,48 @@ std::vector<ItemPointer> BWTree<KeyType, ValueType, KeyComparator>::Scan(
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
-std::vector<ItemPointer>
+std::vector<ValueType>
 BWTree<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
-  std::vector<ItemPointer> result;
+  std::vector<ValueType> result;
   assert(mapping_table_.size() > 0);
-  assert(unique_keys_ == true);
   result = (*(mapping_table_[root_]))->ScanAllKeys();
   return result;
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
-std::vector<ItemPointer> BWTree<KeyType, ValueType, KeyComparator>::ScanKey(
-    const storage::Tuple *key) {
-  std::vector<ItemPointer> result;
+std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::ScanKey(
+    KeyType key) {
+  std::vector<ValueType> result;
   assert(mapping_table_.size() > 0);
-  assert(unique_keys_ == true);
   result = GetNode(root_)->ScanKey(key);
   return result;
 };
 
-/*
- * methods implementation for IPage
- */
+//===--------------------------------------------------------------------===//
+// IPage Methods
+//===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
-std::vector<ItemPointer> IPage<KeyType, ValueType, KeyComparator>::Scan(
+std::vector<ValueType> IPage<KeyType, ValueType, KeyComparator>::Scan(
     __attribute__((unused)) const std::vector<Value> &values,
     const std::vector<oid_t> &key_column_ids,
     __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
     __attribute__((unused)) const ScanDirectionType &scan_direction) {
-  std::vector<ItemPointer> result;
+  std::vector<ValueType> result;
   // TODO implement this
   return result;
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
-std::vector<ItemPointer>
-IPage<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
-  std::vector<ItemPointer> result;
+std::vector<ValueType> IPage<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
+  std::vector<ValueType> result;
   // TODO implement this
   return result;
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
-std::vector<ItemPointer> IPage<KeyType, ValueType, KeyComparator>::ScanKey(
-    __attribute__((unused)) const storage::Tuple *key) {
-  std::vector<ItemPointer> result;
+std::vector<ValueType> IPage<KeyType, ValueType, KeyComparator>::ScanKey(
+    __attribute__((unused)) KeyType key) {
+  std::vector<ValueType> result;
   assert(key != nullptr);
   BWTreeNode<KeyType, ValueType, KeyComparator> *child = GetChild(key);
   if (child == nullptr) {
@@ -90,95 +85,100 @@ std::vector<ItemPointer> IPage<KeyType, ValueType, KeyComparator>::ScanKey(
   return result;
 };
 
-/*
- * methods implementation for DeleteDelta
- */
+//===--------------------------------------------------------------------===//
+// IPageUpdateDelta Methods
+//===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
-std::vector<ItemPointer> DeleteDelta<KeyType, ValueType, KeyComparator>::Scan(
+std::vector<ValueType>
+IPageUpdateDelta<KeyType, ValueType, KeyComparator>::Scan(
     __attribute__((unused)) const std::vector<Value> &values,
     const std::vector<oid_t> &key_column_ids,
     __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
     __attribute__((unused)) const ScanDirectionType &scan_direction) {
-  std::vector<ItemPointer> result;
+  std::vector<ValueType> result;
   // TODO implement this
   return result;
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
-std::vector<ItemPointer>
-DeleteDelta<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
-  std::vector<ItemPointer> result;
+std::vector<ValueType>
+IPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
+  std::vector<ValueType> result;
   // TODO implement this
   return result;
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
-std::vector<ItemPointer>
-DeleteDelta<KeyType, ValueType, KeyComparator>::ScanKey(
-    __attribute__((unused)) const storage::Tuple *key) {
-  std::vector<ItemPointer> result;
+std::vector<ValueType>
+IPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
+  std::vector<ValueType> result;
+  assert(key != nullptr);
+  assert(this->unique_keys_ == true);
+  return result;
+};
+
+//===--------------------------------------------------------------------===//
+// LPageUpdateDelta Methods
+//===--------------------------------------------------------------------===//
+template <typename KeyType, typename ValueType, class KeyComparator>
+std::vector<ValueType>
+LPageUpdateDelta<KeyType, ValueType, KeyComparator>::Scan(
+    __attribute__((unused)) const std::vector<Value> &values,
+    const std::vector<oid_t> &key_column_ids,
+    __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
+    __attribute__((unused)) const ScanDirectionType &scan_direction) {
+  std::vector<ValueType> result;
+  // TODO implement this
+  return result;
+};
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+std::vector<ValueType>
+LPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
+  std::vector<ValueType> result;
+  // TODO implement this
+  return result;
+};
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+std::vector<ValueType>
+LPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(
+    __attribute__((unused)) KeyType key) {
+  std::vector<ValueType> result;
+  if (this->unique_keys_) {
+    // check the underlying type
+  }
   // TODO get the result from child, delete the key
   return result;
 };
 
-/*
- * methods implementation for InsertDelta
- */
+//===--------------------------------------------------------------------===//
+// LPage Methods
+//===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
-std::vector<ItemPointer> InsertDelta<KeyType, ValueType, KeyComparator>::Scan(
+std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::Scan(
     __attribute__((unused)) const std::vector<Value> &values,
     const std::vector<oid_t> &key_column_ids,
     __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
     __attribute__((unused)) const ScanDirectionType &scan_direction) {
-  std::vector<ItemPointer> result;
+  std::vector<ValueType> result;
   // TODO implement this
   return result;
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
-std::vector<ItemPointer>
-InsertDelta<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
-  std::vector<ItemPointer> result;
+std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
+  std::vector<ValueType> result;
   // TODO implement this
   return result;
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
-std::vector<ItemPointer>
-InsertDelta<KeyType, ValueType, KeyComparator>::ScanKey(
-    __attribute__((unused)) const storage::Tuple *key) {
-  std::vector<ItemPointer> result;
-  // TODO implement this
-  return result;
-};
-
-/*
- * method implementation for LPage
- */
-template <typename KeyType, typename ValueType, class KeyComparator>
-std::vector<ItemPointer> LPage<KeyType, ValueType, KeyComparator>::Scan(
-    __attribute__((unused)) const std::vector<Value> &values,
-    const std::vector<oid_t> &key_column_ids,
-    __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
-    __attribute__((unused)) const ScanDirectionType &scan_direction) {
-  std::vector<ItemPointer> result;
-  // TODO implement this
-  return result;
-};
-
-template <typename KeyType, typename ValueType, class KeyComparator>
-std::vector<ItemPointer>
-LPage<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
-  std::vector<ItemPointer> result;
-  // TODO implement this
-  return result;
-};
-
-template <typename KeyType, typename ValueType, class KeyComparator>
-std::vector<ItemPointer> LPage<KeyType, ValueType, KeyComparator>::ScanKey(
-    __attribute__((unused)) const storage::Tuple *key) {
-  std::vector<ItemPointer> result;
-  // TODO implement this
+std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::ScanKey(
+    __attribute__((unused)) KeyType key) {
+  std::vector<ValueType> result;
+  // in the first version, the LPage has no content at all
+  assert(size_ == 0);
   return result;
 };
 }  // End index namespace
