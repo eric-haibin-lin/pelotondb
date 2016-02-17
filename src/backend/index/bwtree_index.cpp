@@ -59,12 +59,12 @@ template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
 std::vector<ItemPointer>
 BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Scan(
-    __attribute__((unused)) const std::vector<Value> &values,
-    __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
-    __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
-    __attribute__((unused)) const ScanDirectionType &scan_direction) {
+     __attribute__((unused)) const std::vector<Value> &values,
+     __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
+     __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
+     __attribute__((unused)) const ScanDirectionType &scan_direction) {
   std::vector<ItemPointer> result;
-  // Add your implementation here
+  //result = container.Scan(values, key_column_ids, expr_types, scan_direction);
   return result;
 }
 

@@ -32,20 +32,18 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTree {
  private:
   LPID root;
-  std::map<uint32_t, BWTree<KeyType, ValueType, KeyComparator> **>
-      mapping_table_;
+  std::map<LPID, BWTree<KeyType, ValueType, KeyComparator> **> mapping_table_;
 
  public:
   bool InsertEntry(const storage::Tuple *key, const ItemPointer location);
 
   bool DeleteEntry(const storage::Tuple *key, const ItemPointer location);
+
   std::vector<ItemPointer> Scan(const std::vector<Value> &values,
                                 const std::vector<oid_t> &key_column_ids,
                                 const std::vector<ExpressionType> &expr_types,
                                 const ScanDirectionType &scan_direction);
-
   std::vector<ItemPointer> ScanAllKeys();
-
   std::vector<ItemPointer> ScanKey(const storage::Tuple *key);
 
   // TODO pick one value for failure status
@@ -63,15 +61,20 @@ class BWTreeNode {
 
  public:
   BWTreeNode(BWTree<KeyType, ValueType, KeyComparator> *map) : map_(map){};
+
+  // These are virtual methods which child classes have to implement.
+  // They also have to be redeclared in the child classes
   virtual bool InsertEntry(const storage::Tuple *key,
                            const ItemPointer location) = 0;
 
   virtual bool DeleteEntry(const storage::Tuple *key,
                            const ItemPointer location);
-  std::vector<ItemPointer> Scan(const std::vector<Value> &values,
-                                const std::vector<oid_t> &key_column_ids,
-                                const std::vector<ExpressionType> &expr_types,
-                                const ScanDirectionType &scan_direction) = 0;
+
+  virtual std::vector<ItemPointer> Scan(
+      const std::vector<Value> &values,
+      const std::vector<oid_t> &key_column_ids,
+      const std::vector<ExpressionType> &expr_types,
+      const ScanDirectionType &scan_direction) = 0;
 
   virtual std::vector<ItemPointer> ScanAllKeys() = 0;
 
@@ -82,12 +85,32 @@ class BWTreeNode {
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
+ public:
+  std::vector<ItemPointer> Scan(const std::vector<Value> &values,
+                                const std::vector<oid_t> &key_column_ids,
+                                const std::vector<ExpressionType> &expr_types,
+                                const ScanDirectionType &scan_direction);
+
+  std::vector<ItemPointer> ScanAllKeys();
+
+  std::vector<ItemPointer> ScanKey(const storage::Tuple *key);
+
  private:
-  std::pair<KeyType, LPID> children_map_[];
+  std::pair<KeyType, LPID> *children_map_;
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
+ public:
+  std::vector<ItemPointer> Scan(const std::vector<Value> &values,
+                                const std::vector<oid_t> &key_column_ids,
+                                const std::vector<ExpressionType> &expr_types,
+                                const ScanDirectionType &scan_direction);
+
+  std::vector<ItemPointer> ScanAllKeys();
+
+  std::vector<ItemPointer> ScanKey(const storage::Tuple *key);
+
  protected:
   BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node_;
 };
@@ -97,10 +120,21 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
+ public:
+  std::vector<ItemPointer> Scan(const std::vector<Value> &values,
+                                const std::vector<oid_t> &key_column_ids,
+                                const std::vector<ExpressionType> &expr_types,
+                                const ScanDirectionType &scan_direction);
+
+  std::vector<ItemPointer> ScanAllKeys();
+
+  std::vector<ItemPointer> ScanKey(const storage::Tuple *key);
+
  private:
+  // we don't support left_sibling pointer for the moment
   LPID left_sib_;
   LPID right_sib_;
-  std::pair<KeyType, ItemPointer> locations_[];
+  std::pair<KeyType, ItemPointer> *locations_;
 };
 
 }  // End index namespace
