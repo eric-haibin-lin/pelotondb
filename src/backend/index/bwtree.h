@@ -28,8 +28,9 @@ enum BWTreeNodeType {
   TYPE_BWTREE_NODE = 0,
   TYPE_LPAGE = 1,
   TYPE_IPAGE = 2,
-  TYPE_LPAGE_UPDATE_DELTA = 3,
-  TYPE_IPAGE_UPDATE_DELTA = 4,
+  TYPE_DELTA = 3,
+  TYPE_LPAGE_UPDATE_DELTA = 4,
+  TYPE_IPAGE_UPDATE_DELTA = 5,
   // more types to add
 };
 
@@ -68,7 +69,7 @@ class BWTree {
 
   // instead of explicitly use ValueType as the type for location, we should
   // use the template type ValueType instead (although it's ValueType is always
-  // templated as ValueType class
+  // instantiated as ValueType class
   // see index/index_factory.cpp IndexFactory::GetInstance()
   bool InsertEntry(KeyType key, ValueType location);
 
@@ -117,7 +118,6 @@ class BWTreeNode {
   virtual std::vector<ValueType> ScanKey(KeyType key) = 0;
 
   // Each sub-class will have to implement this function to return their type
-  // This is better than having to store redundant types in all the objects
   virtual BWTreeNodeType GetTreeNodeType() const = 0;
 
   virtual ~BWTreeNode() = 0;
@@ -144,6 +144,8 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   std::vector<ValueType> ScanKey(KeyType key);
 
+  inline BWTreeNodeType GetTreeNodeType() const { return TYPE_IPAGE; };
+
  private:
   std::pair<KeyType, LPID> *children_map_;
 
@@ -152,8 +154,14 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   BWTreeNode<KeyType, ValueType, KeyComparator> GetChild(KeyType key);
 };
 
+//===--------------------------------------------------------------------===//
+// Delta
+//===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
 class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
+ public:
+  inline BWTreeNodeType GetTreeNodeType() const { return TYPE_DELTA; };
+
  protected:
   // the modified node could either be a LPage or IPage or Delta
   BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node_;
@@ -180,8 +188,11 @@ class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
   };
 
  private:
+  // The key which is modified
   KeyType modified_key_;
-  LPID modified_id_;  // set to 0 for delete delta
+
+  // The logical page id of the updated key. Set to 0 for delete delta
+  LPID modified_id_;
 };
 
 //===--------------------------------------------------------------------===//
@@ -208,8 +219,11 @@ class IPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
   };
 
  private:
+  // The key which is modified
   KeyType modified_key_;
-  ValueType modified_val_;  // set to INVALID for delete delta
+
+  // The logical page id of the updated key. Set to INVALID for delete delta
+  ValueType modified_val_;
 };
 
 // TODO More delta classes such as
@@ -229,6 +243,8 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   std::vector<ValueType> ScanAllKeys();
 
   std::vector<ValueType> ScanKey(KeyType key);
+
+  inline BWTreeNodeType GetTreeNodeType() const { return TYPE_LPAGE; };
 
  private:
   // left_sibling pointer is used to do reverse iterate

@@ -23,30 +23,38 @@ std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::Scan(
     const std::vector<Value> &values, const std::vector<oid_t> &key_column_ids,
     const std::vector<ExpressionType> &expr_types,
     const ScanDirectionType &scan_direction) {
-  std::vector<ValueType> result;
   assert(mapping_table_.size() > 0);
 
-  // TODO define a macro for easier access to the pages' & addresses
-  result = (*(mapping_table_[root_]))
-               ->Scan(values, key_column_ids, expr_types, scan_direction);
+  std::vector<ValueType> result;
+
+  // recursive call scan from the root of BWTree
+  result =
+      GetNode(root_)->Scan(values, key_column_ids, expr_types, scan_direction);
+
   return result;
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType>
 BWTree<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
-  std::vector<ValueType> result;
   assert(mapping_table_.size() > 0);
-  result = (*(mapping_table_[root_]))->ScanAllKeys();
+  std::vector<ValueType> result;
+
+  // recursive call scan from the root of BWTree
+  result = GetNode(root_)->ScanAllKeys();
+
   return result;
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::ScanKey(
     KeyType key) {
-  std::vector<ValueType> result;
   assert(mapping_table_.size() > 0);
+  std::vector<ValueType> result;
+
+  // recursive call scan from the root of BWTree
   result = GetNode(root_)->ScanKey(key);
+
   return result;
 };
 
@@ -74,11 +82,13 @@ std::vector<ValueType> IPage<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
 template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType> IPage<KeyType, ValueType, KeyComparator>::ScanKey(
     __attribute__((unused)) KeyType key) {
-  std::vector<ValueType> result;
   assert(key != nullptr);
+
+  std::vector<ValueType> result;
+
   BWTreeNode<KeyType, ValueType, KeyComparator> *child = GetChild(key);
   if (child == nullptr) {
-    // Key is not included in the tree
+    // Key is not included in the tree, do nothing
   } else {
     result = child->ScanKey(key);
   }
@@ -176,9 +186,10 @@ std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
 template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::ScanKey(
     __attribute__((unused)) KeyType key) {
-  std::vector<ValueType> result;
   // in the first version, the LPage has no content at all
   assert(size_ == 0);
+
+  std::vector<ValueType> result;
   return result;
 };
 }  // End index namespace
