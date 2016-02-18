@@ -37,6 +37,77 @@ enum BWTreeNodeType {
 #define IPAGE_ARITY 5
 #define LPAGE_ARITY 5
 
+//TODO add access methods for LNode scan
+//TODO add methods for use by split deltas, etc
+//TODO add constructors to LNode and INode to build node based on state
+//TODO add methods on each node to build the NodeState
+/**
+ * Builder for a node state, to be used with Delta Compression and
+ * scans on indexes with multiple keys
+ */
+template<typename KeyType, typename ValueType, class KeyComparator>
+class NodeStateBuilder{
+private:
+
+	// type of node, should be IPage or LPage
+	BWTreeNodeType output_type_;
+	// LPage members
+	LPID left_sibling_ = 0;
+	LPID right_sibling_ = 0;
+	// TODO: change from maps to data structures of fixed length (arrays)
+	std::map<KeyType, LPID> children_map_;
+
+	// IPage members
+	std::map<KeyType, ValueType> leaf_data_;
+
+public:
+
+	// LPage constructor
+	NodeStateBuilder(LPID left_sibling, LPID right_sibling,
+			std::pair<KeyType, ValueType> *leaf_data, int leaf_data_len) :
+		output_type_(TYPE_LPAGE), left_sibling_(left_sibling),
+		right_sibling_(right_sibling){
+		for (int i = 0; i < leaf_data_len; i++){
+			leaf_data_[leaf_data[i]->first] = leaf_data[i]->second;
+		}
+	}
+
+	// IPage constructor
+	NodeStateBuilder(std::pair<KeyType, LPID> * children_map, int children_map_len) :
+		output_type_(TYPE_IPAGE){
+		for (int i = 0; i < children_map_len; i++){
+			children_map_[children_map[i]->first] = children_map[i]->second;
+		}
+	}
+
+	//***************************************************
+	// IPage Methods
+	//***************************************************
+	void AddChild(std::pair<KeyType, LPID> &new_pair){
+		children_map_[new_pair->first] = new_pair->second;
+	}
+
+	void RemoveChild(KeyType key_to_remove){
+		children_map_.erase(key_to_remove);
+	}
+
+	//***************************************************
+	// LPage Methods
+	//***************************************************
+
+	void UpdateLeftSib(LPID new_left_sib){
+		left_sibling_ = new_left_sib;
+	}
+
+	void UpdateRightSib(LPID new_right_sib){
+		right_sibling_ = new_right_sib;
+	}
+
+	void AddLeafData(std::pair<KeyType, ValueType> &new_entry){
+		leaf_data_[new_entry->first] = new_entry->second;
+	}
+};
+
 template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTree;
 
