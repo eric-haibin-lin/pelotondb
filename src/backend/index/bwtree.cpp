@@ -109,9 +109,8 @@ IPage<KeyType, ValueType, KeyComparator>::InsertEntry(
 		const storage::Tuple *key, const ItemPointer location) {
 	//TODO Now call InsertEntry on the appropriate child (also note that the LPAGE
 	//has no InsertEntry)
-	//shouldn't this node know that it is the last level IPAGE, and perform the
+	//Shouldn't this node know that it is the last level IPAGE, and perform the
 	//delta insert?
-	//for now, assuming this is the last level IPage
 
 	int i;
 	bool last_level_page;
@@ -126,8 +125,8 @@ IPage<KeyType, ValueType, KeyComparator>::InsertEntry(
 			break;
 		}
 
-	//ideally, i should never be equal to children_map.size(), because that would mean somewhere
-	//the ranges are not correct
+	// Ideally, i should never be equal to children_map.size(), because that would mean somewhere
+	// the ranges are not correct
 	assert(i != children_map.size());
 
 	if (last_level_ipage)
