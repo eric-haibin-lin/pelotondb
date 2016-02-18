@@ -43,6 +43,8 @@ bool BWTreeIndex<KeyType, ValueType, KeyComparator,
                                                   __attribute__((unused))
                                                   const ItemPointer location) {
   // Add your implementation here
+  // This function will just call InsertEntry on the BWTree object
+  container.InsertEntry(key, location);
   return false;
 }
 

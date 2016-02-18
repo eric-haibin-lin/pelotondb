@@ -58,6 +58,14 @@ std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::ScanKey(
   return result;
 };
 
+template <typename KeyType, typename ValueType, class KeyComparator>
+bool BWTree<KeyType, ValueType, KeyComparator>::InsertEntry(KeyType key, ValueType location) {
+	//just call InsertEntry on root
+
+	return GetNode(root_)->InsertEntry(key, location);
+};
+
+
 //===--------------------------------------------------------------------===//
 // IPage Methods
 //===--------------------------------------------------------------------===//
@@ -95,6 +103,15 @@ std::vector<ValueType> IPage<KeyType, ValueType, KeyComparator>::ScanKey(
   return result;
 };
 
+template <typename KeyType, typename ValueType, class KeyComparator>
+bool
+IPage<KeyType, ValueType, KeyComparator>::InsertEntry(
+		const storage::Tuple *key, const ItemPointer location) {
+			//TODO Now call InsertEntry on the appropriate child (also note that the LPAGE
+			//has no InsertEntry)
+			//shouldn't this node know that it is the last level IPAGE, and perform the
+			//delta insert?
+		};
 //===--------------------------------------------------------------------===//
 // IPageUpdateDelta Methods
 //===--------------------------------------------------------------------===//

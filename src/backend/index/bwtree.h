@@ -62,7 +62,7 @@ class BWTree {
  public:
   BWTree()
       : root_(DEFAULT_ROOT_LPID){
-            // TODO @abj initialize the root IPage (and maybe a LPage?)
+            // TODO @abj initialize the root IPage (and maybe a LPage?) --- done!
             // with the given comparator
 	  	  	// TODO Comparator too?
 
@@ -194,6 +194,8 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   std::vector<ValueType> ScanAllKeys();
 
   std::vector<ValueType> ScanKey(KeyType key);
+
+  bool InsertEntry(const storage::Tuple *key, const ItemPointer location);
 
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_IPAGE; };
 
