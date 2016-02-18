@@ -60,6 +60,7 @@ class BWTree {
   BWTree()
       : root_(DEFAULT_ROOT_LPID){
             // TODO @abj initialize the root IPage (and maybe a LPage?)
+            // with the given comparator
         };
 
   /*
@@ -67,9 +68,10 @@ class BWTree {
    * The IPage has only one pointer, which points to the empty LPage.
    * The IPage serves as the root of all other nodes.
    */
-  BWTree(bool unique_keys)
+  BWTree(bool unique_keys, KeyComparator comparator)
       : root_(DEFAULT_ROOT_LPID){
             // TODO @abj initialize the root IPage (and maybe a LPage?)
+            // with the given comparator
         };
 
   // instead of explicitly use ValueType as the type for location, we should
@@ -104,7 +106,7 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTreeNode {
  public:
   BWTreeNode(BWTree<KeyType, ValueType, KeyComparator> *map, bool unique_keys)
-      : map_(map), unique_keys_(unique_keys){};
+      : map(map), unique_keys(unique_keys){};
 
   // These are virtual methods which child classes have to implement.
   // They also have to be redeclared in the child classes
@@ -129,9 +131,13 @@ class BWTreeNode {
 
  protected:
   // the handler to the mapping table
-  BWTree<KeyType, ValueType, KeyComparator> *map_;
+  BWTree<KeyType, ValueType, KeyComparator> *map;
+
   // whether unique key is required
-  bool unique_keys_;
+  bool unique_keys;
+
+  // the comparator for key
+  KeyComparator comparator;
 };
 
 //===--------------------------------------------------------------------===//
@@ -175,7 +181,7 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
  protected:
   // the modified node could either be a LPage or IPage or Delta
-  BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node_;
+  BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node;
 };
 
 //===--------------------------------------------------------------------===//
@@ -202,13 +208,18 @@ class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
   // The key which is modified
   KeyType modified_key_;
 
-  // The location of the updated key. Set to INVALID for delete delta
+  // The location of the updated key
+  // Set to INVALID_ITEMPOINTER for delete delta
   ValueType modified_val_;
 };
 
 //===--------------------------------------------------------------------===//
 // IPageUpdateDelta
+//
 // IPageUpdateDelta either represents a insert delta or delete delta on IPage
+// The insert delta is essentially a separator in the case of a split SMO,
+// where the new LPID has to be inserted. The delete delta is created in the
+// case of a merge SMO, where an old LPID has to be removed.
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
 class IPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {

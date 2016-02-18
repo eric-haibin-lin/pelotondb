@@ -81,7 +81,7 @@ std::vector<ValueType> IPage<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType> IPage<KeyType, ValueType, KeyComparator>::ScanKey(
-    __attribute__((unused)) KeyType key) {
+    KeyType key) {
   assert(key != nullptr);
 
   std::vector<ValueType> result;
@@ -123,7 +123,8 @@ std::vector<ValueType>
 IPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
   std::vector<ValueType> result;
   assert(key != nullptr);
-  assert(this->unique_keys_ == true);
+  assert(this->unique_keys == true);
+  // TODO implement this
   return result;
 };
 
@@ -152,13 +153,22 @@ LPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType>
-LPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(
-    __attribute__((unused)) KeyType key) {
+LPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
   std::vector<ValueType> result;
-  if (this->unique_keys_) {
-    // check the underlying type
+  if (this->unique_keys) {
+    // the modified key matches the scanKey
+    if (this->comparator(modified_key_, key) == true) {
+      // the modified key is deleted, return empty result
+      if (modified_val_ == INVALID_ITEMPOINTER) {
+        // do nothing
+      } else {
+        result.push_back(modified_val_);
+      }
+    }
+  } else {
+    // TODO pass down the delta info to delete the key at bottom LPage
   }
-  // TODO get the result from child, delete the key
+
   return result;
 };
 
@@ -188,7 +198,6 @@ std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::ScanKey(
     __attribute__((unused)) KeyType key) {
   // in the first version, the LPage has no content at all
   assert(size_ == 0);
-
   std::vector<ValueType> result;
   return result;
 };
