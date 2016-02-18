@@ -59,12 +59,17 @@ class BWTree {
  public:
   BWTree()
       : root_(DEFAULT_ROOT_LPID){
-            // TODO initialize the root IPage (and maybe a LPage?)
+            // TODO @abj initialize the root IPage (and maybe a LPage?)
         };
 
+  /*
+   * On construction, BWTree will create a IPage and an empty LPage.
+   * The IPage has only one pointer, which points to the empty LPage.
+   * The IPage serves as the root of all other nodes.
+   */
   BWTree(bool unique_keys)
       : root_(DEFAULT_ROOT_LPID){
-            // TODO initialize the root IPage (and maybe a LPage?)
+            // TODO @abj initialize the root IPage (and maybe a LPage?)
         };
 
   // instead of explicitly use ValueType as the type for location, we should
@@ -131,6 +136,11 @@ class BWTreeNode {
 
 //===--------------------------------------------------------------------===//
 // IPage
+// The IPage hold pointers to all its children. An IPage with n keys
+// k1, k2, .... kn actually has (n + 1) pointers to its children, where
+// p1 for (-infinity, k1], p2 for (k1, k2], p3 for (k2, k3] ...
+// pn for (k_n-1, kn], p_n+1 for (kn, +infinity). Variable right_most_child_
+// stores the value of p_n+1
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
 class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
@@ -148,9 +158,10 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
  private:
   std::pair<KeyType, LPID> *children_map_;
+  LPID right_most_child_;
 
   // get the LPID of the child at next level, which contains the given key
-  // TODO implement this!
+  // TODO implement this
   BWTreeNode<KeyType, ValueType, KeyComparator> GetChild(KeyType key);
 };
 
@@ -191,8 +202,8 @@ class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
   // The key which is modified
   KeyType modified_key_;
 
-  // The logical page id of the updated key. Set to 0 for delete delta
-  LPID modified_id_;
+  // The location of the updated key. Set to INVALID for delete delta
+  ValueType modified_val_;
 };
 
 //===--------------------------------------------------------------------===//
@@ -222,8 +233,8 @@ class IPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
   // The key which is modified
   KeyType modified_key_;
 
-  // The logical page id of the updated key. Set to INVALID for delete delta
-  ValueType modified_val_;
+  // The logical page id of the updated key. Set to 0 for delete delta
+  LPID modified_id_;
 };
 
 // TODO More delta classes such as
