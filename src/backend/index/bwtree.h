@@ -34,6 +34,9 @@ enum BWTreeNodeType {
   // more types to add
 };
 
+#define IPAGE_ARITY 5
+#define LPAGE_ARITY 5
+
 template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTree;
 
@@ -61,6 +64,38 @@ class BWTree {
       : root_(DEFAULT_ROOT_LPID){
             // TODO @abj initialize the root IPage (and maybe a LPage?)
             // with the given comparator
+	  	  	// TODO Comparator too?
+
+	  	  	/* First create an object of the IPAGE class, which then
+	  	  	 * acts as the root.
+	  	  	 */
+	        IPage<KeyType, ValueType, KeyComparator> *root =
+	        		new IPage<KeyType, ValueType, KeyComparator>(this, true);
+
+	        // TODO: do we need the () at the end? Also, this should be moved to
+	      	// the constructor of IPAGE
+	        root->children_map_ = new std::pair<KeyType, LPID>[IPAGE_ARITY]();
+
+	        /* Install the root in the mapping table */
+	        root_ = InstallPage(root);
+
+	        /* Now create the first LPAGE */
+	        LPage<KeyType, ValueType, KeyComparator> *first_lpage =
+	        		new LPage<KeyType, ValueType, KeyComparator>(this, true);
+
+	        LPID first_lpage_lpid;
+
+	        first_lpage_lpid = InstallPage(first_lpage);
+
+	        /* Now grow a pair (:P) to store the first LPAGE pointer */
+	        std::pair<KeyType, LPID> *first_lpage_pair =
+	        		new std::pair<KeyType, LPID>;
+
+	        //TODO: some way to denote the max KeyType value
+	        //first_lpage_pair->first =
+	        first_lpage_pair->second = first_lpage_lpid;
+
+	        root->children_map_[0] = *first_lpage_pair;
         };
 
   /*
