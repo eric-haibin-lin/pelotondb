@@ -107,11 +107,44 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 bool
 IPage<KeyType, ValueType, KeyComparator>::InsertEntry(
 		const storage::Tuple *key, const ItemPointer location) {
-			//TODO Now call InsertEntry on the appropriate child (also note that the LPAGE
-			//has no InsertEntry)
-			//shouldn't this node know that it is the last level IPAGE, and perform the
-			//delta insert?
-		};
+	//TODO Now call InsertEntry on the appropriate child (also note that the LPAGE
+	//has no InsertEntry)
+	//shouldn't this node know that it is the last level IPAGE, and perform the
+	//delta insert?
+	//for now, assuming this is the last level IPage
+
+	int i;
+	bool last_level_page;
+	LPID target_child_lpid; //TODO: write code to get this -- partially done
+
+	for (i = 0; i < children_map.size(); i++)
+		if (KeyComparator(key, children_map[i].first))
+			continue;
+		else
+		{
+			target_child_lpid = children_map[i].second;
+			break;
+		}
+
+	//ideally, i should never be equal to children_map.size(), because that would mean somewhere
+	//the ranges are not correct
+	assert(i != children_map.size());
+
+	if (last_level_ipage)
+	{
+		LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
+				new LPageUpdateDelta<KeyType, ValueType, KeyComparator>();
+
+		new_delta->modified_node = GetNode(target_child_lpid);
+		new_delta->modified_key_ = key;
+		new_delta->modified_val_ = location;
+		//TODO: handle failed SwapNode
+		return SwapNode(target_child_lpid, new_delta->modified_node, new_delta);
+	}
+	else
+		return GetNode(target_child_lpid).InsertEntry(key, location);
+
+};
 //===--------------------------------------------------------------------===//
 // IPageUpdateDelta Methods
 //===--------------------------------------------------------------------===//
