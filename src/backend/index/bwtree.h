@@ -56,8 +56,12 @@ class BWTree {
   LPID root_;
 
   // the mapping table
-  std::map<LPID, BWTreeNode<KeyType, ValueType, KeyComparator> **>
+  std::map<LPID, BWTreeNode<KeyType, ValueType, KeyComparator> *>
       mapping_table_;
+
+  LPID next_LPID_ = 0;
+
+  int mapping_table_lock_ = 0;
 
  public:
   BWTree()
@@ -125,11 +129,43 @@ class BWTree {
   std::vector<ValueType> ScanKey(KeyType key);
 
   // return 0 if the page install is not successful
-  LPID InstallPage(BWTreeNode<KeyType, ValueType, KeyComparator> *node);
+  LPID InstallPage(BWTreeNode<KeyType, ValueType, KeyComparator> *node){
+	  LPID newLPID;
+	  do{
+		  newLPID = next_LPID_;
+	  } while(!__sync_bool_compare_and_swap(&next_LPID_, newLPID, newLPID+1));
 
-  bool SwapNode(LPID id, BWTreeNode<KeyType, ValueType, KeyComparator> *node);
 
-  BWTreeNode<KeyType, ValueType, KeyComparator> *GetNode(LPID id);
+
+	 while(!__sync_bool_compare_and_swap(&mapping_table_lock_, 0, 1));
+
+	 mapping_table_[newLPID] = node;
+	 assert(__sync_bool_compare_and_swap(&mapping_table_lock_,1, 0));
+	 return newLPID;
+  }
+
+  bool SwapNode(LPID id, BWTreeNode<KeyType, ValueType, KeyComparator> *oldNode,
+		  BWTreeNode<KeyType, ValueType, KeyComparator> *newNode){
+
+	  auto itr = mapping_table_.find(id);
+
+	  if (id == mapping_table_.end()){
+		  return false;
+	  }else{
+		  return __sync_bool_compare_and_swap(&(itr->second), oldNode, newNode);
+	  }
+  }
+
+
+
+  BWTreeNode<KeyType, ValueType, KeyComparator> *GetNode(LPID id){
+	  auto itr = mapping_table_[id];
+	  if (itr == mapping_table_.end()){
+		  return nullptr;
+	  }else{
+		  return itr->second;
+	  }
+  }
 };
 
 //===--------------------------------------------------------------------===//
