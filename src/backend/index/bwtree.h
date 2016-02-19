@@ -37,82 +37,86 @@ enum BWTreeNodeType {
 #define IPAGE_ARITY 5
 #define LPAGE_ARITY 5
 
-//TODO add access methods for LNode scan
-//TODO add methods for use by split deltas, etc
-//TODO add constructors to LNode and INode to build node based on state
-//TODO add methods on each node to build the NodeState
-/**
- * Builder for a node state, to be used with Delta Compression and
- * scans on indexes with multiple keys
- */
-template<typename KeyType, typename ValueType, class KeyComparator>
-class NodeStateBuilder{
-private:
-
-	// type of node, should be IPage or LPage
-	BWTreeNodeType output_type_;
-	// LPage members
-	LPID left_sibling_ = 0;
-	LPID right_sibling_ = 0;
-	// TODO: change from maps to data structures of fixed length (arrays)
-	std::map<KeyType, LPID> children_map_;
-
-	// IPage members
-	std::map<KeyType, ValueType> leaf_data_;
-
-public:
-
-	// LPage constructor
-	NodeStateBuilder(LPID left_sibling, LPID right_sibling,
-			std::pair<KeyType, ValueType> *leaf_data, int leaf_data_len) :
-		output_type_(TYPE_LPAGE), left_sibling_(left_sibling),
-		right_sibling_(right_sibling){
-		for (int i = 0; i < leaf_data_len; i++){
-			leaf_data_[leaf_data[i]->first] = leaf_data[i]->second;
-		}
-	}
-
-	// IPage constructor
-	NodeStateBuilder(std::pair<KeyType, LPID> * children_map, int children_map_len) :
-		output_type_(TYPE_IPAGE){
-		for (int i = 0; i < children_map_len; i++){
-			children_map_[children_map[i]->first] = children_map[i]->second;
-		}
-	}
-
-	//***************************************************
-	// IPage Methods
-	//***************************************************
-	void AddChild(std::pair<KeyType, LPID> &new_pair){
-		children_map_[new_pair->first] = new_pair->second;
-	}
-
-	void RemoveChild(KeyType key_to_remove){
-		children_map_.erase(key_to_remove);
-	}
-
-	//***************************************************
-	// LPage Methods
-	//***************************************************
-
-	void UpdateLeftSib(LPID new_left_sib){
-		left_sibling_ = new_left_sib;
-	}
-
-	void UpdateRightSib(LPID new_right_sib){
-		right_sibling_ = new_right_sib;
-	}
-
-	void AddLeafData(std::pair<KeyType, ValueType> &new_entry){
-		leaf_data_[new_entry->first] = new_entry->second;
-	}
-};
-
 template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTree;
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTreeNode;
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+class IPage;
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+class LPage;
+
+//===--------------------------------------------------------------------===//
+// NodeStateBuilder
+//===--------------------------------------------------------------------===//
+// TODO add access methods for LNode scan
+// TODO add methods for use by split deltas, etc
+// TODO add constructors to LNode and INode to build node based on state
+// TODO add methods on each node to build the NodeState
+/**
+ * Builder for a node state, to be used with Delta Compression and
+ * scans on indexes with multiple keys
+ */
+template <typename KeyType, typename ValueType, class KeyComparator>
+class NodeStateBuilder {
+ private:
+  // type of node, should be IPage or LPage
+  BWTreeNodeType output_type_;
+  // LPage members
+  LPID left_sibling_ = 0;
+  LPID right_sibling_ = 0;
+  // TODO: change from maps to data structures of fixed length (arrays)
+  std::map<KeyType, LPID> children_map_;
+
+  // IPage members
+  std::map<KeyType, ValueType> leaf_data_;
+
+ public:
+  // LPage constructor
+  NodeStateBuilder(LPID left_sibling, LPID right_sibling,
+                   std::pair<KeyType, ValueType> *leaf_data, int leaf_data_len)
+      : output_type_(TYPE_LPAGE),
+        left_sibling_(left_sibling),
+        right_sibling_(right_sibling) {
+    for (int i = 0; i < leaf_data_len; i++) {
+      leaf_data_[leaf_data[i]->first] = leaf_data[i]->second;
+    }
+  }
+
+  // IPage constructor
+  NodeStateBuilder(std::pair<KeyType, LPID> *children_map, int children_map_len)
+      : output_type_(TYPE_IPAGE) {
+    for (int i = 0; i < children_map_len; i++) {
+      children_map_[children_map[i]->first] = children_map[i]->second;
+    }
+  }
+
+  //***************************************************
+  // IPage Methods
+  //***************************************************
+  void AddChild(std::pair<KeyType, LPID> &new_pair) {
+    children_map_[new_pair->first] = new_pair->second;
+  }
+
+  void RemoveChild(KeyType key_to_remove) {
+    children_map_.erase(key_to_remove);
+  }
+
+  //***************************************************
+  // LPage Methods
+  //***************************************************
+
+  void UpdateLeftSib(LPID new_left_sib) { left_sibling_ = new_left_sib; }
+
+  void UpdateRightSib(LPID new_right_sib) { right_sibling_ = new_right_sib; }
+
+  void AddLeafData(std::pair<KeyType, ValueType> &new_entry) {
+    leaf_data_[new_entry->first] = new_entry->second;
+  }
+};
 
 //===--------------------------------------------------------------------===//
 // BWTree
@@ -137,40 +141,44 @@ class BWTree {
  public:
   BWTree()
       : root_(DEFAULT_ROOT_LPID){
-            // TODO @abj initialize the root IPage (and maybe a LPage?) --- done!
+            // TODO @abj initialize the root IPage (and maybe a LPage?) ---
+            // done!
             // with the given comparator
-	  	  	// TODO Comparator too?
+            // TODO Comparator too?
 
-	  	  	/* First create an object of the IPAGE class, which then
-	  	  	 * acts as the root.
-	  	  	 */
-	        IPage<KeyType, ValueType, KeyComparator> *root =
-	        		new IPage<KeyType, ValueType, KeyComparator>(this, true);
-
-	        // TODO: do we need the () at the end? Also, this should be moved to
-	      	// the constructor of IPAGE
-	        root->children_map_ = new std::pair<KeyType, LPID>[IPAGE_ARITY]();
-
-	        /* Install the root in the mapping table */
-	        root_ = InstallPage(root);
-
-	        /* Now create the first LPAGE */
-	        LPage<KeyType, ValueType, KeyComparator> *first_lpage =
-	        		new LPage<KeyType, ValueType, KeyComparator>(this, true);
-
-	        LPID first_lpage_lpid;
-
-	        first_lpage_lpid = InstallPage(first_lpage);
-
-	        /* Now grow a pair (:P) to store the first LPAGE pointer */
-	        std::pair<KeyType, LPID> *first_lpage_pair =
-	        		new std::pair<KeyType, LPID>;
-
-	        //TODO: some way to denote the max KeyType value
-	        //first_lpage_pair->first =
-	        first_lpage_pair->second = first_lpage_lpid;
-
-	        root->children_map_[0] = *first_lpage_pair;
+            /* First create an object of the IPAGE class, which then
+             * acts as the root.
+             */
+            //@abj please fix the compiler warnings :P
+            //    IPage<KeyType, ValueType, KeyComparator> *root =
+            //        new IPage<KeyType, ValueType, KeyComparator>(this, true);
+            //
+            //    // TODO: do we need the () at the end? Also, this should be
+            //    moved to
+            //    // the constructor of IPAGE
+            //    root->children_map_ = new std::pair<KeyType,
+            //    LPID>[IPAGE_ARITY]();
+            //
+            //    /* Install the root in the mapping table */
+            //    root_ = InstallPage(root);
+            //
+            //    /* Now create the first LPAGE */
+            //    LPage<KeyType, ValueType, KeyComparator> *first_lpage =
+            //        new LPage<KeyType, ValueType, KeyComparator>(this, true);
+            //
+            //    LPID first_lpage_lpid;
+            //
+            //    first_lpage_lpid = InstallPage(first_lpage);
+            //
+            //    /* Now grow a pair (:P) to store the first LPAGE pointer */
+            //    std::pair<KeyType, LPID> *first_lpage_pair = new
+            //    std::pair<KeyType, LPID>;
+            //
+            //    // TODO: some way to denote the max KeyType value
+            //    // first_lpage_pair->first =
+            //    first_lpage_pair->second = first_lpage_lpid;
+            //
+            //    root->children_map_[0] = *first_lpage_pair;
         };
 
   /*
@@ -200,42 +208,38 @@ class BWTree {
   std::vector<ValueType> ScanKey(KeyType key);
 
   // return 0 if the page install is not successful
-  LPID InstallPage(BWTreeNode<KeyType, ValueType, KeyComparator> *node){
-	  LPID newLPID;
-	  do{
-		  newLPID = next_LPID_;
-	  } while(!__sync_bool_compare_and_swap(&next_LPID_, newLPID, newLPID+1));
+  LPID InstallPage(BWTreeNode<KeyType, ValueType, KeyComparator> *node) {
+    LPID newLPID;
+    do {
+      newLPID = next_LPID_;
+    } while (!__sync_bool_compare_and_swap(&next_LPID_, newLPID, newLPID + 1));
 
+    while (!__sync_bool_compare_and_swap(&mapping_table_lock_, 0, 1))
+      ;
 
-
-	 while(!__sync_bool_compare_and_swap(&mapping_table_lock_, 0, 1));
-
-	 mapping_table_[newLPID] = node;
-	 assert(__sync_bool_compare_and_swap(&mapping_table_lock_,1, 0));
-	 return newLPID;
+    mapping_table_[newLPID] = node;
+    assert(__sync_bool_compare_and_swap(&mapping_table_lock_, 1, 0));
+    return newLPID;
   }
 
   bool SwapNode(LPID id, BWTreeNode<KeyType, ValueType, KeyComparator> *oldNode,
-		  BWTreeNode<KeyType, ValueType, KeyComparator> *newNode){
+                BWTreeNode<KeyType, ValueType, KeyComparator> *newNode) {
+    auto itr = mapping_table_.find(id);
 
-	  auto itr = mapping_table_.find(id);
-
-	  if (id == mapping_table_.end()){
-		  return false;
-	  }else{
-		  return __sync_bool_compare_and_swap(&(itr->second), oldNode, newNode);
-	  }
+    if (id == mapping_table_.end()) {
+      return false;
+    } else {
+      return __sync_bool_compare_and_swap(&(itr->second), oldNode, newNode);
+    }
   }
 
-
-
-  BWTreeNode<KeyType, ValueType, KeyComparator> *GetNode(LPID id){
-	  auto itr = mapping_table_[id];
-	  if (itr == mapping_table_.end()){
-		  return nullptr;
-	  }else{
-		  return itr->second;
-	  }
+  BWTreeNode<KeyType, ValueType, KeyComparator> *GetNode(LPID id) {
+    auto itr = mapping_table_[id];
+    if (itr == mapping_table_.end()) {
+      return nullptr;
+    } else {
+      return itr->second;
+    }
   }
 };
 
@@ -302,7 +306,7 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   std::vector<ValueType> ScanKey(KeyType key);
 
-  bool InsertEntry(const storage::Tuple *key, const ItemPointer location);
+  bool InsertEntry(KeyType key, ValueType location);
 
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_IPAGE; };
 
@@ -376,9 +380,6 @@ class IPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
   std::vector<ValueType> ScanAllKeys();
 
   std::vector<ValueType> ScanKey(KeyType key);
-
-  // scan with information of deleted/inserted keys/pages
-  // std::vector<ValueType> ScanKey(const std::vector<Delta *> deltas);
 
   inline BWTreeNodeType GetTreeNodeType() const {
     return TYPE_IPAGE_UPDATE_DELTA;

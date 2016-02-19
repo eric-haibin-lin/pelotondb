@@ -59,12 +59,12 @@ std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::ScanKey(
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
-bool BWTree<KeyType, ValueType, KeyComparator>::InsertEntry(KeyType key, ValueType location) {
-	//just call InsertEntry on root
+bool BWTree<KeyType, ValueType, KeyComparator>::InsertEntry(
+    KeyType key, ValueType location) {
+  // just call InsertEntry on root
 
-	return GetNode(root_)->InsertEntry(key, location);
+  return GetNode(root_)->InsertEntry(key, location);
 };
-
 
 //===--------------------------------------------------------------------===//
 // IPage Methods
@@ -102,48 +102,45 @@ std::vector<ValueType> IPage<KeyType, ValueType, KeyComparator>::ScanKey(
   }
   return result;
 };
-
+/* @abj please fix the warnings :P
 template <typename KeyType, typename ValueType, class KeyComparator>
-bool
-IPage<KeyType, ValueType, KeyComparator>::InsertEntry(
-		const storage::Tuple *key, const ItemPointer location) {
-	//TODO Now call InsertEntry on the appropriate child (also note that the LPAGE
-	//has no InsertEntry)
-	//Shouldn't this node know that it is the last level IPAGE, and perform the
-	//delta insert?
+bool IPage<KeyType, ValueType, KeyComparator>::InsertEntry(KeyType key,
+                                                           ValueType location) {
+  // TODO Now call InsertEntry on the appropriate child (also note that the
+  // LPAGE
+  // has no InsertEntry)
+  // Shouldn't this node know that it is the last level IPAGE, and perform the
+  // delta insert?
 
-	int i;
-	bool last_level_page;
-	LPID target_child_lpid; //TODO: write code to get this -- partially done
+  int i;
+  bool last_level_page;
+  LPID target_child_lpid;  // TODO: write code to get this -- partially done
 
-	for (i = 0; i < children_map.size(); i++)
-		if (KeyComparator(key, children_map[i].first))
-			continue;
-		else
-		{
-			target_child_lpid = children_map[i].second;
-			break;
-		}
+  for (i = 0; i < children_map.size(); i++)
+    if (KeyComparator(key, children_map[i].first))
+      continue;
+    else {
+      target_child_lpid = children_map[i].second;
+      break;
+    }
 
-	// Ideally, i should never be equal to children_map.size(), because that would mean somewhere
-	// the ranges are not correct
-	assert(i != children_map.size());
+  // Ideally, i should never be equal to children_map.size(), because that would
+  // mean somewhere
+  // the ranges are not correct
+  assert(i != children_map.size());
 
-	if (last_level_ipage)
-	{
-		LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
-				new LPageUpdateDelta<KeyType, ValueType, KeyComparator>();
+  if (last_level_ipage) {
+    LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
+        new LPageUpdateDelta<KeyType, ValueType, KeyComparator>();
 
-		new_delta->modified_node = GetNode(target_child_lpid);
-		new_delta->modified_key_ = key;
-		new_delta->modified_val_ = location;
-		//TODO: handle failed SwapNode
-		return SwapNode(target_child_lpid, new_delta->modified_node, new_delta);
-	}
-	else
-		return GetNode(target_child_lpid).InsertEntry(key, location);
-
-};
+    new_delta->modified_node = GetNode(target_child_lpid);
+    new_delta->modified_key_ = key;
+    new_delta->modified_val_ = location;
+    // TODO: handle failed SwapNode
+    return SwapNode(target_child_lpid, new_delta->modified_node, new_delta);
+  } else
+    return GetNode(target_child_lpid).InsertEntry(key, location);
+};*/
 //===--------------------------------------------------------------------===//
 // IPageUpdateDelta Methods
 //===--------------------------------------------------------------------===//
