@@ -103,7 +103,8 @@ class INodeStateBuilder
   //***************************************************
   void AddChild(std::pair<KeyType, LPID> &new_pair) {
     // Sort based on keys. Has to be added at the right position
-    (*children_map_)[this->size++] = new_pair;
+    IPage<KeyType, ValueType, KeyComparator>.
+    //    (*children_map_)[this->size++] = new_pair;
   }
 
   void RemoveChild(KeyType key_to_remove) {
@@ -409,9 +410,9 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_IPAGE; };
 
-  // get the LPID of the child at next level, which contains the given key
-  static BWTreeNode<KeyType, ValueType, KeyComparator> *GetChild(
-      KeyType key, std::pair<KeyType, LPID> *children, oid_t len);
+  // get the index of the child at next level, which contains the given key
+  static int GetChild(KeyType key, std::pair<KeyType, LPID> *children,
+                      oid_t len);
 
  private:
   std::pair<KeyType, LPID> *children_;
