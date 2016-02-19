@@ -103,7 +103,7 @@ class INodeStateBuilder
   //***************************************************
   void AddChild(std::pair<KeyType, LPID> &new_pair) {
     // Sort based on keys. Has to be added at the right position
-    IPage<KeyType, ValueType, KeyComparator>.
+    //IPage<KeyType, ValueType, KeyComparator>::GetChild()
     //    (*children_map_)[this->size++] = new_pair;
   }
 

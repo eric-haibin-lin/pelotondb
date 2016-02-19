@@ -180,7 +180,7 @@ IPage<KeyType, ValueType, KeyComparator>::BuildNodeState() {
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder;
   // build node state for IPage
   builder = new INodeStateBuilder<KeyType, ValueType, KeyComparator>(
-      children_map_, size_);
+      children_, size_);
   return builder;
 };
 
