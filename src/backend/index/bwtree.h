@@ -36,6 +36,7 @@ enum BWTreeNodeType {
 
 #define IPAGE_ARITY 5
 #define LPAGE_ARITY 5
+#define DELTA_CHAIN_LIMIT 5
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTree;
@@ -64,13 +65,14 @@ class LPage;
 template <typename KeyType, typename ValueType, class KeyComparator>
 class NodeStateBuilder {
  protected:
-  // number of keys
+  // number of k-v pairs
   oid_t size;
 
  public:
   NodeStateBuilder(oid_t size) : size(size){};
 
   virtual BWTreeNode<KeyType, ValueType, KeyComparator> *GetPage() = 0;
+
   virtual ~NodeStateBuilder() = 0;
 };
 
@@ -79,15 +81,15 @@ class INodeStateBuilder
     : public NodeStateBuilder<KeyType, ValueType, KeyComparator> {
  private:
   // IPage children nodes
-  std::pair<KeyType, LPID> *children_map_ = nullptr;
+  std::pair<KeyType, LPID> *children_ = nullptr;
 
  public:
   // IPage constructor
-  INodeStateBuilder(std::pair<KeyType, LPID> *children_map,
-                    int children_map_len)
-      : NodeStateBuilder<KeyType, ValueType, KeyComparator>(children_map_len) {
-    for (int i = 0; i < children_map_len; i++) {
-      // children_map_[children_map[i]->first] = children_map[i]->second;
+  INodeStateBuilder(std::pair<KeyType, LPID> *children, int children_len)
+      : NodeStateBuilder<KeyType, ValueType, KeyComparator>(children_len) {
+    children_ = new std::pair<KeyType, LPID>[IPAGE_ARITY + DELTA_CHAIN_LIMIT]();
+    for (int i = 0; i < children_len; i++) {
+      children_[i] = children[i];
     }
   }
 
@@ -100,6 +102,7 @@ class INodeStateBuilder
   // IPage Methods
   //***************************************************
   void AddChild(std::pair<KeyType, LPID> &new_pair) {
+    // Sort based on keys. Has to be added at the right position
     (*children_map_)[this->size++] = new_pair;
   }
 
@@ -120,7 +123,6 @@ class LNodeStateBuilder
   // LPage members
   std::pair<KeyType, ValueType> *leaf_data_ = nullptr;
 
-  // TODO right_most_ptr for IPage
  public:
   // LPage constructor
   LNodeStateBuilder(LPID left_sibling, LPID right_sibling,
@@ -407,15 +409,14 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_IPAGE; };
 
+  // get the LPID of the child at next level, which contains the given key
+  static BWTreeNode<KeyType, ValueType, KeyComparator> *GetChild(
+      KeyType key, std::pair<KeyType, LPID> *children, oid_t len);
+
  private:
-  std::pair<KeyType, LPID> *children_map_;
-  LPID right_most_child_;
+  std::pair<KeyType, LPID> *children_;
 
   oid_t size_;
-
-  // get the LPID of the child at next level, which contains the given key
-  // TODO implement this
-  BWTreeNode<KeyType, ValueType, KeyComparator> GetChild(KeyType key);
 };
 
 //===--------------------------------------------------------------------===//
@@ -527,10 +528,11 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_LPAGE; };
 
- private:
   // get the index of the first occurrence of the given key
-  int BinarySearch(KeyType key);
+  static int BinarySearch(KeyType key, std::pair<KeyType, ValueType> *locations,
+                          oid_t len);
 
+ private:
   // return a vector of indices of the matched slots
   // or return an iterator?
   std::vector<int> ScanKeyInternal(KeyType key);
