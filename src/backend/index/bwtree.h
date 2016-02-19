@@ -131,55 +131,63 @@ class BWTree {
   LPID root_;
 
   // the mapping table
-  std::map<LPID, BWTreeNode<KeyType, ValueType, KeyComparator> *>
-      mapping_table_;
+  unsigned int mapping_table_cap_ = 128;
+  unsigned int mapping_table_size_ = 0;
+  LPID *free_LPIDs = new LPID[mapping_table_cap_];
+  int free_LPID_index = 0;
+  //  BWTreeNode<KeyType, ValueType, KeyComparator> ** mapping_table_ =
+  //		  (BWTreeNode<KeyType, ValueType, KeyComparator> **)
+  //		  malloc(sizeof(BWTreeNode<KeyType, ValueType, KeyComparator>
+  //*)*mapping_table_cap_);
 
+  BWTreeNode<KeyType, ValueType, KeyComparator> **mapping_table_;
   LPID next_LPID_ = 0;
-
-  int mapping_table_lock_ = 0;
+  int current_readers = 0;
+  int current_writers = 0;
 
  public:
-  BWTree()
-      : root_(DEFAULT_ROOT_LPID){
-            // TODO @abj initialize the root IPage (and maybe a LPage?) ---
-            // done!
-            // with the given comparator
-            // TODO Comparator too?
+  BWTree() : root_(DEFAULT_ROOT_LPID) {
+    mapping_table_ =
+        new BWTreeNode<KeyType, ValueType, KeyComparator> *[mapping_table_cap_];
+    // TODO @abj initialize the root IPage (and maybe a LPage?) ---
+    // done!
+    // with the given comparator
+    // TODO Comparator too?
 
-            /* First create an object of the IPAGE class, which then
-             * acts as the root.
-             */
-            //@abj please fix the compiler warnings :P
-            //    IPage<KeyType, ValueType, KeyComparator> *root =
-            //        new IPage<KeyType, ValueType, KeyComparator>(this, true);
-            //
-            //    // TODO: do we need the () at the end? Also, this should be
-            //    moved to
-            //    // the constructor of IPAGE
-            //    root->children_map_ = new std::pair<KeyType,
-            //    LPID>[IPAGE_ARITY]();
-            //
-            //    /* Install the root in the mapping table */
-            //    root_ = InstallPage(root);
-            //
-            //    /* Now create the first LPAGE */
-            //    LPage<KeyType, ValueType, KeyComparator> *first_lpage =
-            //        new LPage<KeyType, ValueType, KeyComparator>(this, true);
-            //
-            //    LPID first_lpage_lpid;
-            //
-            //    first_lpage_lpid = InstallPage(first_lpage);
-            //
-            //    /* Now grow a pair (:P) to store the first LPAGE pointer */
-            //    std::pair<KeyType, LPID> *first_lpage_pair = new
-            //    std::pair<KeyType, LPID>;
-            //
-            //    // TODO: some way to denote the max KeyType value
-            //    // first_lpage_pair->first =
-            //    first_lpage_pair->second = first_lpage_lpid;
-            //
-            //    root->children_map_[0] = *first_lpage_pair;
-        };
+    /* First create an object of the IPAGE class, which then
+     * acts as the root.
+     */
+    //@abj please fix the compiler warnings :P
+    //    IPage<KeyType, ValueType, KeyComparator> *root =
+    //        new IPage<KeyType, ValueType, KeyComparator>(this, true);
+    //
+    //    // TODO: do we need the () at the end? Also, this should be
+    //    moved to
+    //    // the constructor of IPAGE
+    //    root->children_map_ = new std::pair<KeyType,
+    //    LPID>[IPAGE_ARITY]();
+    //
+    //    /* Install the root in the mapping table */
+    //    root_ = InstallPage(root);
+    //
+    //    /* Now create the first LPAGE */
+    //    LPage<KeyType, ValueType, KeyComparator> *first_lpage =
+    //        new LPage<KeyType, ValueType, KeyComparator>(this, true);
+    //
+    //    LPID first_lpage_lpid;
+    //
+    //    first_lpage_lpid = InstallPage(first_lpage);
+    //
+    //    /* Now grow a pair (:P) to store the first LPAGE pointer */
+    //    std::pair<KeyType, LPID> *first_lpage_pair = new
+    //    std::pair<KeyType, LPID>;
+    //
+    //    // TODO: some way to denote the max KeyType value
+    //    // first_lpage_pair->first =
+    //    first_lpage_pair->second = first_lpage_lpid;
+    //
+    //    root->children_map_[0] = *first_lpage_pair;
+  };
 
   /*
    * On construction, BWTree will create a IPage and an empty LPage.
@@ -187,11 +195,17 @@ class BWTree {
    * The IPage serves as the root of all other nodes.
    */
   BWTree(bool unique_keys, KeyComparator comparator)
-      : root_(DEFAULT_ROOT_LPID){
-            // TODO @abj initialize the root IPage (and maybe a LPage?)
-            // with the given comparator
-        };
+      : root_(DEFAULT_ROOT_LPID) {
+    mapping_table_ =
+        new BWTreeNode<KeyType, ValueType, KeyComparator> *[mapping_table_cap_];
+    // TODO @abj initialize the root IPage (and maybe a LPage?)
+    // with the given comparator
+  };
 
+  ~BWTree() {
+    delete[] free_LPIDs;
+    delete[] mapping_table_;
+  }
   // instead of explicitly use ValueType as the type for location, we should
   // use the template type ValueType instead (although it's ValueType is always
   // instantiated as ValueType class
@@ -207,39 +221,69 @@ class BWTree {
   std::vector<ValueType> ScanAllKeys();
   std::vector<ValueType> ScanKey(KeyType key);
 
-  // return 0 if the page install is not successful
-  LPID InstallPage(BWTreeNode<KeyType, ValueType, KeyComparator> *node) {
-    LPID newLPID;
-    do {
-      newLPID = next_LPID_;
-    } while (!__sync_bool_compare_and_swap(&next_LPID_, newLPID, newLPID + 1));
-
-    while (!__sync_bool_compare_and_swap(&mapping_table_lock_, 0, 1))
+ private:
+  void AquireRead() {
+    while (true) {
+      while (current_writers == 1)
+        ;
+      __sync_add_and_fetch(&current_readers, 1);
+      if (current_writers == 0)
+        break;
+      else
+        __sync_add_and_fetch(&current_readers, -1);
+    }
+  }
+  void ReleaseRead() { __sync_add_and_fetch(&current_readers, -1); }
+  void AquireWrite() {
+    while (__sync_bool_compare_and_swap(&current_writers, 0, 1))
       ;
+    while (current_readers > 0)
+      ;
+  }
+  void ReleaseWrite() {
+    assert(__sync_bool_compare_and_swap(&current_writers, 1, 0));
+  }
 
+ public:
+  // return 0 if the page install is not successful
+
+  LPID InstallPage(BWTreeNode<KeyType, ValueType, KeyComparator> *node) {
+    LPID newLPID = __sync_fetch_and_add(&next_LPID_, 1);
+    // table grew too large, expand it
+    while (newLPID >= mapping_table_cap_) {
+      // only one thread should expand the table
+      AquireWrite();
+      int new_mapping_table_cap = mapping_table_cap_ * 2;
+      auto new_mapping_table =
+          new (BWTreeNode<KeyType, ValueType, KeyComparator> *
+               [new_mapping_table_cap]);
+      memcpy(new_mapping_table, mapping_table_, mapping_table_cap_);
+      delete[] mapping_table_;
+      mapping_table_ = new_mapping_table;
+      mapping_table_cap_ = new_mapping_table_cap;
+      ReleaseWrite();
+    }
+    AquireRead();
     mapping_table_[newLPID] = node;
-    assert(__sync_bool_compare_and_swap(&mapping_table_lock_, 1, 0));
+    ReleaseRead();
     return newLPID;
   }
 
   bool SwapNode(LPID id, BWTreeNode<KeyType, ValueType, KeyComparator> *oldNode,
                 BWTreeNode<KeyType, ValueType, KeyComparator> *newNode) {
-    auto itr = mapping_table_.find(id);
-
-    if (id == mapping_table_.end()) {
-      return false;
-    } else {
-      return __sync_bool_compare_and_swap(&(itr->second), oldNode, newNode);
-    }
+    AquireRead();
+    bool ret =
+        __sync_bool_compare_and_swap(mapping_table_ + id, oldNode, newNode);
+    ReleaseRead();
+    return ret;
   }
 
+  // assumes that LPID is valid
   BWTreeNode<KeyType, ValueType, KeyComparator> *GetNode(LPID id) {
-    auto itr = mapping_table_[id];
-    if (itr == mapping_table_.end()) {
-      return nullptr;
-    } else {
-      return itr->second;
-    }
+    AquireRead();
+    auto ret = mapping_table_[id];
+    ReleaseRead();
+    return ret;
   }
 };
 
