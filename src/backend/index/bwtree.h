@@ -56,6 +56,7 @@ class LPage;
 // TODO add methods for use by split deltas, etc
 // TODO add constructors to LNode and INode to build node based on state
 // TODO add methods on each node to build the NodeState
+// TODO use array instead of map, change access method
 /**
  * Builder for a node state, to be used with Delta Compression and
  * scans on indexes with multiple keys
@@ -68,11 +69,13 @@ class NodeStateBuilder {
   // LPage members
   LPID left_sibling_ = 0;
   LPID right_sibling_ = 0;
-  // TODO: change from maps to data structures of fixed length (arrays)
-  std::map<KeyType, LPID> children_map_;
-
+  // IPage children nodes
+  std::pair<KeyType, LPID> *children_map_ = nullptr;
   // IPage members
-  std::map<KeyType, ValueType> leaf_data_;
+  std::pair<KeyType, ValueType> *leaf_data_ = nullptr;
+  // number of keys
+  oid_t size_;
+  // TODO right_most_ptr for IPage
 
  public:
   // LPage constructor
@@ -80,17 +83,18 @@ class NodeStateBuilder {
                    std::pair<KeyType, ValueType> *leaf_data, int leaf_data_len)
       : output_type_(TYPE_LPAGE),
         left_sibling_(left_sibling),
-        right_sibling_(right_sibling) {
+        right_sibling_(right_sibling),
+        size_(leaf_data_len) {
     for (int i = 0; i < leaf_data_len; i++) {
-      leaf_data_[leaf_data[i]->first] = leaf_data[i]->second;
+      // leaf_data_[leaf_data[i]->first] = leaf_data[i]->second;
     }
   }
 
   // IPage constructor
   NodeStateBuilder(std::pair<KeyType, LPID> *children_map, int children_map_len)
-      : output_type_(TYPE_IPAGE) {
+      : output_type_(TYPE_IPAGE), size_(children_map_len) {
     for (int i = 0; i < children_map_len; i++) {
-      children_map_[children_map[i]->first] = children_map[i]->second;
+      // children_map_[children_map[i]->first] = children_map[i]->second;
     }
   }
 
@@ -98,11 +102,12 @@ class NodeStateBuilder {
   // IPage Methods
   //***************************************************
   void AddChild(std::pair<KeyType, LPID> &new_pair) {
-    children_map_[new_pair->first] = new_pair->second;
+    (*children_map_)[size_++] = new_pair;
   }
 
   void RemoveChild(KeyType key_to_remove) {
-    children_map_.erase(key_to_remove);
+    // TODO remove the first occurrence of key_to_remove
+    // children_map_.erase(key_to_remove);
   }
 
   //***************************************************
@@ -114,8 +119,10 @@ class NodeStateBuilder {
   void UpdateRightSib(LPID new_right_sib) { right_sibling_ = new_right_sib; }
 
   void AddLeafData(std::pair<KeyType, ValueType> &new_entry) {
-    leaf_data_[new_entry->first] = new_entry->second;
+    // leaf_data_[new_entry->first] = new_entry->second;
   }
+
+  void RemoveLeafData(std::pair<KeyType, ValueType> &entry_to_remove) {}
 };
 
 //===--------------------------------------------------------------------===//
@@ -270,6 +277,13 @@ class BWTreeNode {
 
   virtual std::vector<ValueType> ScanKey(KeyType key) = 0;
 
+  virtual NodeStateBuilder<KeyType, ValueType, KeyComparator> *
+  BuildNodeState() = 0;
+
+  // for scan, we have to build the node state as well. But we only care about
+  // the keys we want to scan
+  // virtual NodeStateBuilder *BuildScanState() = 0;
+
   // Each sub-class will have to implement this function to return their type
   virtual BWTreeNodeType GetTreeNodeType() const = 0;
 
@@ -308,11 +322,15 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   bool InsertEntry(KeyType key, ValueType location);
 
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState();
+
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_IPAGE; };
 
  private:
   std::pair<KeyType, LPID> *children_map_;
   LPID right_most_child_;
+
+  oid_t size_;
 
   // get the LPID of the child at next level, which contains the given key
   // TODO implement this
@@ -348,6 +366,8 @@ class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
 
   std::vector<ValueType> ScanKey(KeyType key);
 
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState();
+
   inline BWTreeNodeType GetTreeNodeType() const {
     return TYPE_LPAGE_UPDATE_DELTA;
   };
@@ -381,6 +401,8 @@ class IPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
 
   std::vector<ValueType> ScanKey(KeyType key);
 
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState();
+
   inline BWTreeNodeType GetTreeNodeType() const {
     return TYPE_IPAGE_UPDATE_DELTA;
   };
@@ -411,9 +433,14 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   std::vector<ValueType> ScanKey(KeyType key);
 
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState();
+
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_LPAGE; };
 
  private:
+  // get the index of the first occurrence of the given key
+  int BinarySearch(KeyType key);
+
   // left_sibling pointer is used to do reverse iterate
   LPID left_sib_;
   LPID right_sib_;

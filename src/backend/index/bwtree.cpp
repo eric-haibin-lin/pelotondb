@@ -174,6 +174,16 @@ IPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
   return result;
 };
 
+template <typename KeyType, typename ValueType, class KeyComparator>
+NodeStateBuilder<KeyType, ValueType, KeyComparator> *
+IPage<KeyType, ValueType, KeyComparator>::BuildNodeState() {
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder;
+  // build node state for IPage
+  builder = new NodeStateBuilder<KeyType, ValueType, KeyComparator>(
+      children_map_, size_);
+  return builder;
+};
+
 //===--------------------------------------------------------------------===//
 // LPageUpdateDelta Methods
 //===--------------------------------------------------------------------===//
@@ -201,6 +211,7 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType>
 LPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
   std::vector<ValueType> result;
+  assert(modified_key_ != nullptr);
   if (this->unique_keys) {
     // the modified key matches the scanKey
     if (this->comparator(modified_key_, key) == true) {
@@ -216,6 +227,23 @@ LPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
   }
 
   return result;
+};
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+NodeStateBuilder<KeyType, ValueType, KeyComparator> *
+LPageUpdateDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
+  assert(this->modified_node != nullptr);
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
+      this->modified_node->BuildNodeState();
+  // delete delta
+  if (this->modified_val_ == INVALID_ITEMPOINTER) {
+    builder->RemoveLeafData(this->modified_key_);
+  } else {
+    // insert delta
+    builder->AddLeafData(
+        std::pair<KeyType, ValueType>(modified_key_, modified_val_));
+  }
+  return builder;
 };
 
 //===--------------------------------------------------------------------===//
@@ -241,11 +269,50 @@ std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::ScanKey(
-    __attribute__((unused)) KeyType key) {
-  // in the first version, the LPage has no content at all
-  assert(size_ == 0);
+    KeyType key) {
+  assert(locations_ != nullptr);
   std::vector<ValueType> result;
+  // empty LPage
+  if (size_ == 0) {
+    return result;
+  }
+
+  assert(size_ > 0);
+  // do a binary search on locations to get the key
+  int index = BinarySearch(key);
+  if (index == -1) {
+    // key not found, return empty result
+  } else {
+    // try to collect all matching keys. If unique_keys, only one key matches
+    while (index < size_) {
+      std::pair<KeyType, ValueType> location = (*locations_)[index++];
+      if (this->comparator(location.first, key) == true) {
+        // found a matching key
+        result.push_back(location.second);
+      } else {
+        // key not found, return result
+        break;
+      }
+    }
+    // reach the end of current LPage, go to next Lpage for more results
+    if (index == size_) {
+      std::vector<ValueType> sib_result =
+          this->map->GetNode(right_sib_)->ScanKey(key);
+      result.insert(sib_result.begin(), sib_result.end());
+    }
+  }
   return result;
 };
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+NodeStateBuilder<KeyType, ValueType, KeyComparator> *
+LPage<KeyType, ValueType, KeyComparator>::BuildNodeState() {
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder;
+  // build node state for LPage
+  builder = new NodeStateBuilder<KeyType, ValueType, KeyComparator>(
+      left_sib_, right_sib_, locations_, size_);
+  return builder;
+};
+
 }  // End index namespace
 }  // End peloton namespace
