@@ -222,7 +222,7 @@ class BWTree {
   std::vector<ValueType> ScanKey(KeyType key);
 
  private:
-  void AquireRead() {
+  inline void AquireRead() {
     while (true) {
       while (current_writers == 1)
         ;
@@ -233,14 +233,14 @@ class BWTree {
         __sync_add_and_fetch(&current_readers, -1);
     }
   }
-  void ReleaseRead() { __sync_add_and_fetch(&current_readers, -1); }
-  void AquireWrite() {
+  inline void ReleaseRead() { __sync_add_and_fetch(&current_readers, -1); }
+  inline void AquireWrite() {
     while (__sync_bool_compare_and_swap(&current_writers, 0, 1))
       ;
     while (current_readers > 0)
       ;
   }
-  void ReleaseWrite() {
+  inline void ReleaseWrite() {
     assert(__sync_bool_compare_and_swap(&current_writers, 1, 0));
   }
 
