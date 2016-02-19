@@ -63,51 +63,79 @@ class LPage;
  */
 template <typename KeyType, typename ValueType, class KeyComparator>
 class NodeStateBuilder {
- private:
-  // type of node, should be IPage or LPage
-  BWTreeNodeType output_type_;
-  // LPage members
-  LPID left_sibling_ = 0;
-  LPID right_sibling_ = 0;
-  // IPage children nodes
-  std::pair<KeyType, LPID> *children_map_ = nullptr;
-  // IPage members
-  std::pair<KeyType, ValueType> *leaf_data_ = nullptr;
+ protected:
   // number of keys
-  oid_t size_;
-  // TODO right_most_ptr for IPage
+  oid_t size;
 
  public:
-  // LPage constructor
-  NodeStateBuilder(LPID left_sibling, LPID right_sibling,
-                   std::pair<KeyType, ValueType> *leaf_data, int leaf_data_len)
-      : output_type_(TYPE_LPAGE),
-        left_sibling_(left_sibling),
-        right_sibling_(right_sibling),
-        size_(leaf_data_len) {
-    for (int i = 0; i < leaf_data_len; i++) {
-      // leaf_data_[leaf_data[i]->first] = leaf_data[i]->second;
-    }
-  }
+  NodeStateBuilder(oid_t size) : size(size){};
 
+  virtual BWTreeNode<KeyType, ValueType, KeyComparator> *GetPage() = 0;
+  virtual ~NodeStateBuilder() = 0;
+};
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+class INodeStateBuilder
+    : public NodeStateBuilder<KeyType, ValueType, KeyComparator> {
+ private:
+  // IPage children nodes
+  std::pair<KeyType, LPID> *children_map_ = nullptr;
+
+ public:
   // IPage constructor
-  NodeStateBuilder(std::pair<KeyType, LPID> *children_map, int children_map_len)
-      : output_type_(TYPE_IPAGE), size_(children_map_len) {
+  INodeStateBuilder(std::pair<KeyType, LPID> *children_map,
+                    int children_map_len)
+      : NodeStateBuilder<KeyType, ValueType, KeyComparator>(children_map_len) {
     for (int i = 0; i < children_map_len; i++) {
       // children_map_[children_map[i]->first] = children_map[i]->second;
     }
+  }
+
+  BWTreeNode<KeyType, ValueType, KeyComparator> *GetPage() {
+    // TODO: init an IPage based on collected state
+    return nullptr;
   }
 
   //***************************************************
   // IPage Methods
   //***************************************************
   void AddChild(std::pair<KeyType, LPID> &new_pair) {
-    (*children_map_)[size_++] = new_pair;
+    (*children_map_)[this->size++] = new_pair;
   }
 
   void RemoveChild(KeyType key_to_remove) {
     // TODO remove the first occurrence of key_to_remove
     // children_map_.erase(key_to_remove);
+  }
+};
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+class LNodeStateBuilder
+    : public NodeStateBuilder<KeyType, ValueType, KeyComparator> {
+ private:
+  // LPage members
+  LPID left_sibling_ = 0;
+  LPID right_sibling_ = 0;
+
+  // LPage members
+  std::pair<KeyType, ValueType> *leaf_data_ = nullptr;
+
+  // TODO right_most_ptr for IPage
+ public:
+  // LPage constructor
+  LNodeStateBuilder(LPID left_sibling, LPID right_sibling,
+                    std::pair<KeyType, ValueType> *leaf_data, int leaf_data_len)
+      : NodeStateBuilder<KeyType, ValueType, KeyComparator>(leaf_data_len),
+        left_sibling_(left_sibling),
+        right_sibling_(right_sibling) {
+    for (int i = 0; i < leaf_data_len; i++) {
+      // leaf_data_[leaf_data[i]->first] = leaf_data[i]->second;
+    }
+  }
+
+  BWTreeNode<KeyType, ValueType, KeyComparator> *GetPage() {
+    // TODO: init an LPage based on collected state
+    return nullptr;
   }
 
   //***************************************************
@@ -119,12 +147,14 @@ class NodeStateBuilder {
   void UpdateRightSib(LPID new_right_sib) { right_sibling_ = new_right_sib; }
 
   void AddLeafData(std::pair<KeyType, ValueType> &new_entry) {
+    // TODO use array
     // leaf_data_[new_entry->first] = new_entry->second;
   }
 
-  void RemoveLeafData(std::pair<KeyType, ValueType> &entry_to_remove) {}
+  void RemoveLeafData(std::pair<KeyType, ValueType> &entry_to_remove) {
+    // TODO use array
+  }
 };
-
 //===--------------------------------------------------------------------===//
 // BWTree
 //===--------------------------------------------------------------------===//
@@ -326,7 +356,14 @@ class BWTreeNode {
 
   // for scan, we have to build the node state as well. But we only care about
   // the keys we want to scan
-  // virtual NodeStateBuilder *BuildScanState() = 0;
+  virtual NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildScanState(
+      KeyType key) = 0;
+
+  virtual NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildScanState(
+      const std::vector<Value> &values,
+      const std::vector<oid_t> &key_column_ids,
+      const std::vector<ExpressionType> &expr_types,
+      const ScanDirectionType &scan_direction) = 0;
 
   // Each sub-class will have to implement this function to return their type
   virtual BWTreeNodeType GetTreeNodeType() const = 0;
@@ -479,11 +516,24 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState();
 
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildScanState(
+      KeyType key);
+
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildScanState(
+      const std::vector<Value> &values,
+      const std::vector<oid_t> &key_column_ids,
+      const std::vector<ExpressionType> &expr_types,
+      const ScanDirectionType &scan_direction);
+
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_LPAGE; };
 
  private:
   // get the index of the first occurrence of the given key
   int BinarySearch(KeyType key);
+
+  // return a vector of indices of the matched slots
+  // or return an iterator?
+  std::vector<int> ScanKeyInternal(KeyType key);
 
   // left_sibling pointer is used to do reverse iterate
   LPID left_sib_;

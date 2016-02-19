@@ -179,7 +179,7 @@ NodeStateBuilder<KeyType, ValueType, KeyComparator> *
 IPage<KeyType, ValueType, KeyComparator>::BuildNodeState() {
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder;
   // build node state for IPage
-  builder = new NodeStateBuilder<KeyType, ValueType, KeyComparator>(
+  builder = new INodeStateBuilder<KeyType, ValueType, KeyComparator>(
       children_map_, size_);
   return builder;
 };
@@ -309,9 +309,26 @@ NodeStateBuilder<KeyType, ValueType, KeyComparator> *
 LPage<KeyType, ValueType, KeyComparator>::BuildNodeState() {
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder;
   // build node state for LPage
-  builder = new NodeStateBuilder<KeyType, ValueType, KeyComparator>(
+  builder = new LNodeStateBuilder<KeyType, ValueType, KeyComparator>(
       left_sib_, right_sib_, locations_, size_);
   return builder;
+};
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+NodeStateBuilder<KeyType, ValueType, KeyComparator> *
+LPage<KeyType, ValueType, KeyComparator>::BuildScanState(KeyType key) {
+  // TODO call ScanKeyInternal(key);
+  return nullptr;
+};
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+NodeStateBuilder<KeyType, ValueType, KeyComparator> *
+LPage<KeyType, ValueType, KeyComparator>::BuildScanState(
+    const std::vector<Value> &values, const std::vector<oid_t> &key_column_ids,
+    const std::vector<ExpressionType> &expr_types,
+    const ScanDirectionType &scan_direction) {
+  // TODO call ScanKeyInternal(values, ...);
+  return nullptr;
 };
 
 }  // End index namespace
