@@ -452,11 +452,9 @@ class BWTreeNode {
 
 //===--------------------------------------------------------------------===//
 // IPage
-// The IPage hold pointers to all its children. An IPage with n keys
-// k1, k2, .... kn actually has (n + 1) pointers to its children, where
-// p1 for (-infinity, k1], p2 for (k1, k2], p3 for (k2, k3] ...
-// pn for (k_n-1, kn], p_n+1 for (kn, +infinity). Variable right_most_child_
-// stores the value of p_n+1
+// The IPage hold pointers to all its children. An IPage with n + 1 keys
+// k1, k2, .... kn has (n + 1) pointers to its children, where
+// p1 for (-infinity, k1), p2 for [k1, k2), p3 for [k2, k3) ...
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
 class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
@@ -601,7 +599,6 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
  private:
   // return a vector of indices of the matched slots
-  // or return an iterator?
   std::vector<int> ScanKeyInternal(KeyType key);
 
   // left_sibling pointer is used to do reverse iterate

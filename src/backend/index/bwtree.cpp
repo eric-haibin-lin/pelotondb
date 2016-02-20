@@ -270,8 +270,27 @@ std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
 template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::ScanKey(
     KeyType key) {
-  assert(locations_ != nullptr);
   std::vector<ValueType> result;
+  std::vector<int> indices = ScanKeyInternal(key);
+  // we only need the values
+  unsigned long int index;
+  for (index = 0; index < indices.size(); index++) {
+    result.push_back((*locations_)[index].second);
+  }
+  // reach the end of current LPage, go to next Lpage for more results
+  if (index == size_) {
+    std::vector<ValueType> sib_result =
+        this->map->GetNode(right_sib_)->ScanKey(key);
+    result.insert(sib_result.begin(), sib_result.end());
+  }
+  return result;
+};
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+std::vector<int> LPage<KeyType, ValueType, KeyComparator>::ScanKeyInternal(
+    KeyType key) {
+  assert(locations_ != nullptr);
+  std::vector<int> result;
   // empty LPage
   if (size_ == 0) {
     return result;
@@ -288,17 +307,11 @@ std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::ScanKey(
       std::pair<KeyType, ValueType> location = (*locations_)[index++];
       if (this->comparator(location.first, key) == true) {
         // found a matching key
-        result.push_back(location.second);
+        result.push_back(index);
       } else {
         // key not found, return result
         break;
       }
-    }
-    // reach the end of current LPage, go to next Lpage for more results
-    if (index == size_) {
-      std::vector<ValueType> sib_result =
-          this->map->GetNode(right_sib_)->ScanKey(key);
-      result.insert(sib_result.begin(), sib_result.end());
     }
   }
   return result;
