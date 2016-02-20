@@ -15,6 +15,7 @@
 #include <map>
 #include <vector>
 #include <climits>
+#include <string.h>
 
 namespace peloton {
 namespace index {
@@ -325,6 +326,10 @@ class BWTree {
     // TODO @abj initialize the root IPage (and maybe a LPage?)
     IPage<KeyType, ValueType, KeyComparator> root(this);
 
+    root_ = InstallPage(&root);
+
+    LPage<KeyType, ValueType, KeyComparator> first_lpage(this);
+
     // with the given comparator
   };
 
@@ -387,8 +392,8 @@ class BWTree {
       AquireWrite();
       int new_mapping_table_cap = mapping_table_cap_ * 2;
       auto new_mapping_table =
-          new (BWTreeNode<KeyType, ValueType, KeyComparator> *
-               [new_mapping_table_cap]);
+          new BWTreeNode<KeyType, ValueType, KeyComparator> *
+               [new_mapping_table_cap];
       memcpy(new_mapping_table, mapping_table_, mapping_table_cap_);
       delete[] mapping_table_;
       mapping_table_ = new_mapping_table;
@@ -675,6 +680,19 @@ class IPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
 template <typename KeyType, typename ValueType, class KeyComparator>
 class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
  public:
+
+	 LPage(BWTree<KeyType, ValueType, KeyComparator> *map)
+	      : BWTreeNode<KeyType, ValueType, KeyComparator>(map) {
+
+		  // TODO initialize these with the proper values
+		  left_sib_ = 0;
+	      right_sib_ = 0;
+	      locations_ = new std::pair<KeyType, ValueType>[LPAGE_ARITY]();
+	      size_ = 0;
+	  };
+
+	  ~LPage(){};
+
   bool InsertEntry(__attribute__((unused)) KeyType key,
                    __attribute__((unused)) ValueType location) {
     // TODO implement this

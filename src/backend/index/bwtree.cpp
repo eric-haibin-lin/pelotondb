@@ -250,7 +250,7 @@ LPageUpdateDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
 template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::Scan(
     __attribute__((unused)) const std::vector<Value> &values,
-    const std::vector<oid_t> &key_column_ids,
+	__attribute__((unused)) const std::vector<oid_t> &key_column_ids,
     __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
     __attribute__((unused)) const ScanDirectionType &scan_direction) {
   std::vector<ValueType> result;
@@ -273,13 +273,13 @@ std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::ScanKey(
   // we only need the values
   unsigned long int index;
   for (index = 0; index < indices.size(); index++) {
-    result.push_back((*locations_)[index].second);
+    result.push_back((locations_)[index].second);
   }
   // reach the end of current LPage, go to next Lpage for more results
   if (index == size_) {
     std::vector<ValueType> sib_result =
         this->map->GetNode(right_sib_)->ScanKey(key);
-    result.insert(sib_result.begin(), sib_result.end());
+    result.insert(result.end(), sib_result.begin(), sib_result.end());
   }
   return result;
 };
@@ -296,14 +296,15 @@ std::vector<int> LPage<KeyType, ValueType, KeyComparator>::ScanKeyInternal(
 
   assert(size_ > 0);
   // do a binary search on locations to get the key
-  int index = BinarySearch(key);
+  // TODO fix this index init
+  int index = -1;//= BinarySearch(key);
   if (index == -1) {
     // key not found, return empty result
   } else {
     // try to collect all matching keys. If unique_keys, only one key matches
     while (index < size_) {
-      std::pair<KeyType, ValueType> location = (*locations_)[index++];
-      if (this->comparator(location.first, key) == true) {
+      std::pair<KeyType, ValueType> location = (locations_)[index++];
+      if (this->map->comparator(location.first, key) == true) {
         // found a matching key
         result.push_back(index);
       } else {
@@ -327,7 +328,7 @@ LPage<KeyType, ValueType, KeyComparator>::BuildNodeState() {
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 NodeStateBuilder<KeyType, ValueType, KeyComparator> *
-LPage<KeyType, ValueType, KeyComparator>::BuildScanState(KeyType key) {
+LPage<KeyType, ValueType, KeyComparator>::BuildScanState(__attribute__((unused))KeyType key) {
   // TODO call ScanKeyInternal(key);
   return nullptr;
 };
@@ -335,9 +336,9 @@ LPage<KeyType, ValueType, KeyComparator>::BuildScanState(KeyType key) {
 template <typename KeyType, typename ValueType, class KeyComparator>
 NodeStateBuilder<KeyType, ValueType, KeyComparator> *
 LPage<KeyType, ValueType, KeyComparator>::BuildScanState(
-    const std::vector<Value> &values, const std::vector<oid_t> &key_column_ids,
-    const std::vector<ExpressionType> &expr_types,
-    const ScanDirectionType &scan_direction) {
+		__attribute__((unused))const std::vector<Value> &values, __attribute__((unused))const std::vector<oid_t> &key_column_ids,
+		__attribute__((unused))const std::vector<ExpressionType> &expr_types,
+		__attribute__((unused))const ScanDirectionType &scan_direction) {
   // TODO call ScanKeyInternal(values, ...);
   return nullptr;
 };
