@@ -16,6 +16,85 @@ namespace peloton {
 namespace index {
 
 //===--------------------------------------------------------------------===//
+// NodeStateBuilder
+//===--------------------------------------------------------------------===//
+
+//===--------------------------------------------------------------------===//
+// INodeStateBuilder
+//===--------------------------------------------------------------------===//
+
+//===--------------------------------------------------------------------===//
+// LNodeStateBuilder
+//===--------------------------------------------------------------------===//
+template <typename KeyType, typename ValueType, class KeyComparator>
+BWTreeNode<KeyType, ValueType, KeyComparator> *
+LNodeStateBuilder<KeyType, ValueType, KeyComparator>::GetPage() {
+  if (new_page == nullptr) {
+    // TODO call LPage constructor
+    // new_page = new LPage<KeyType, ValueType, KeyComparator>();
+  }
+  return new_page;
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::RemoveLeafData(
+    KeyType &key_to_remove) {
+  // TODO remove entry based on key
+  assert(locations_ != nullptr);
+  // keys are unique
+  assert(this->map->unique_keys);
+
+  int index = LPage<KeyType, ValueType, KeyComparator>::BinarySearch(
+      key_to_remove, locations_, this->size);
+  // delete at the found index
+  for (int i = index; i < this->size - 1; i++) {
+    locations_[i] = locations_[i + 1];
+  }
+  // decrement size
+  this->size--;
+  return;
+};
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::RemoveLeafData(
+    std::pair<KeyType, ValueType> &entry_to_remove) {
+  assert(locations_ != nullptr);
+  // keys are not unique
+  assert(this->map->unique_keys == false);
+
+  KeyType key = entry_to_remove.first;
+  int index = LPage<KeyType, ValueType, KeyComparator>::BinarySearch(
+      key, locations_, this->size);
+  // we have the first appearance of the given key, do linear scan to see
+  // which one matches exactly
+  bool found_exact_key = false;
+  for (; index < this->size; index++) {
+    std::pair<KeyType, ValueType> pair = locations_[index];
+    if (this->map->comparator(pair.first, key)) {
+      if (ItemPointerEquals(pair.second, entry_to_remove.second)) {
+        found_exact_key = true;
+      }
+    } else {
+      // not found
+      break;
+    }
+  }
+  if (found_exact_key) {
+    for (int i = index; i < this->size - 1; i++) {
+      locations_[i] = locations_[i + 1];
+    }
+    // decrement size
+    this->size--;
+  }
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+bool LNodeStateBuilder<KeyType, ValueType, KeyComparator>::ItemPointerEquals(
+    ValueType v1, ValueType v2) {
+  return v1.block == v2.block && v1.offset == v2.offset;
+};
+
+//===--------------------------------------------------------------------===//
 // BWTree Methods
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -23,8 +102,6 @@ std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::Scan(
     const std::vector<Value> &values, const std::vector<oid_t> &key_column_ids,
     const std::vector<ExpressionType> &expr_types,
     const ScanDirectionType &scan_direction) {
-  assert(mapping_table_.size() > 0);
-
   std::vector<ValueType> result;
 
   // recursive call scan from the root of BWTree
@@ -37,7 +114,6 @@ std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::Scan(
 template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType>
 BWTree<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
-  assert(mapping_table_.size() > 0);
   std::vector<ValueType> result;
 
   // recursive call scan from the root of BWTree
@@ -49,7 +125,6 @@ BWTree<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
 template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::ScanKey(
     KeyType key) {
-  assert(mapping_table_.size() > 0);
   std::vector<ValueType> result;
 
   // recursive call scan from the root of BWTree
@@ -186,37 +261,48 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType>
 LPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
   std::vector<ValueType> result;
-  assert(modified_key_ != nullptr);
   if (this->map->unique_keys) {
     // the modified key matches the scanKey
-    if (this->comparator(modified_key_, key) == true) {
-      // the modified key is deleted, return empty result
-      if (modified_val_ == INVALID_ITEMPOINTER) {
-        // do nothing
-      } else {
+    if (this->map->comparator(modified_key_, key) == true) {
+      if (!is_delete_) {
+        // the modified key is inserted, add to result vector
         result.push_back(modified_val_);
       }
     }
-  } else {
-    // TODO pass down the delta info to delete the key at bottom LPage
+    return result;
   }
-
+  // non unique key. we have to build the state
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
+      this->modified_node->BuildScanState(key);
+  BWTreeNode<KeyType, ValueType, KeyComparator> *page = builder->GetPage();
+  assert(page != nullptr);
+  // do scan on the new state
+  result = page->ScanKey(key);
+  //release builder
+  delete(builder);
   return result;
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 NodeStateBuilder<KeyType, ValueType, KeyComparator> *
 LPageUpdateDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
-  assert(this->modified_node != nullptr);
-  NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
-      this->modified_node->BuildNodeState();
+  // Children of LPageDelta always return a LNodeStateBuilder
+  LNodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
+      reinterpret_cast<LNodeStateBuilder<KeyType, ValueType, KeyComparator> *>(
+          this->modified_node->BuildNodeState());
   // delete delta
-  if (this->modified_val_ == INVALID_ITEMPOINTER) {
-    builder->RemoveLeafData(this->modified_key_);
+  if (is_delete_) {
+    if (this->map->unique_keys) {
+      builder->RemoveLeafData(this->modified_key_);
+    } else {
+      std::pair<KeyType, ValueType> pair(modified_key_, modified_val_);
+      builder->RemoveLeafData(pair);
+    }
+
   } else {
     // insert delta
-    builder->AddLeafData(
-        std::pair<KeyType, ValueType>(modified_key_, modified_val_));
+    std::pair<KeyType, ValueType> pair(modified_key_, modified_val_);
+    builder->AddLeafData(pair);
   }
   return builder;
 };
@@ -224,6 +310,15 @@ LPageUpdateDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
 //===--------------------------------------------------------------------===//
 // LPage Methods
 //===--------------------------------------------------------------------===//
+template <typename KeyType, typename ValueType, class KeyComparator>
+int LPage<KeyType, ValueType, KeyComparator>::BinarySearch(
+    __attribute__((unused)) KeyType key,
+    __attribute__((unused)) std::pair<KeyType, ValueType> *locations,
+    __attribute__((unused)) oid_t len) {
+  // TODO @Matt implement this
+  return 0;
+}
+
 template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::Scan(
     __attribute__((unused)) const std::vector<Value> &values,
@@ -246,9 +341,9 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::ScanKey(
     KeyType key) {
   std::vector<ValueType> result;
-  std::vector<int> indices = ScanKeyInternal(key);
+  std::vector<oid_t> indices = ScanKeyInternal(key);
   // we only need the values
-  unsigned long int index;
+  oid_t index;
   for (index = 0; index < indices.size(); index++) {
     result.push_back((locations_)[index].second);
   }
@@ -262,32 +357,31 @@ std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::ScanKey(
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
-std::vector<int> LPage<KeyType, ValueType, KeyComparator>::ScanKeyInternal(
+std::vector<oid_t> LPage<KeyType, ValueType, KeyComparator>::ScanKeyInternal(
     KeyType key) {
   assert(locations_ != nullptr);
-  std::vector<int> result;
+  std::vector<oid_t> result;
   // empty LPage
   if (size_ == 0) {
     return result;
   }
-
   assert(size_ > 0);
   // do a binary search on locations to get the key
-  // TODO fix this index init
-  int index = -1;  //= BinarySearch(key);
+  int index = BinarySearch(key, locations_, size_);
   if (index == -1) {
     // key not found, return empty result
-  } else {
-    // try to collect all matching keys. If unique_keys, only one key matches
-    while (index < size_) {
-      std::pair<KeyType, ValueType> location = (locations_)[index++];
-      if (this->map->comparator(location.first, key) == true) {
-        // found a matching key
-        result.push_back(index);
-      } else {
-        // key not found, return result
-        break;
-      }
+    return result;
+  }
+
+  // try to collect all matching keys. If unique_keys, only one key matches
+  while (index < size_) {
+    std::pair<KeyType, ValueType> location = (locations_)[index];
+    if (this->map->comparator(location.first, key) == true) {
+      // found a matching key
+      result.push_back(index++);
+    } else {
+      // key not found, return result
+      return result;
     }
   }
   return result;
@@ -321,6 +415,12 @@ LPage<KeyType, ValueType, KeyComparator>::BuildScanState(
   // TODO call ScanKeyInternal(values, ...);
   return nullptr;
 };
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+bool LPage<KeyType, ValueType, KeyComparator>::IsInvalidItemPointer(
+    ValueType val) {
+  return val.block == INVALID_OID || val.offset == INVALID_OID;
+}
 
 }  // End index namespace
 }  // End peloton namespace

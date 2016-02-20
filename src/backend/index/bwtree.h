@@ -144,6 +144,7 @@ class LNodeStateBuilder
   // LPage members
   LPID left_sibling_ = 0;
   LPID right_sibling_ = 0;
+  LPage<KeyType, ValueType, KeyComparator> *new_page = nullptr;
 
   // LPage members
   std::pair<KeyType, ValueType> *locations_ = nullptr;
@@ -163,10 +164,7 @@ class LNodeStateBuilder
     }
   };
 
-  BWTreeNode<KeyType, ValueType, KeyComparator> *GetPage() {
-    // TODO: init an LPage based on collected state
-    return nullptr;
-  };
+  BWTreeNode<KeyType, ValueType, KeyComparator> *GetPage();
 
   ~LNodeStateBuilder(){
       // TODO delete arrays
@@ -184,7 +182,7 @@ class LNodeStateBuilder
     assert(locations_ != nullptr);
     KeyType key = new_pair.first;
     int index = LPage<KeyType, ValueType, KeyComparator>::BinarySearch(
-        locations_, this->size);
+        key, locations_, this->size);
     // shift every element to the right
     for (int i = this->size; i > index; i--) {
       locations_[i] = locations_[i - 1];
@@ -195,46 +193,14 @@ class LNodeStateBuilder
     this->size++;
   }
 
-  void RemoveLeafData(std::pair<KeyType, ValueType> &entry_to_remove) {
-    assert(locations_ != nullptr);
-    KeyType key = entry_to_remove.first;
-    int index = LPage<KeyType, ValueType, KeyComparator>::BinarySearch(
-        key, locations_, this->size);
-    // keys are unique
-    if (this->map->unique_keys) {
-      // delete at the found index
-      for (int i = index; i < this->size - 1; i++) {
-        locations_[i] = locations_[i + 1];
-      }
-      // decrement size
-      this->size--;
-      return;
-    }
-    // keys are not unique
-    // we have the first appearance of the given key, do linear scan to see
-    // which one matches exactly
-    bool found_exact_key = false;
-    for (; index < this->size; index++) {
-      std::pair<KeyType, ValueType> pair = locations_[index];
-      /*if (BWTreeNode<KeyType, ValueType,
-      KeyComparator>::comparator(pair.first,
-                                                                    key)) {
-        if (pair.second == entry_to_remove.second) {
-          found_exact_key = true;
-        }
-      } else {
-        // not found
-        break;
-      }*/
-    }
-    if (found_exact_key) {
-      for (int i = index; i < this->size - 1; i++) {
-        locations_[i] = locations_[i + 1];
-      }
-      // decrement size
-      this->size--;
-    }
-  }
+  // only called when keys are unique
+  void RemoveLeafData(KeyType &key_to_remove);
+
+  // only called when keys are non unique
+  void RemoveLeafData(std::pair<KeyType, ValueType> &entry_to_remove);
+
+ private:
+  bool ItemPointerEquals(ValueType v1, ValueType v2);
 };
 //===--------------------------------------------------------------------===//
 // BWTree
@@ -579,20 +545,20 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 template <typename KeyType, typename ValueType, class KeyComparator>
 class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
  public:
+  // TODO @abj initialize "is_delete_" to the desired value as well
   LPageUpdateDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
                    BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
                    KeyType key, ValueType value)
       : Delta<KeyType, ValueType, KeyComparator>(map, modified_node),
         modified_key_(key),
-        modified_val_(value){
-
-        };
+        modified_val_(value){};
 
   bool InsertEntry(__attribute__((unused)) KeyType key,
                    __attribute__((unused)) ValueType location) {
     // TODO implement this
     return false;
   };
+
   bool DeleteEntry(__attribute__((unused)) KeyType key,
                    __attribute__((unused)) ValueType location) {
     // TODO implement this
@@ -635,9 +601,11 @@ class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
   // The key which is modified
   KeyType modified_key_;
 
-  // The location of the updated key
-  // Set to INVALID_ITEMPOINTER for delete delta
+  // The item pointer of the updated key
   ValueType modified_val_;
+
+  // Whether it's a delete delta
+  bool is_delete_ = false;
 };
 
 //===--------------------------------------------------------------------===//
@@ -709,6 +677,12 @@ class IPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
 template <typename KeyType, typename ValueType, class KeyComparator>
 class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
  public:
+  // get the index of the first occurrence of the given key
+  static int BinarySearch(__attribute__((unused)) KeyType key,
+                          __attribute__((unused))
+                          std::pair<KeyType, ValueType> *locations,
+                          __attribute__((unused)) oid_t len);
+
   LPage(BWTree<KeyType, ValueType, KeyComparator> *map)
       : BWTreeNode<KeyType, ValueType, KeyComparator>(map) {
     // TODO initialize these with the proper values
@@ -760,19 +734,20 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_LPAGE; };
 
-  // get the index of the first occurrence of the given key
-  static int BinarySearch(KeyType key, std::pair<KeyType, ValueType> *locations,
-                          oid_t len);
-
  private:
   // return a vector of indices of the matched slots
-  std::vector<int> ScanKeyInternal(KeyType key);
+  std::vector<oid_t> ScanKeyInternal(KeyType key);
 
-  // left_sibling pointer is used to do reverse iterate
+  // return true if a given ItemPointer is invalid
+  bool IsInvalidItemPointer(ValueType val);
+
+  // left_sibling pointer is used for reverse scan
   LPID left_sib_;
   LPID right_sib_;
 
+  // the key-value pairs
   std::pair<KeyType, ValueType> *locations_;
+
   // the size of stored locations
   oid_t size_;
 };
