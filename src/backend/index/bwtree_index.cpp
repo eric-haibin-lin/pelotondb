@@ -14,6 +14,7 @@
 #include "backend/index/bwtree_index.h"
 #include "backend/index/index_key.h"
 #include "backend/storage/tuple.h"
+#include "backend/index/bwtree.cpp"
 
 namespace peloton {
 namespace index {
@@ -22,7 +23,7 @@ template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
 BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::BWTreeIndex(
     IndexMetadata *metadata)
-    : Index(metadata), equals(metadata), comparator(metadata) {
+    : Index(metadata), container(metadata->unique_keys, KeyComparator(metadata)), equals(metadata), comparator(metadata) {
   // Add your implementation here
   // abj1: I think this will culminate in the BWTree constructor being called
   // TODO instantiate BWTree with KeyComparator(metadata);

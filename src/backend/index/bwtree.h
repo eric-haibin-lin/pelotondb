@@ -266,7 +266,7 @@ class BWTree {
      * acts as the root.
      */
     //@abj please fix the compiler warnings :P
-        //IPage<KeyType, ValueType, KeyComparator> root(this, true);
+        IPage<KeyType, ValueType, KeyComparator> root(this, true);
     //
     //    // TODO: do we need the () at the end? Also, this should be
     //    moved to
@@ -467,7 +467,7 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 	 IPage(BWTree<KeyType, ValueType, KeyComparator> *map, bool unique_keys)
 	      : BWTreeNode<KeyType, ValueType, KeyComparator>(map, unique_keys){
 		 size_ = 0;
-		 children_ = std::pair<KeyType, LPID>();
+		 children_ = new std::pair<KeyType, LPID>();
 	 };
 
   std::vector<ValueType> Scan(const std::vector<Value> &values,
