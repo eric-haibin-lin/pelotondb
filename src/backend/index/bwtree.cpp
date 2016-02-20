@@ -90,8 +90,6 @@ std::vector<ValueType> IPage<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
 template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType> IPage<KeyType, ValueType, KeyComparator>::ScanKey(
     KeyType key) {
-  assert(key != nullptr);
-
   std::vector<ValueType> result;
 
   int child_idx = GetChild(key, this->children_, this->size_);
@@ -169,8 +167,7 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType>
 IPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
   std::vector<ValueType> result;
-  assert(key != nullptr);
-  assert(this->unique_keys == true);
+
   // TODO implement this
   return result;
 };
@@ -180,8 +177,8 @@ NodeStateBuilder<KeyType, ValueType, KeyComparator> *
 IPage<KeyType, ValueType, KeyComparator>::BuildNodeState() {
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder;
   // build node state for IPage
-  builder = new INodeStateBuilder<KeyType, ValueType, KeyComparator>(children_,
-                                                                     size_);
+  builder = new INodeStateBuilder<KeyType, ValueType, KeyComparator>(
+      children_, size_, this->map);
   return builder;
 };
 
@@ -213,7 +210,7 @@ std::vector<ValueType>
 LPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
   std::vector<ValueType> result;
   assert(modified_key_ != nullptr);
-  if (this->unique_keys) {
+  if (this->map->unique_keys) {
     // the modified key matches the scanKey
     if (this->comparator(modified_key_, key) == true) {
       // the modified key is deleted, return empty result
@@ -324,7 +321,7 @@ LPage<KeyType, ValueType, KeyComparator>::BuildNodeState() {
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder;
   // build node state for LPage
   builder = new LNodeStateBuilder<KeyType, ValueType, KeyComparator>(
-      left_sib_, right_sib_, locations_, size_);
+      left_sib_, right_sib_, locations_, size_, this->map);
   return builder;
 };
 

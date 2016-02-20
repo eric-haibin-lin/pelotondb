@@ -66,9 +66,12 @@ class NodeStateBuilder {
  protected:
   // number of k-v pairs
   oid_t size;
+  // pointer to the mapping table
+  BWTree<KeyType, ValueType, KeyComparator> *map;
 
  public:
-  NodeStateBuilder(oid_t size) : size(size){};
+  NodeStateBuilder(oid_t size, BWTree<KeyType, ValueType, KeyComparator> *map)
+      : size(size), map(map){};
 
   virtual BWTreeNode<KeyType, ValueType, KeyComparator> *GetPage() = 0;
 
@@ -84,8 +87,9 @@ class INodeStateBuilder
 
  public:
   // IPage constructor
-  INodeStateBuilder(std::pair<KeyType, LPID> *children, int children_len)
-      : NodeStateBuilder<KeyType, ValueType, KeyComparator>(children_len) {
+  INodeStateBuilder(std::pair<KeyType, LPID> *children, int children_len,
+                    BWTree<KeyType, ValueType, KeyComparator> *map)
+      : NodeStateBuilder<KeyType, ValueType, KeyComparator>(children_len, map) {
     children_ = new std::pair<KeyType, LPID>[IPAGE_ARITY + DELTA_CHAIN_LIMIT]();
     for (int i = 0; i < children_len; i++) {
       children_[i] = children[i];
@@ -97,7 +101,9 @@ class INodeStateBuilder
     return nullptr;
   };
 
-  ~INodeStateBuilder(){};
+  ~INodeStateBuilder(){
+      // TODO delete arrays
+  };
 
   //***************************************************
   // IPage Methods
@@ -137,7 +143,6 @@ class LNodeStateBuilder
   // LPage members
   LPID left_sibling_ = 0;
   LPID right_sibling_ = 0;
-  bool unique_keys_ = true;
 
   // LPage members
   std::pair<KeyType, ValueType> *locations_ = nullptr;
@@ -146,11 +151,10 @@ class LNodeStateBuilder
   // LPage constructor
   LNodeStateBuilder(LPID left_sibling, LPID right_sibling,
                     std::pair<KeyType, ValueType> *locations, int location_len,
-                    bool unique_keys)
-      : NodeStateBuilder<KeyType, ValueType, KeyComparator>(location_len),
+                    BWTree<KeyType, ValueType, KeyComparator> *map)
+      : NodeStateBuilder<KeyType, ValueType, KeyComparator>(location_len, map),
         left_sibling_(left_sibling),
-        right_sibling_(right_sibling),
-        unique_keys_(unique_keys) {
+        right_sibling_(right_sibling) {
     locations_ =
         new std::pair<KeyType, ValueType>[IPAGE_ARITY + DELTA_CHAIN_LIMIT]();
     for (int i = 0; i < location_len; i++) {
@@ -163,7 +167,9 @@ class LNodeStateBuilder
     return nullptr;
   };
 
-  ~LNodeStateBuilder(){};
+  ~LNodeStateBuilder(){
+      // TODO delete arrays
+  };
 
   //***************************************************
   // LPage Methods
@@ -194,7 +200,7 @@ class LNodeStateBuilder
     int index = LPage<KeyType, ValueType, KeyComparator>::BinarySearch(
         key, locations_, this->size);
     // keys are unique
-    if (unique_keys_) {
+    if (this->map->unique_keys) {
       // delete at the found index
       for (int i = index; i < this->size - 1; i++) {
         locations_[i] = locations_[i + 1];
@@ -306,9 +312,10 @@ class BWTree {
    * The IPage has only one pointer, which points to the empty LPage.
    * The IPage serves as the root of all other nodes.
    */
-  BWTree(__attribute__((unused)) bool unique_keys,
-         __attribute__((unused)) KeyComparator comparator)
-      : root_(DEFAULT_ROOT_LPID), comparator(comparator) {
+  BWTree(bool unique_keys, KeyComparator comparator)
+      : root_(DEFAULT_ROOT_LPID),
+        comparator(comparator),
+        unique_keys(unique_keys) {
     // this->unique_keys = unique_keys;
     // BWTreeNode<KeyType, ValueType, KeyComparator>::comparator = comparator;
     mapping_table_ =
@@ -316,7 +323,7 @@ class BWTree {
     //
     //    this->comparator = comparator;
     // TODO @abj initialize the root IPage (and maybe a LPage?)
-    IPage<KeyType, ValueType, KeyComparator> root(this, true);
+    IPage<KeyType, ValueType, KeyComparator> root(this);
 
     // with the given comparator
   };
@@ -365,6 +372,10 @@ class BWTree {
 
  public:
   KeyComparator comparator;
+
+  // whether unique key is required
+  bool unique_keys;
+
   // static bool unique_keys;
   // return 0 if the page install is not successful
 
@@ -419,8 +430,7 @@ class BWTreeNode {
   // the comparator for key
   //  KeyComparator comparator;
 
-  BWTreeNode(BWTree<KeyType, ValueType, KeyComparator> *map, bool unique_keys)
-      : map(map), unique_keys(unique_keys){};
+  BWTreeNode(BWTree<KeyType, ValueType, KeyComparator> *map) : map(map){};
 
   // These are virtual methods which child classes have to implement.
   // They also have to be redeclared in the child classes
@@ -462,9 +472,6 @@ class BWTreeNode {
  protected:
   // the handler to the mapping table
   BWTree<KeyType, ValueType, KeyComparator> *map;
-
-  // whether unique key is required
-  bool unique_keys;
 };
 
 //===--------------------------------------------------------------------===//
@@ -476,13 +483,20 @@ class BWTreeNode {
 template <typename KeyType, typename ValueType, class KeyComparator>
 class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
  public:
-  IPage(BWTree<KeyType, ValueType, KeyComparator> *map, bool unique_keys)
-      : BWTreeNode<KeyType, ValueType, KeyComparator>(map, unique_keys) {
+  IPage(BWTree<KeyType, ValueType, KeyComparator> *map)
+      : BWTreeNode<KeyType, ValueType, KeyComparator>(map) {
     size_ = 0;
     children_ = new std::pair<KeyType, LPID>();
   };
 
   ~IPage(){};
+
+  bool InsertEntry(KeyType key, ValueType location);
+
+  bool DeleteEntry(__attribute__((unused)) KeyType key,
+                   __attribute__((unused)) ValueType location) {
+    return false;
+  };
 
   std::vector<ValueType> Scan(const std::vector<Value> &values,
                               const std::vector<oid_t> &key_column_ids,
@@ -493,17 +507,8 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   std::vector<ValueType> ScanKey(KeyType key);
 
-  bool InsertEntry(KeyType key, ValueType location);
-
-  bool DeleteEntry(__attribute__((unused)) KeyType key,
-                   __attribute__((unused)) ValueType location) {
-    return false;
-  };
-
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState();
 
-  // for scan, we have to build the node state as well. But we only care about
-  // the keys we want to scan
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildScanState(
       __attribute__((unused)) KeyType key) {
     return nullptr;
@@ -553,6 +558,17 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 template <typename KeyType, typename ValueType, class KeyComparator>
 class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
  public:
+  bool InsertEntry(__attribute__((unused)) KeyType key,
+                   __attribute__((unused)) ValueType location) {
+    // TODO implement this
+    return false;
+  };
+  bool DeleteEntry(__attribute__((unused)) KeyType key,
+                   __attribute__((unused)) ValueType location) {
+    // TODO implement this
+    return false;
+  };
+
   std::vector<ValueType> Scan(const std::vector<Value> &values,
                               const std::vector<oid_t> &key_column_ids,
                               const std::vector<ExpressionType> &expr_types,
@@ -563,6 +579,19 @@ class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
   std::vector<ValueType> ScanKey(KeyType key);
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState();
+
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildScanState(
+      __attribute__((unused)) KeyType key) {
+    return nullptr;
+  };
+
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildScanState(
+      __attribute__((unused)) const std::vector<Value> &values,
+      __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
+      __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
+      __attribute__((unused)) const ScanDirectionType &scan_direction) {
+    return nullptr;
+  };
 
   inline BWTreeNodeType GetTreeNodeType() const {
     return TYPE_LPAGE_UPDATE_DELTA;
@@ -588,6 +617,17 @@ class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
 template <typename KeyType, typename ValueType, class KeyComparator>
 class IPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
  public:
+  bool InsertEntry(__attribute__((unused)) KeyType key,
+                   __attribute__((unused)) ValueType location) {
+    // TODO implement this
+    return false;
+  };
+  bool DeleteEntry(__attribute__((unused)) KeyType key,
+                   __attribute__((unused)) ValueType location) {
+    // TODO implement this
+    return false;
+  };
+
   std::vector<ValueType> Scan(const std::vector<Value> &values,
                               const std::vector<oid_t> &key_column_ids,
                               const std::vector<ExpressionType> &expr_types,
@@ -597,7 +637,22 @@ class IPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
 
   std::vector<ValueType> ScanKey(KeyType key);
 
-  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState();
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState() {
+    return nullptr;
+  };
+
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildScanState(
+      __attribute__((unused)) KeyType key) {
+    return nullptr;
+  };
+
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildScanState(
+      __attribute__((unused)) const std::vector<Value> &values,
+      __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
+      __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
+      __attribute__((unused)) const ScanDirectionType &scan_direction) {
+    return nullptr;
+  };
 
   inline BWTreeNodeType GetTreeNodeType() const {
     return TYPE_IPAGE_UPDATE_DELTA;
@@ -620,6 +675,17 @@ class IPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
 template <typename KeyType, typename ValueType, class KeyComparator>
 class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
  public:
+  bool InsertEntry(__attribute__((unused)) KeyType key,
+                   __attribute__((unused)) ValueType location) {
+    // TODO implement this
+    return false;
+  };
+  bool DeleteEntry(__attribute__((unused)) KeyType key,
+                   __attribute__((unused)) ValueType location) {
+    // TODO implement this
+    return false;
+  };
+
   std::vector<ValueType> Scan(const std::vector<Value> &values,
                               const std::vector<oid_t> &key_column_ids,
                               const std::vector<ExpressionType> &expr_types,
