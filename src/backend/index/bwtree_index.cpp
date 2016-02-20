@@ -52,7 +52,10 @@ bool BWTreeIndex<KeyType, ValueType, KeyComparator,
   // container.insert(std::pair<KeyType, ValueType>(index_key, location));
   // see btree_index line 40
 
-  // container.InsertEntry(key, location);
+	KeyType index_key;
+	index_key.SetFromKey(key);
+	ValueType value(location);
+  container.InsertEntry(index_key, value);
   return false;
 }
 
