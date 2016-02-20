@@ -109,36 +109,21 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 bool IPage<KeyType, ValueType, KeyComparator>::InsertEntry(
     __attribute__((unused)) KeyType key,
     __attribute__((unused)) ValueType location) {
-  return false;
+
   /* int i;
    bool last_level_page;
-   LPID target_child_lpid;  // TODO: write code to get this -- partially done
+   LPID target_child_lpid;  // TODO: write code to get this -- partially done*/
 
-   for (i = 0; i < children_map.size(); i++)
-     if (KeyComparator(key, children_map[i].first))
-       continue;
-     else {
-       target_child_lpid = children_map[i].second;
-       break;
-     }
 
-   // Ideally, i should never be equal to children_map.size(), because that
-   would
-   // mean somewhere
-   // the ranges are not correct
-   assert(i != children_map.size());
-
-   if (last_level_ipage) {
-     LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
+   return this->map->GetNode(GetChild(key, children_, size_))->InsertEntry(key, location);
+     /*LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
          new LPageUpdateDelta<KeyType, ValueType, KeyComparator>();
 
      new_delta->modified_node = GetNode(target_child_lpid);
      new_delta->modified_key_ = key;
      new_delta->modified_val_ = location;
-     // TODO: handle failed SwapNode
-     return SwapNode(target_child_lpid, new_delta->modified_node, new_delta);
-   } else
-     return GetNode(target_child_lpid).InsertEntry(key, location);*/
+     return SwapNode(target_child_lpid, new_delta->modified_node, new_delta);*/
+
 };
 //===--------------------------------------------------------------------===//
 // IPageUpdateDelta Methods
