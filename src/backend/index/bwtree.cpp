@@ -116,13 +116,6 @@ bool IPage<KeyType, ValueType, KeyComparator>::InsertEntry(
 
   return this->map->GetNode(GetChild(key, children_, size_))
       ->InsertEntry(key, location);
-  /*LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
-      new LPageUpdateDelta<KeyType, ValueType, KeyComparator>();
-
-  new_delta->modified_node = GetNode(target_child_lpid);
-  new_delta->modified_key_ = key;
-  new_delta->modified_val_ = location;
-  return SwapNode(target_child_lpid, new_delta->modified_node, new_delta);*/
 };
 //===--------------------------------------------------------------------===//
 // IPageUpdateDelta Methods
@@ -173,7 +166,7 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType>
 LPageUpdateDelta<KeyType, ValueType, KeyComparator>::Scan(
     __attribute__((unused)) const std::vector<Value> &values,
-    const std::vector<oid_t> &key_column_ids,
+    __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
     __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
     __attribute__((unused)) const ScanDirectionType &scan_direction) {
   std::vector<ValueType> result;

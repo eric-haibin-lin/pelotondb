@@ -559,6 +559,12 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 template <typename KeyType, typename ValueType, class KeyComparator>
 class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
  public:
+  Delta(BWTree<KeyType, ValueType, KeyComparator> *map,
+        BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node)
+      : BWTreeNode<KeyType, ValueType, KeyComparator>(map),
+        modified_node(modified_node){
+
+        };
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_DELTA; };
 
  protected:
@@ -573,6 +579,15 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 template <typename KeyType, typename ValueType, class KeyComparator>
 class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
  public:
+  LPageUpdateDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
+                   BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
+                   KeyType key, ValueType value)
+      : Delta<KeyType, ValueType, KeyComparator>(map, modified_node),
+        modified_key_(key),
+        modified_val_(value){
+
+        };
+
   bool InsertEntry(__attribute__((unused)) KeyType key,
                    __attribute__((unused)) ValueType location) {
     // TODO implement this
@@ -611,6 +626,10 @@ class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
   inline BWTreeNodeType GetTreeNodeType() const {
     return TYPE_LPAGE_UPDATE_DELTA;
   };
+
+  void SetKey(KeyType modified_key) { modified_key_ = modified_key; }
+
+  void SetValue(ValueType modified_val) { modified_val_ = modified_val; }
 
  private:
   // The key which is modified
@@ -703,9 +722,16 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   bool InsertEntry(__attribute__((unused)) KeyType key,
                    __attribute__((unused)) ValueType location) {
-    // TODO implement this
+    LPageUpdateDelta<KeyType, ValueType, KeyComparator> new_delta(
+        this->map, this, key, location);
+
+    // new_delta.modified_node = GetNode(target_child_lpid);
+    /* new_delta.SetKey(key);
+     new_delta.SetValue(location);*/
+    // return SwapNode(target_child_lpid, new_delta->modified_node, new_delta);
     return false;
   };
+
   bool DeleteEntry(__attribute__((unused)) KeyType key,
                    __attribute__((unused)) ValueType location) {
     // TODO implement this
