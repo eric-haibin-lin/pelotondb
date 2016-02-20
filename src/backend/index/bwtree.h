@@ -400,8 +400,8 @@ class BWTree {
       AquireWrite();
       int new_mapping_table_cap = mapping_table_cap_ * 2;
       auto new_mapping_table =
-          new BWTreeNode<KeyType, ValueType, KeyComparator> *
-               [new_mapping_table_cap];
+          new BWTreeNode<KeyType, ValueType,
+                         KeyComparator> *[new_mapping_table_cap];
       memcpy(new_mapping_table, mapping_table_, mapping_table_cap_);
       delete[] mapping_table_;
       mapping_table_ = new_mapping_table;
@@ -545,9 +545,7 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     return 0;  // TODO implement this
   };
 
-  std::pair<KeyType, LPID> *GetChildren() {
-	  return children_;
-  }
+  std::pair<KeyType, LPID> *GetChildren() { return children_; }
 
  private:
   std::pair<KeyType, LPID> *children_;
@@ -692,18 +690,16 @@ class IPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
 template <typename KeyType, typename ValueType, class KeyComparator>
 class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
  public:
+  LPage(BWTree<KeyType, ValueType, KeyComparator> *map)
+      : BWTreeNode<KeyType, ValueType, KeyComparator>(map) {
+    // TODO initialize these with the proper values
+    left_sib_ = 0;
+    right_sib_ = 0;
+    locations_ = new std::pair<KeyType, ValueType>[LPAGE_ARITY]();
+    size_ = 0;
+  };
 
-	 LPage(BWTree<KeyType, ValueType, KeyComparator> *map)
-	      : BWTreeNode<KeyType, ValueType, KeyComparator>(map) {
-
-		  // TODO initialize these with the proper values
-		  left_sib_ = 0;
-	      right_sib_ = 0;
-	      locations_ = new std::pair<KeyType, ValueType>[LPAGE_ARITY]();
-	      size_ = 0;
-	  };
-
-	  ~LPage(){};
+  ~LPage(){};
 
   bool InsertEntry(__attribute__((unused)) KeyType key,
                    __attribute__((unused)) ValueType location) {

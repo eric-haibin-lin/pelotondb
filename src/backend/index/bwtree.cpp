@@ -60,9 +60,10 @@ std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::ScanKey(
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 bool BWTree<KeyType, ValueType, KeyComparator>::InsertEntry(
-		__attribute__((unused))KeyType key,__attribute__((unused)) ValueType location) {
+    __attribute__((unused)) KeyType key,
+    __attribute__((unused)) ValueType location) {
   // just call InsertEntry on root
-  //return false;
+  // return false;
   return GetNode(root_)->InsertEntry(key, location);
 };
 
@@ -109,21 +110,19 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 bool IPage<KeyType, ValueType, KeyComparator>::InsertEntry(
     __attribute__((unused)) KeyType key,
     __attribute__((unused)) ValueType location) {
-
   /* int i;
    bool last_level_page;
    LPID target_child_lpid;  // TODO: write code to get this -- partially done*/
 
+  return this->map->GetNode(GetChild(key, children_, size_))
+      ->InsertEntry(key, location);
+  /*LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
+      new LPageUpdateDelta<KeyType, ValueType, KeyComparator>();
 
-   return this->map->GetNode(GetChild(key, children_, size_))->InsertEntry(key, location);
-     /*LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
-         new LPageUpdateDelta<KeyType, ValueType, KeyComparator>();
-
-     new_delta->modified_node = GetNode(target_child_lpid);
-     new_delta->modified_key_ = key;
-     new_delta->modified_val_ = location;
-     return SwapNode(target_child_lpid, new_delta->modified_node, new_delta);*/
-
+  new_delta->modified_node = GetNode(target_child_lpid);
+  new_delta->modified_key_ = key;
+  new_delta->modified_val_ = location;
+  return SwapNode(target_child_lpid, new_delta->modified_node, new_delta);*/
 };
 //===--------------------------------------------------------------------===//
 // IPageUpdateDelta Methods
@@ -235,7 +234,7 @@ LPageUpdateDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
 template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::Scan(
     __attribute__((unused)) const std::vector<Value> &values,
-	__attribute__((unused)) const std::vector<oid_t> &key_column_ids,
+    __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
     __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
     __attribute__((unused)) const ScanDirectionType &scan_direction) {
   std::vector<ValueType> result;
@@ -282,7 +281,7 @@ std::vector<int> LPage<KeyType, ValueType, KeyComparator>::ScanKeyInternal(
   assert(size_ > 0);
   // do a binary search on locations to get the key
   // TODO fix this index init
-  int index = -1;//= BinarySearch(key);
+  int index = -1;  //= BinarySearch(key);
   if (index == -1) {
     // key not found, return empty result
   } else {
@@ -313,7 +312,8 @@ LPage<KeyType, ValueType, KeyComparator>::BuildNodeState() {
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 NodeStateBuilder<KeyType, ValueType, KeyComparator> *
-LPage<KeyType, ValueType, KeyComparator>::BuildScanState(__attribute__((unused))KeyType key) {
+LPage<KeyType, ValueType, KeyComparator>::BuildScanState(__attribute__((unused))
+                                                         KeyType key) {
   // TODO call ScanKeyInternal(key);
   return nullptr;
 };
@@ -321,9 +321,10 @@ LPage<KeyType, ValueType, KeyComparator>::BuildScanState(__attribute__((unused))
 template <typename KeyType, typename ValueType, class KeyComparator>
 NodeStateBuilder<KeyType, ValueType, KeyComparator> *
 LPage<KeyType, ValueType, KeyComparator>::BuildScanState(
-		__attribute__((unused))const std::vector<Value> &values, __attribute__((unused))const std::vector<oid_t> &key_column_ids,
-		__attribute__((unused))const std::vector<ExpressionType> &expr_types,
-		__attribute__((unused))const ScanDirectionType &scan_direction) {
+    __attribute__((unused)) const std::vector<Value> &values,
+    __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
+    __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
+    __attribute__((unused)) const ScanDirectionType &scan_direction) {
   // TODO call ScanKeyInternal(values, ...);
   return nullptr;
 };
