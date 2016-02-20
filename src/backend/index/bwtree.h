@@ -253,8 +253,10 @@ class BWTree {
 
  public:
   BWTree() : root_(DEFAULT_ROOT_LPID) {
+
     mapping_table_ =
         new BWTreeNode<KeyType, ValueType, KeyComparator> *[mapping_table_cap_];
+
     // TODO @abj initialize the root IPage (and maybe a LPage?) ---
     // done!
     // with the given comparator
@@ -264,8 +266,7 @@ class BWTree {
      * acts as the root.
      */
     //@abj please fix the compiler warnings :P
-    //    IPage<KeyType, ValueType, KeyComparator> *root =
-    //        new IPage<KeyType, ValueType, KeyComparator>(this, true);
+        IPage<KeyType, ValueType, KeyComparator> root(this, true);
     //
     //    // TODO: do we need the () at the end? Also, this should be
     //    moved to
@@ -302,6 +303,7 @@ class BWTree {
    */
   BWTree(bool unique_keys, KeyComparator comparator)
       : root_(DEFAULT_ROOT_LPID) {
+	  BWTreeNode<KeyType, ValueType, KeyComparator>::comparator = comparator;
     mapping_table_ =
         new BWTreeNode<KeyType, ValueType, KeyComparator> *[mapping_table_cap_];
     // TODO @abj initialize the root IPage (and maybe a LPage?)
@@ -459,6 +461,13 @@ class BWTreeNode {
 template <typename KeyType, typename ValueType, class KeyComparator>
 class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
  public:
+
+	 IPage(BWTree<KeyType, ValueType, KeyComparator> *map, bool unique_keys)
+	      : BWTreeNode<KeyType, ValueType, KeyComparator>(map, unique_keys){
+		 size_ = 0;
+		 children_ = new std::pair<KeyType, LPID>();
+	 };
+
   std::vector<ValueType> Scan(const std::vector<Value> &values,
                               const std::vector<oid_t> &key_column_ids,
                               const std::vector<ExpressionType> &expr_types,
@@ -471,6 +480,19 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   bool InsertEntry(KeyType key, ValueType location);
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState();
+
+
+    // for scan, we have to build the node state as well. But we only care about
+    // the keys we want to scan
+     NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildScanState(
+        KeyType key);
+
+     NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildScanState(
+        const std::vector<Value> &values,
+        const std::vector<oid_t> &key_column_ids,
+        const std::vector<ExpressionType> &expr_types,
+        const ScanDirectionType &scan_direction);
+
 
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_IPAGE; };
 
