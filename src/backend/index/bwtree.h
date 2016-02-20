@@ -57,7 +57,6 @@ class LPage;
 // TODO add methods for use by split deltas, etc
 // TODO add constructors to LNode and INode to build node based on state
 // TODO add methods on each node to build the NodeState
-// TODO use array instead of map, change access method
 /**
  * Builder for a node state, to be used with Delta Compression and
  * scans on indexes with multiple keys
@@ -102,14 +101,30 @@ class INodeStateBuilder
   // IPage Methods
   //***************************************************
   void AddChild(std::pair<KeyType, LPID> &new_pair) {
-    // Sort based on keys. Has to be added at the right position
-    //IPage<KeyType, ValueType, KeyComparator>::GetChild()
-    //    (*children_map_)[this->size++] = new_pair;
+    assert(children_ != nullptr);
+    KeyType key = new_pair.first;
+    int index = IPage<KeyType, ValueType, KeyComparator>::GetChild(
+        key, children_, this->size);
+    // shift every element to the right
+    for (int i = this->size; i > index; i--) {
+      children_[i] = children_[i - 1];
+    }
+    // insert at the found index
+    children_[index] = new_pair;
+    // increase size
+    this->size++;
   }
 
   void RemoveChild(KeyType key_to_remove) {
-    // TODO remove the first occurrence of key_to_remove
-    // children_map_.erase(key_to_remove);
+    assert(children_ != nullptr);
+    int index = IPage<KeyType, ValueType, KeyComparator>::GetChild(
+        key_to_remove, children_, this->size);
+    // delete at the found index
+    for (int i = index; i < this->size - 1; i++) {
+      children_[i] = children_[i + 1];
+    }
+    // decrement size
+    this->size--;
   }
 };
 
@@ -120,19 +135,24 @@ class LNodeStateBuilder
   // LPage members
   LPID left_sibling_ = 0;
   LPID right_sibling_ = 0;
+  bool unique_keys_ = true;
 
   // LPage members
-  std::pair<KeyType, ValueType> *leaf_data_ = nullptr;
+  std::pair<KeyType, ValueType> *locations_ = nullptr;
 
  public:
   // LPage constructor
   LNodeStateBuilder(LPID left_sibling, LPID right_sibling,
-                    std::pair<KeyType, ValueType> *leaf_data, int leaf_data_len)
-      : NodeStateBuilder<KeyType, ValueType, KeyComparator>(leaf_data_len),
+                    std::pair<KeyType, ValueType> *locations, int location_len,
+                    bool unique_keys)
+      : NodeStateBuilder<KeyType, ValueType, KeyComparator>(location_len),
         left_sibling_(left_sibling),
-        right_sibling_(right_sibling) {
-    for (int i = 0; i < leaf_data_len; i++) {
-      // leaf_data_[leaf_data[i]->first] = leaf_data[i]->second;
+        right_sibling_(right_sibling),
+        unique_keys_(unique_keys) {
+    locations_ =
+        new std::pair<KeyType, ValueType>[IPAGE_ARITY + DELTA_CHAIN_LIMIT]();
+    for (int i = 0; i < location_len; i++) {
+      locations_[i] = locations[i];
     }
   }
 
@@ -149,13 +169,59 @@ class LNodeStateBuilder
 
   void UpdateRightSib(LPID new_right_sib) { right_sibling_ = new_right_sib; }
 
-  void AddLeafData(std::pair<KeyType, ValueType> &new_entry) {
-    // TODO use array
-    // leaf_data_[new_entry->first] = new_entry->second;
+  void AddLeafData(std::pair<KeyType, ValueType> &new_pair) {
+    assert(locations_ != nullptr);
+    KeyType key = new_pair.first;
+    int index = LPage<KeyType, ValueType, KeyComparator>::BinarySearch(
+        locations_, this->size);
+    // shift every element to the right
+    for (int i = this->size; i > index; i--) {
+      locations_[i] = locations_[i - 1];
+    }
+    // insert at the found index
+    locations_[index] = new_pair;
+    // increase size
+    this->size++;
   }
 
   void RemoveLeafData(std::pair<KeyType, ValueType> &entry_to_remove) {
-    // TODO use array
+    assert(locations_ != nullptr);
+    KeyType key = entry_to_remove.first;
+    int index = LPage<KeyType, ValueType, KeyComparator>::BinarySearch(
+        key, locations_, this->size);
+    // keys are unique
+    if (unique_keys_) {
+      // delete at the found index
+      for (int i = index; i < this->size - 1; i++) {
+        locations_[i] = locations_[i + 1];
+      }
+      // decrement size
+      this->size--;
+      return;
+    }
+    // keys are not unique
+    // we have the first appearance of the given key, do linear scan to see
+    // which one matches exactly
+    bool found_exact_key = false;
+    for (; index < this->size; index++) {
+      std::pair<KeyType, ValueType> pair = locations_[index];
+      if (BWTreeNode<KeyType, ValueType, KeyComparator>::comparator(pair.first,
+                                                                    key)) {
+        if (pair.second == entry_to_remove.second) {
+          found_exact_key = true;
+        }
+      } else {
+        // not found
+        break;
+      }
+    }
+    if (found_exact_key) {
+      for (int i = index; i < this->size - 1; i++) {
+        locations_[i] = locations_[i + 1];
+      }
+      // decrement size
+      this->size--;
+    }
   }
 };
 //===--------------------------------------------------------------------===//
@@ -335,6 +401,9 @@ class BWTree {
 template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTreeNode {
  public:
+  // the comparator for key
+  static KeyComparator comparator;
+
   BWTreeNode(BWTree<KeyType, ValueType, KeyComparator> *map, bool unique_keys)
       : map(map), unique_keys(unique_keys){};
 
@@ -379,9 +448,6 @@ class BWTreeNode {
 
   // whether unique key is required
   bool unique_keys;
-
-  // the comparator for key
-  KeyComparator comparator;
 };
 
 //===--------------------------------------------------------------------===//

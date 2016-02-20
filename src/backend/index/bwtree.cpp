@@ -179,8 +179,8 @@ NodeStateBuilder<KeyType, ValueType, KeyComparator> *
 IPage<KeyType, ValueType, KeyComparator>::BuildNodeState() {
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder;
   // build node state for IPage
-  builder = new INodeStateBuilder<KeyType, ValueType, KeyComparator>(
-      children_, size_);
+  builder = new INodeStateBuilder<KeyType, ValueType, KeyComparator>(children_,
+                                                                     size_);
   return builder;
 };
 
