@@ -62,8 +62,8 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 bool BWTree<KeyType, ValueType, KeyComparator>::InsertEntry(
 		__attribute__((unused))KeyType key,__attribute__((unused)) ValueType location) {
   // just call InsertEntry on root
-  return false;
-  // return GetNode(root_)->InsertEntry(key, location);
+  //return false;
+  return GetNode(root_)->InsertEntry(key, location);
 };
 
 //===--------------------------------------------------------------------===//

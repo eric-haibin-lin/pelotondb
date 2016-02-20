@@ -321,14 +321,22 @@ class BWTree {
     // BWTreeNode<KeyType, ValueType, KeyComparator>::comparator = comparator;
     mapping_table_ =
         new BWTreeNode<KeyType, ValueType, KeyComparator> *[mapping_table_cap_];
-    //
-    //    this->comparator = comparator;
+
     // TODO @abj initialize the root IPage (and maybe a LPage?)
     IPage<KeyType, ValueType, KeyComparator> root(this);
 
     root_ = InstallPage(&root);
 
     LPage<KeyType, ValueType, KeyComparator> first_lpage(this);
+
+    std::pair<KeyType, LPID> first_lpage_pair;
+
+    LPID first_lpage_lpid;
+
+    first_lpage_lpid = InstallPage(&first_lpage);
+    first_lpage_pair.second = first_lpage_lpid;
+
+    root.GetChildren()[0] = first_lpage_pair;
 
     // with the given comparator
   };
@@ -536,6 +544,10 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
                       __attribute__((unused)) oid_t len) {
     return 0;  // TODO implement this
   };
+
+  std::pair<KeyType, LPID> *GetChildren() {
+	  return children_;
+  }
 
  private:
   std::pair<KeyType, LPID> *children_;
