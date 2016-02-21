@@ -252,6 +252,7 @@ bool IPage<KeyType, ValueType, KeyComparator>::InsertEntry(
   /* int i;
    bool last_level_page;
    LPID target_child_lpid;  // TODO: write code to get this -- partially done*/
+	LOG_INFO("Inside IPage InsertEntry");
   LPID child_lpid = GetChild(key, children_, size_);
   return this->map->GetNode(child_lpid)->InsertEntry(key, location, child_lpid);
 };

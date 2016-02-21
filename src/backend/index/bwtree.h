@@ -226,6 +226,7 @@ class BWTree {
       : comparator(comparator), unique_keys(unique_keys) {
     // this->unique_keys = unique_keys;
     // BWTreeNode<KeyType, ValueType, KeyComparator>::comparator = comparator;
+	  LOG_INFO("Inside BWTree Constructor");
     mapping_table_ =
         new BWTreeNode<KeyType, ValueType, KeyComparator> *[mapping_table_cap_];
 
@@ -235,6 +236,8 @@ class BWTree {
 
     root_ = InstallPage(root);
 
+    LOG_INFO("Root got LPID: %d", (int)root_);
+
     LPage<KeyType, ValueType, KeyComparator> *first_lpage = new LPage<KeyType, ValueType, KeyComparator>(this);
 
     std::pair<KeyType, LPID> first_lpage_pair;
@@ -242,9 +245,13 @@ class BWTree {
     LPID first_lpage_lpid;
 
     first_lpage_lpid = InstallPage(first_lpage);
+
+    LOG_INFO("The first LPage got LPID: %d", (int)first_lpage_lpid);
     first_lpage_pair.second = first_lpage_lpid;
 
     root->GetChildren()[0] = first_lpage_pair;
+
+    LOG_INFO("Leaving BWTree constructor");
 
     // with the given comparator
   };
@@ -810,27 +817,28 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     ValueType splitterVal;
     bool swapSuccess;
 
-    LPage<KeyType, ValueType, KeyComparator> newLpage(this->map, 0);
+    LPage<KeyType, ValueType, KeyComparator> *newLpage = new LPage<KeyType, ValueType, KeyComparator>(this->map);
 
     for (int i = size_ / 2; i < size_; i++) {
-      newLpage.locations_[j++] = locations_[i];
+      newLpage->locations_[j++] = locations_[i];
     }
 
     // TODO Why am I able to access this size_ private variable?
-    newLpage.size_ = j;
+    newLpage->size_ = j;
 
     // TODO left_sib is set to self
-    newLpage.right_sib_ = right_sib_;
+    newLpage->right_sib_ = right_sib_;
 
     splitterKey = locations_[size_ / 2 + 1].first;
     splitterVal = locations_[size_ / 2 + 1].second;
 
-    newLpageLPID = this->map->InstallPage(&newLpage);
+    newLpageLPID = this->map->InstallPage(newLpage);
 
-    LPageSplitDelta<KeyType, ValueType, KeyComparator> splitDelta(
+    LPageSplitDelta<KeyType, ValueType, KeyComparator> *splitDelta = new
+    		LPageSplitDelta<KeyType, ValueType, KeyComparator> (
         this->map, this, splitterKey, splitterVal, newLpageLPID);
 
-    swapSuccess = this->map->SwapNode(self, this, &splitDelta);
+    swapSuccess = this->map->SwapNode(self, this, splitDelta);
 
     if (swapSuccess == false) {
       // What should we do on failure? This means that someone else succeeded in
@@ -850,6 +858,10 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     // dumbo abj
 
     // Now start with the second half
+    IPageUpdateDelta<KeyType, ValueType, KeyComparator> *parentUpdateDelta = new
+    		IPageUpdateDelta
+
+
   };
 
  private:
