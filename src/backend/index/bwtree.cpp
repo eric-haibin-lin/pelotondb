@@ -184,7 +184,10 @@ bool BWTree<KeyType, ValueType, KeyComparator>::InsertEntry(
     __attribute__((unused)) ValueType location) {
   // just call InsertEntry on root
   // return false;
-  return GetNode(root_)->InsertEntry(key, location);
+  LPID child_lpid;
+  child_lpid = root_;
+
+  return GetNode(child_lpid)->InsertEntry(key, location, child_lpid);
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -230,13 +233,13 @@ std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::ScanKey(
 template <typename KeyType, typename ValueType, class KeyComparator>
 bool IPage<KeyType, ValueType, KeyComparator>::InsertEntry(
     __attribute__((unused)) KeyType key,
-    __attribute__((unused)) ValueType location) {
+    __attribute__((unused)) ValueType location, __attribute__((unused)) LPID self) {
   /* int i;
    bool last_level_page;
    LPID target_child_lpid;  // TODO: write code to get this -- partially done*/
-
-  return this->map->GetNode(GetChild(key, children_, size_))
-      ->InsertEntry(key, location);
+  LPID child_lpid = GetChild(key, children_, size_);
+  return this->map->GetNode(child_lpid)
+      ->InsertEntry(key, location, child_lpid);
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>

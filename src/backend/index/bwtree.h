@@ -357,7 +357,7 @@ class BWTreeNode {
 
   // These are virtual methods which child classes have to implement.
   // They also have to be redeclared in the child classes
-  virtual bool InsertEntry(KeyType key, ValueType location) = 0;
+  virtual bool InsertEntry(KeyType key, ValueType location, LPID self) = 0;
 
   virtual bool DeleteEntry(KeyType key, ValueType location) = 0;
 
@@ -421,7 +421,7 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   ~IPage(){};
 
-  bool InsertEntry(KeyType key, ValueType location);
+  bool InsertEntry(KeyType key, ValueType location, LPID self);
 
   bool DeleteEntry(__attribute__((unused)) KeyType key,
                    __attribute__((unused)) ValueType location) {
@@ -499,7 +499,7 @@ class IPageSplitDelta : public Delta<KeyType, ValueType, KeyComparator> {
         modified_val_(value){};
 
   bool InsertEntry(__attribute__((unused)) KeyType key,
-                   __attribute__((unused)) ValueType location) {
+                   __attribute__((unused)) ValueType location,__attribute__((unused)) LPID self) {
     // TODO implement this
     return false;
   };
@@ -535,7 +535,7 @@ class LPageSplitDelta : public Delta<KeyType, ValueType, KeyComparator> {
         modified_val_(value){};
 
   bool InsertEntry(__attribute__((unused)) KeyType key,
-                   __attribute__((unused)) ValueType location) {
+                   __attribute__((unused)) ValueType location, __attribute__((unused)) LPID self) {
     // TODO implement this
     return false;
   };
@@ -575,9 +575,12 @@ class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
         modified_val_(value){};
 
   bool InsertEntry(__attribute__((unused)) KeyType key,
-                   __attribute__((unused)) ValueType location) {
+                   __attribute__((unused)) ValueType location, __attribute__((unused)) LPID self) {
     // TODO implement this
-    return false;
+	  LPageUpdateDelta<KeyType, ValueType, KeyComparator> new_delta(
+			  this->map, this, key, location);
+
+	  return this->map->SwapNode(self, this, &new_delta);
   };
 
   bool DeleteEntry(__attribute__((unused)) KeyType key,
@@ -634,7 +637,7 @@ class IPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
   // TODO @abj initialize "is_delete_" to the desired value as well
 
   bool InsertEntry(__attribute__((unused)) KeyType key,
-                   __attribute__((unused)) ValueType location) {
+                   __attribute__((unused)) ValueType location, __attribute__((unused)) LPID self) {
     // TODO implement this
     return false;
   };
@@ -686,15 +689,12 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   ~LPage(){};
 
   bool InsertEntry(__attribute__((unused)) KeyType key,
-                   __attribute__((unused)) ValueType location) {
+                   __attribute__((unused)) ValueType location, __attribute__((unused)) LPID self) {
     LPageUpdateDelta<KeyType, ValueType, KeyComparator> new_delta(
         this->map, this, key, location);
 
-    // new_delta.modified_node = GetNode(target_child_lpid);
-    /* new_delta.SetKey(key);
-     new_delta.SetValue(location);*/
-    // return SwapNode(target_child_lpid, new_delta->modified_node, new_delta);
-    return false;
+    return this->map->SwapNode(self, this, &new_delta);
+    //return false;
   };
 
   bool DeleteEntry(__attribute__((unused)) KeyType key,
