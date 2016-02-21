@@ -382,7 +382,9 @@ class BWTree {
 template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTreeNode {
  public:
-  BWTreeNode(BWTree<KeyType, ValueType, KeyComparator> *map) : map(map){};
+  BWTreeNode(BWTree<KeyType, ValueType, KeyComparator> *map,
+             int delta_chain_len)
+      : map(map), delta_chain_len_(delta_chain_len){};
 
   // These are virtual methods which child classes have to implement.
   // They also have to be redeclared in the child classes
@@ -428,9 +430,14 @@ class BWTreeNode {
 
   };
 
+  int GetDeltaChainLen() { return delta_chain_len_; }
+
  protected:
   // the handler to the mapping table
   BWTree<KeyType, ValueType, KeyComparator> *map;
+
+  // length of delta chain
+  int delta_chain_len_;
 };
 
 //===--------------------------------------------------------------------===//
@@ -443,7 +450,7 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
  public:
   IPage(BWTree<KeyType, ValueType, KeyComparator> *map)
-      : BWTreeNode<KeyType, ValueType, KeyComparator>(map) {
+      : BWTreeNode<KeyType, ValueType, KeyComparator>(map, 0) {
     size_ = 0;
     // children_ = new std::pair<KeyType, LPID>();
   };
@@ -498,10 +505,9 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
  public:
   Delta(BWTree<KeyType, ValueType, KeyComparator> *map,
         BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node)
-      : BWTreeNode<KeyType, ValueType, KeyComparator>(map),
-        modified_node(modified_node){
-
-        };
+      : BWTreeNode<KeyType, ValueType, KeyComparator>(
+            map, modified_node->GetDeltaChainLen() + 1),
+        modified_node(modified_node){};
 
   std::vector<ValueType> Scan(const std::vector<Value> &values,
                               const std::vector<oid_t> &key_column_ids,
@@ -719,7 +725,7 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
                           __attribute__((unused)) oid_t len);
 
   LPage(BWTree<KeyType, ValueType, KeyComparator> *map)
-      : BWTreeNode<KeyType, ValueType, KeyComparator>(map) {
+      : BWTreeNode<KeyType, ValueType, KeyComparator>(map, 0) {
     // TODO initialize these with the proper values
     left_sib_ = 0;
     right_sib_ = 0;
