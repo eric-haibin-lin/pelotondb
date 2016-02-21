@@ -351,6 +351,27 @@ class BWTree {
     }
     return 1;
   }
+
+  // compress delta chain
+  bool CompressDeltaChain(LPID page_to_compress) {
+    auto old_node_ptr = GetNode(page_to_compress);
+    auto old_node_state = old_node_ptr->BuildNodeState();
+    auto new_node_ptr = old_node_state->GetPage();
+
+    // delete the temporary state
+    delete old_node_state;
+
+    bool completed = SwapNode(page_to_compress, old_node_ptr, new_node_ptr);
+    // if we didn't failed to install we should clean up the page we created
+    if (completed) {
+      // TODO: add old node to epoch
+    } else {
+      // if we failed we should clean up the new page
+      delete new_node_ptr;
+    }
+
+    return completed;
+  }
 };
 
 //===--------------------------------------------------------------------===//
@@ -705,6 +726,13 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     // locations_ = new std::pair<KeyType, ValueType>[LPAGE_ARITY]();
     size_ = 0;
   };
+
+  LPage(BWTree<KeyType, ValueType, KeyComparator> *map,
+        NodeStateBuilder<KeyType, ValueType, KeyComparator> &state)
+      : BWTreeNode<KeyType, ValueType, KeyComparator>(map){
+            // TODO initialize these with the proper values
+
+        };
 
   ~LPage(){};
 
