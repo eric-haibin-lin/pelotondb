@@ -34,6 +34,8 @@ enum BWTreeNodeType {
 #define IPAGE_ARITY 5
 #define LPAGE_ARITY 5
 
+#define INVALID_LPID ULLONG_MAX
+
 #define DELTA_CHAIN_LIMIT 5
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -566,10 +568,11 @@ class LPageSplitDelta : public Delta<KeyType, ValueType, KeyComparator> {
  public:
   LPageSplitDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
                   BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
-                  KeyType key, LPID value)
+                  KeyType splitterKey, ValueType splitterVal, LPID rightSplitPage)
       : Delta<KeyType, ValueType, KeyComparator>(map, modified_node),
-        modified_key_(key),
-        modified_val_(value){};
+        modified_key_(splitterKey),
+		modified_key_location_(splitterVal),
+        modified_val_(rightSplitPage){};
 
   bool InsertEntry(__attribute__((unused)) KeyType key,
                    __attribute__((unused)) ValueType location,
@@ -732,13 +735,13 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   };
 
   LPage(BWTree<KeyType, ValueType, KeyComparator> *map,
-		  NodeStateBuilder<KeyType, ValueType, KeyComparator> &state)
-  : BWTreeNode<KeyType, ValueType, KeyComparator>(map){
-	  // TODO initialize these with the proper values
-	  left_sib_ = 0;
-	  right_sib_ = 0;
-	  // locations_ = new std::pair<KeyType, ValueType>[LPAGE_ARITY]();
-	  size_ = 0;
+        NodeStateBuilder<KeyType, ValueType, KeyComparator> &state)
+      : BWTreeNode<KeyType, ValueType, KeyComparator>(map) {
+    // TODO initialize these with the proper values
+    left_sib_ = 0;
+    right_sib_ = 0;
+    // locations_ = new std::pair<KeyType, ValueType>[LPAGE_ARITY]();
+    size_ = 0;
   };
 
   ~LPage(){};
@@ -777,6 +780,55 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState();
 
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_LPAGE; };
+
+  void MergeNodes(LPID self, LPID parent) {
+
+	  LPID newLpageLPID;
+	  int j = 0;
+	  KeyType splitterKey;
+	  ValueType splitterVal;
+	  bool swapSuccess;
+
+	  LPage<KeyType, ValueType, KeyComparator> newLpage(this->map, 0);
+
+	  for (int i = size_ / 2; i < size_; i++)
+	  {
+		  newLpage.locations_[j++] = locations_[i];
+	  }
+
+	  //TODO Why am I able to access this size_ private variable?
+	  newLpage.size_ = j;
+
+	  //TODO left_sib is set to self
+	  newLpage.right_sib_ = right_sib_;
+
+	  splitterKey = locations_[size_ / 2 + 1].first;
+	  splitterVal = locations_[size_ / 2 + 1].second;
+
+	  newLpageLPID = this->map->InstallPage(&newLpage);
+
+	  LPageSplitDelta<KeyType, ValueType, KeyComparator> splitDelta(this->map, this, splitterKey,
+			  splitterVal, newLpageLPID);
+
+	  swapSuccess = this->map->SwapNode(self, this, &splitDelta);
+
+	  if (swapSuccess == false)
+	  {
+		  // What should we do on failure? This means that someone else succeeded in doing the
+		  // atomic half split. Now if try and install our own Insert / Delete / Update delta, it
+		  // will automatically be created on top of the LPageSplitDelta
+		  return;
+	  }
+
+	  // This completes the atomic half split
+	  // At this point no one else can succeed with the complete split because this guy won in the half split
+	  // Now we still have to update the size field and the right_sib of this node... how can we do it atomically?
+	  // Edit: No need to do that! Because the consolidation will do that lol you dumbo abj
+
+	  // Now start with the second half
+
+
+  };
 
  private:
   // return a vector of indices of the matched slots
