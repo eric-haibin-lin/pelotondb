@@ -88,6 +88,9 @@ class NodeStateBuilder {
   inline LPID GetSplitNewPageId() { return split_new_page_id; }
 
   virtual ~NodeStateBuilder() { ; };
+
+  friend class LPage<KeyType, ValueType, KeyComparator>;
+  friend class IPage<KeyType, ValueType, KeyComparator>;
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -123,6 +126,8 @@ class INodeStateBuilder
   void RemoveChild(KeyType &key_to_remove);
 
   void SeparateFromKey(KeyType separator_key, LPID split_new_page_id);
+
+  friend class LPage<KeyType, ValueType, KeyComparator>;
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -181,6 +186,8 @@ class LNodeStateBuilder
 
  private:
   bool ItemPointerEquals(ValueType v1, ValueType v2);
+
+  friend class LPage<KeyType, ValueType, KeyComparator>;
 };
 
 //===--------------------------------------------------------------------===//
@@ -741,13 +748,18 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   };
 
   LPage(BWTree<KeyType, ValueType, KeyComparator> *map,
-        NodeStateBuilder<KeyType, ValueType, KeyComparator> &state)
-      : BWTreeNode<KeyType, ValueType, KeyComparator>(map) {
-    // TODO initialize these with the proper values
+        NodeStateBuilder<KeyType, ValueType, KeyComparator> *state)
+      : BWTreeNode<KeyType, ValueType, KeyComparator>(map, 0) {
+    size_ = state->size;
+    LNodeStateBuilder<KeyType, ValueType, KeyComparator> *lstate =
+        reinterpret_cast<
+            LNodeStateBuilder<KeyType, ValueType, KeyComparator> *>(state);
+    for (oid_t index = 0; index < size_; index++) {
+      locations_[index] = lstate->locations_[index];
+    }
     left_sib_ = 0;
     right_sib_ = 0;
-    // locations_ = new std::pair<KeyType, ValueType>[LPAGE_ARITY]();
-    size_ = 0;
+    // TODO handle split case
   };
 
   ~LPage(){};

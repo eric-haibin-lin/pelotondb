@@ -90,8 +90,7 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 BWTreeNode<KeyType, ValueType, KeyComparator> *
 LNodeStateBuilder<KeyType, ValueType, KeyComparator>::GetPage() {
   if (new_page_ == nullptr) {
-    // TODO call LPage constructor
-    // new_page = new LPage<KeyType, ValueType, KeyComparator>();
+    new_page_ = new LPage<KeyType, ValueType, KeyComparator>(this->map, this);
   }
   return new_page_;
 }
