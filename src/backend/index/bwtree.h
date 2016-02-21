@@ -251,6 +251,13 @@ class BWTree {
     delete[] mapping_table_;
   }
 
+  // get the index of the first occurrence of the given key
+  template <typename PairSecond>
+  inline int BinarySearch(__attribute__((unused)) KeyType key,
+                          __attribute__((unused))
+                          std::pair<KeyType, PairSecond> *locations,
+                          __attribute__((unused)) oid_t len);
+
   bool InsertEntry(KeyType key, ValueType location);
 
   bool DeleteEntry(KeyType key, ValueType location) {
@@ -568,10 +575,11 @@ class LPageSplitDelta : public Delta<KeyType, ValueType, KeyComparator> {
  public:
   LPageSplitDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
                   BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
-                  KeyType splitterKey, ValueType splitterVal, LPID rightSplitPage)
+                  KeyType splitterKey, ValueType splitterVal,
+                  LPID rightSplitPage)
       : Delta<KeyType, ValueType, KeyComparator>(map, modified_node),
         modified_key_(splitterKey),
-		modified_key_location_(splitterVal),
+        modified_key_location_(splitterVal),
         modified_val_(rightSplitPage){};
 
   bool InsertEntry(__attribute__((unused)) KeyType key,
@@ -719,13 +727,6 @@ class IPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
 template <typename KeyType, typename ValueType, class KeyComparator>
 class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
  public:
-  // get the index of the first occurrence of the given key
-  static int BinarySearch(__attribute__((unused)) KeyType key,
-                          __attribute__((unused))
-                          std::pair<KeyType, ValueType> *locations,
-                          __attribute__((unused)) oid_t len,
-                          BWTree<KeyType, ValueType, KeyComparator> *tree);
-
   // get the index of the first occurrence of the given <k, v> pair
   // used when deleting a <k-v> entry from non-unique keys
   static int BinarySearch(__attribute__((unused))
@@ -791,52 +792,52 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_LPAGE; };
 
   void MergeNodes(LPID self, LPID parent) {
+    LPID newLpageLPID;
+    int j = 0;
+    KeyType splitterKey;
+    ValueType splitterVal;
+    bool swapSuccess;
 
-	  LPID newLpageLPID;
-	  int j = 0;
-	  KeyType splitterKey;
-	  ValueType splitterVal;
-	  bool swapSuccess;
+    LPage<KeyType, ValueType, KeyComparator> newLpage(this->map, 0);
 
-	  LPage<KeyType, ValueType, KeyComparator> newLpage(this->map, 0);
+    for (int i = size_ / 2; i < size_; i++) {
+      newLpage.locations_[j++] = locations_[i];
+    }
 
-	  for (int i = size_ / 2; i < size_; i++)
-	  {
-		  newLpage.locations_[j++] = locations_[i];
-	  }
+    // TODO Why am I able to access this size_ private variable?
+    newLpage.size_ = j;
 
-	  //TODO Why am I able to access this size_ private variable?
-	  newLpage.size_ = j;
+    // TODO left_sib is set to self
+    newLpage.right_sib_ = right_sib_;
 
-	  //TODO left_sib is set to self
-	  newLpage.right_sib_ = right_sib_;
+    splitterKey = locations_[size_ / 2 + 1].first;
+    splitterVal = locations_[size_ / 2 + 1].second;
 
-	  splitterKey = locations_[size_ / 2 + 1].first;
-	  splitterVal = locations_[size_ / 2 + 1].second;
+    newLpageLPID = this->map->InstallPage(&newLpage);
 
-	  newLpageLPID = this->map->InstallPage(&newLpage);
+    LPageSplitDelta<KeyType, ValueType, KeyComparator> splitDelta(
+        this->map, this, splitterKey, splitterVal, newLpageLPID);
 
-	  LPageSplitDelta<KeyType, ValueType, KeyComparator> splitDelta(this->map, this, splitterKey,
-			  splitterVal, newLpageLPID);
+    swapSuccess = this->map->SwapNode(self, this, &splitDelta);
 
-	  swapSuccess = this->map->SwapNode(self, this, &splitDelta);
+    if (swapSuccess == false) {
+      // What should we do on failure? This means that someone else succeeded in
+      // doing the
+      // atomic half split. Now if try and install our own Insert / Delete /
+      // Update delta, it
+      // will automatically be created on top of the LPageSplitDelta
+      return;
+    }
 
-	  if (swapSuccess == false)
-	  {
-		  // What should we do on failure? This means that someone else succeeded in doing the
-		  // atomic half split. Now if try and install our own Insert / Delete / Update delta, it
-		  // will automatically be created on top of the LPageSplitDelta
-		  return;
-	  }
+    // This completes the atomic half split
+    // At this point no one else can succeed with the complete split because
+    // this guy won in the half split
+    // Now we still have to update the size field and the right_sib of this
+    // node... how can we do it atomically?
+    // Edit: No need to do that! Because the consolidation will do that lol you
+    // dumbo abj
 
-	  // This completes the atomic half split
-	  // At this point no one else can succeed with the complete split because this guy won in the half split
-	  // Now we still have to update the size field and the right_sib of this node... how can we do it atomically?
-	  // Edit: No need to do that! Because the consolidation will do that lol you dumbo abj
-
-	  // Now start with the second half
-
-
+    // Now start with the second half
   };
 
  private:

@@ -101,8 +101,7 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::AddLeafData(
     std::pair<KeyType, ValueType> &new_pair) {
   assert(locations_ != nullptr);
   KeyType key = new_pair.first;
-  int index = LPage<KeyType, ValueType, KeyComparator>::BinarySearch(
-      key, locations_, this->size, this->map);
+  int index = this->map->BinarySearch(key, locations_, this->size);
   assert(index < IPAGE_ARITY + DELTA_CHAIN_LIMIT);
 
   // shift every element to the right
@@ -123,8 +122,7 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::RemoveLeafData(
   // keys are unique
   assert(this->map->unique_keys);
 
-  int index = LPage<KeyType, ValueType, KeyComparator>::BinarySearch(
-      key_to_remove, locations_, this->size, this->map);
+  int index = this->map->BinarySearch(key_to_remove, locations_, this->size);
   // if key found
   if (index < this->size && index >= 0) {
     for (int i = index; i < this->size - 1; i++) {
@@ -144,8 +142,7 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::RemoveLeafData(
   assert(this->map->unique_keys == false);
 
   KeyType key = entry_to_remove.first;
-  static int index = LPage<KeyType, ValueType, KeyComparator>::BinarySearch(
-      key, locations_, this->size, this->map);
+  static int index = this->map->BinarySearch(key, locations_, this->size);
   // we have the first appearance of the given key, do linear scan to see
   // which one matches exactly
   bool found_exact_key = false;
@@ -174,7 +171,7 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::SeparateFromKey(
     KeyType separator_key, ValueType location, LPID split_new_page_id) {
   assert(locations_ != nullptr);
 
-  int index = LPage<KeyType, ValueType, KeyComparator>::BinarySearch(
+  int index = this->map->BinarySearch(
       std::pair<KeyType, ValueType>(separator_key, location), locations_,
       this->size);
   assert(index < this->size && index >= 0);
@@ -486,16 +483,16 @@ LPageUpdateDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
 // LPage Methods Begin
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
-int LPage<KeyType, ValueType, KeyComparator>::BinarySearch(
+template <typename PairSecond>
+int BWTree<KeyType, ValueType, KeyComparator>::BinarySearch(
     __attribute__((unused)) KeyType key,
-    __attribute__((unused)) std::pair<KeyType, ValueType> *locations,
-    __attribute__((unused)) oid_t len,
-    __attribute__((unused)) BWTree<KeyType, ValueType, KeyComparator> *tree) {
+    __attribute__((unused)) std::pair<KeyType, PairSecond> *locations,
+    __attribute__((unused)) oid_t len) {
   int low = 0, high = len - 1, first = -1;
   int mid;
   while (low <= high) {
     mid = low + ((high - low) >> 1);
-    switch (tree->CompareKey(locations[mid].first, key)) {
+    switch (CompareKey(locations[mid].first, key)) {
       case -1:
         low = mid + 1;
         break;
@@ -513,15 +510,6 @@ int LPage<KeyType, ValueType, KeyComparator>::BinarySearch(
   } else {
     return -low;
   }
-}
-
-template <typename KeyType, typename ValueType, class KeyComparator>
-int LPage<KeyType, ValueType, KeyComparator>::BinarySearch(
-    __attribute__((unused)) std::pair<KeyType, ValueType> pair,
-    __attribute__((unused)) std::pair<KeyType, ValueType> *locations,
-    __attribute__((unused)) oid_t len) {
-  // TODO @Matt implement this
-  return 0;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -572,7 +560,7 @@ std::vector<oid_t> LPage<KeyType, ValueType, KeyComparator>::ScanKeyInternal(
   }
   assert(size_ > 0);
   // do a binary search on locations to get the key
-  int index = BinarySearch(key, locations_, size_, this->map);
+  int index = this->map->BinarySearch(key, locations_, size_);
   if (index == -1) {
     // key not found, return empty result
     return result;
