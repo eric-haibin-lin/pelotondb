@@ -34,8 +34,6 @@ enum BWTreeNodeType {
 #define IPAGE_ARITY 5
 #define LPAGE_ARITY 5
 
-#define MAX_IPAGE_ARITY 15
-#define MAX_LPAGE_ARITY 15
 #define DELTA_CHAIN_LIMIT 5
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -133,7 +131,7 @@ class LNodeStateBuilder
   LPID left_sibling_ = 0;
   LPID right_sibling_ = 0;
   LPage<KeyType, ValueType, KeyComparator> *new_page_ = nullptr;
-  ValueType location_;
+  ValueType separator_location_;
 
   // LPage members
   std::pair<KeyType, ValueType> *locations_ = nullptr;
@@ -492,7 +490,7 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   std::pair<KeyType, LPID> *GetChildren() { return children_; }
 
  private:
-  std::pair<KeyType, LPID> children_[MAX_IPAGE_ARITY];
+  std::pair<KeyType, LPID> children_[IPAGE_ARITY];
 
   oid_t size_;
 };
@@ -725,6 +723,14 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
                           __attribute__((unused)) oid_t len,
                           BWTree<KeyType, ValueType, KeyComparator> *tree);
 
+  // get the index of the first occurrence of the given <k, v> pair
+  // used when deleting a <k-v> entry from non-unique keys
+  static int BinarySearch(__attribute__((unused))
+                          std::pair<KeyType, ValueType> pair,
+                          __attribute__((unused))
+                          std::pair<KeyType, ValueType> *locations,
+                          __attribute__((unused)) oid_t len);
+
   LPage(BWTree<KeyType, ValueType, KeyComparator> *map)
       : BWTreeNode<KeyType, ValueType, KeyComparator>(map, 0) {
     // TODO initialize these with the proper values
@@ -736,10 +742,13 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   LPage(BWTree<KeyType, ValueType, KeyComparator> *map,
         NodeStateBuilder<KeyType, ValueType, KeyComparator> &state)
-      : BWTreeNode<KeyType, ValueType, KeyComparator>(map){
-            // TODO initialize these with the proper values
-
-        };
+      : BWTreeNode<KeyType, ValueType, KeyComparator>(map) {
+    // TODO initialize these with the proper values
+    left_sib_ = 0;
+    right_sib_ = 0;
+    // locations_ = new std::pair<KeyType, ValueType>[LPAGE_ARITY]();
+    size_ = 0;
+  };
 
   ~LPage(){};
 
@@ -790,7 +799,7 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   LPID right_sib_;
 
   // the key-value pairs
-  std::pair<KeyType, ValueType> locations_[MAX_LPAGE_ARITY];
+  std::pair<KeyType, ValueType> locations_[LPAGE_ARITY];
 
   // the size of stored locations
   oid_t size_;

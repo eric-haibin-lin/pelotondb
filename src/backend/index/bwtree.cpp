@@ -170,6 +170,25 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::RemoveLeafData(
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator>
+void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::SeparateFromKey(
+    KeyType separator_key, ValueType location, LPID split_new_page_id) {
+  assert(locations_ != nullptr);
+
+  int index = LPage<KeyType, ValueType, KeyComparator>::BinarySearch(
+      std::pair<KeyType, ValueType>(separator_key, location), locations_,
+      this->size);
+  assert(index < this->size && index >= 0);
+  // assume we exclude the key at the split page
+  // decrement size
+  this->size = index;
+  // update separator info
+  this->is_separated = true;
+  this->separator_key = separator_key;
+  separator_location_ = location;
+  this->split_new_page_id = split_new_page_id;
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator>
 bool LNodeStateBuilder<KeyType, ValueType, KeyComparator>::ItemPointerEquals(
     ValueType v1, ValueType v2) {
   return v1.block == v2.block && v1.offset == v2.offset;
@@ -370,8 +389,8 @@ LPageSplitDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
       reinterpret_cast<LNodeStateBuilder<KeyType, ValueType, KeyComparator> *>(
           this->modified_node->BuildNodeState());
   assert(builder != nullptr);
-  std::pair<KeyType, LPID> separator(modified_key_, modified_val_);
-  builder->SeparateFromKey(separator);
+  builder->SeparateFromKey(modified_key_, modified_key_location_,
+                           modified_val_);
 
   return builder;
 }
@@ -494,6 +513,15 @@ int LPage<KeyType, ValueType, KeyComparator>::BinarySearch(
   } else {
     return -low;
   }
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+int LPage<KeyType, ValueType, KeyComparator>::BinarySearch(
+    __attribute__((unused)) std::pair<KeyType, ValueType> pair,
+    __attribute__((unused)) std::pair<KeyType, ValueType> *locations,
+    __attribute__((unused)) oid_t len) {
+  // TODO @Matt implement this
+  return 0;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator>
