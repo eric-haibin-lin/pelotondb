@@ -34,8 +34,6 @@ enum BWTreeNodeType {
 #define IPAGE_ARITY 5
 #define LPAGE_ARITY 5
 
-#define MAX_IPAGE_ARITY 15
-#define MAX_LPAGE_ARITY 15
 #define DELTA_CHAIN_LIMIT 5
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -492,7 +490,7 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   std::pair<KeyType, LPID> *GetChildren() { return children_; }
 
  private:
-  std::pair<KeyType, LPID> children_[MAX_IPAGE_ARITY];
+  std::pair<KeyType, LPID> children_[IPAGE_ARITY];
 
   oid_t size_;
 };
@@ -734,11 +732,14 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   };
 
   LPage(BWTree<KeyType, ValueType, KeyComparator> *map,
-        NodeStateBuilder<KeyType, ValueType, KeyComparator> &state)
-      : BWTreeNode<KeyType, ValueType, KeyComparator>(map){
-            // TODO initialize these with the proper values
-
-        };
+		  NodeStateBuilder<KeyType, ValueType, KeyComparator> &state)
+  : BWTreeNode<KeyType, ValueType, KeyComparator>(map){
+	  // TODO initialize these with the proper values
+	  left_sib_ = 0;
+	  right_sib_ = 0;
+	  // locations_ = new std::pair<KeyType, ValueType>[LPAGE_ARITY]();
+	  size_ = 0;
+  };
 
   ~LPage(){};
 
@@ -789,7 +790,7 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   LPID right_sib_;
 
   // the key-value pairs
-  std::pair<KeyType, ValueType> locations_[MAX_LPAGE_ARITY];
+  std::pair<KeyType, ValueType> locations_[LPAGE_ARITY];
 
   // the size of stored locations
   oid_t size_;
