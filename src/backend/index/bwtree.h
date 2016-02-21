@@ -250,7 +250,12 @@ class BWTree {
 
   bool InsertEntry(KeyType key, ValueType location);
 
-  bool DeleteEntry(KeyType key, ValueType location);
+  bool DeleteEntry(KeyType key, ValueType location) {
+    LPID child_lpid;
+    child_lpid = root_;
+
+    return GetNode(child_lpid)->DeleteEntry(key, location, child_lpid);
+  };
 
   std::vector<ValueType> Scan(const std::vector<Value> &values,
                               const std::vector<oid_t> &key_column_ids,
@@ -359,7 +364,7 @@ class BWTreeNode {
   // They also have to be redeclared in the child classes
   virtual bool InsertEntry(KeyType key, ValueType location, LPID self) = 0;
 
-  virtual bool DeleteEntry(KeyType key, ValueType location) = 0;
+  virtual bool DeleteEntry(KeyType key, ValueType location, LPID self) = 0;
 
   virtual std::vector<ValueType> Scan(
       const std::vector<Value> &values,
@@ -424,8 +429,11 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   bool InsertEntry(KeyType key, ValueType location, LPID self);
 
   bool DeleteEntry(__attribute__((unused)) KeyType key,
-                   __attribute__((unused)) ValueType location) {
-    return false;
+                   __attribute__((unused)) ValueType location,
+                   __attribute__((unused)) LPID self) {
+    LPID child_lpid = GetChild(key, children_, size_);
+    return this->map->GetNode(child_lpid)
+        ->DeleteEntry(key, location, child_lpid);
   };
 
   std::vector<ValueType> Scan(const std::vector<Value> &values,
@@ -499,7 +507,8 @@ class IPageSplitDelta : public Delta<KeyType, ValueType, KeyComparator> {
         modified_val_(value){};
 
   bool InsertEntry(__attribute__((unused)) KeyType key,
-                   __attribute__((unused)) ValueType location,__attribute__((unused)) LPID self) {
+                   __attribute__((unused)) ValueType location,
+                   __attribute__((unused)) LPID self) {
     // TODO implement this
     return false;
   };
@@ -535,7 +544,8 @@ class LPageSplitDelta : public Delta<KeyType, ValueType, KeyComparator> {
         modified_val_(value){};
 
   bool InsertEntry(__attribute__((unused)) KeyType key,
-                   __attribute__((unused)) ValueType location, __attribute__((unused)) LPID self) {
+                   __attribute__((unused)) ValueType location,
+                   __attribute__((unused)) LPID self) {
     // TODO implement this
     return false;
   };
@@ -575,18 +585,22 @@ class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
         modified_val_(value){};
 
   bool InsertEntry(__attribute__((unused)) KeyType key,
-                   __attribute__((unused)) ValueType location, __attribute__((unused)) LPID self) {
+                   __attribute__((unused)) ValueType location,
+                   __attribute__((unused)) LPID self) {
     // TODO implement this
-	  LPageUpdateDelta<KeyType, ValueType, KeyComparator> new_delta(
-			  this->map, this, key, location);
+    LPageUpdateDelta<KeyType, ValueType, KeyComparator> new_delta(
+        this->map, this, key, location);
 
-	  return this->map->SwapNode(self, this, &new_delta);
+    return this->map->SwapNode(self, this, &new_delta);
   };
 
   bool DeleteEntry(__attribute__((unused)) KeyType key,
-                   __attribute__((unused)) ValueType location) {
-    // TODO implement this
-    return false;
+                   __attribute__((unused)) ValueType location, LPID self) {
+    LPageUpdateDelta<KeyType, ValueType, KeyComparator> new_delta(
+        this->map, this, key, location);
+
+    new_delta.SetDeleteFlag();
+    return this->map->SwapNode(self, this, &new_delta);
   };
 
   std::vector<ValueType> ScanKey(KeyType key);
@@ -611,6 +625,8 @@ class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
   void SetKey(KeyType modified_key) { modified_key_ = modified_key; }
 
   void SetValue(ValueType modified_val) { modified_val_ = modified_val; }
+
+  void SetDeleteFlag() { is_delete_ = true; };
 
  private:
   // The key which is modified
@@ -637,7 +653,8 @@ class IPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
   // TODO @abj initialize "is_delete_" to the desired value as well
 
   bool InsertEntry(__attribute__((unused)) KeyType key,
-                   __attribute__((unused)) ValueType location, __attribute__((unused)) LPID self) {
+                   __attribute__((unused)) ValueType location,
+                   __attribute__((unused)) LPID self) {
     // TODO implement this
     return false;
   };
@@ -689,18 +706,25 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   ~LPage(){};
 
   bool InsertEntry(__attribute__((unused)) KeyType key,
-                   __attribute__((unused)) ValueType location, __attribute__((unused)) LPID self) {
+                   __attribute__((unused)) ValueType location,
+                   __attribute__((unused)) LPID self) {
     LPageUpdateDelta<KeyType, ValueType, KeyComparator> new_delta(
         this->map, this, key, location);
 
     return this->map->SwapNode(self, this, &new_delta);
-    //return false;
+    // return false;
   };
 
   bool DeleteEntry(__attribute__((unused)) KeyType key,
-                   __attribute__((unused)) ValueType location) {
+                   __attribute__((unused)) ValueType location,
+                   __attribute__((unused)) LPID self) {
     // TODO implement this
-    return false;
+
+    LPageUpdateDelta<KeyType, ValueType, KeyComparator> new_delta(
+        this->map, this, key, location);
+
+    new_delta.SetDeleteFlag();
+    return this->map->SwapNode(self, this, &new_delta);
   };
 
   std::vector<ValueType> Scan(const std::vector<Value> &values,

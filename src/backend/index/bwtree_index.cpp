@@ -55,8 +55,7 @@ bool BWTreeIndex<KeyType, ValueType, KeyComparator,
   KeyType index_key;
   index_key.SetFromKey(key);
   ValueType value(location);
-  container.InsertEntry(index_key, value);
-  return false;
+  return container.InsertEntry(index_key, value);
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator,
@@ -67,7 +66,10 @@ bool BWTreeIndex<KeyType, ValueType, KeyComparator,
                                                   __attribute__((unused))
                                                   const ItemPointer location) {
   // Add your implementation here
-  return false;
+  KeyType index_key;
+  index_key.SetFromKey(key);
+  ValueType value(location);
+  return container.DeleteEntry(index_key, value);
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator,

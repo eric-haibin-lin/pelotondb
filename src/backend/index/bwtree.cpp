@@ -229,17 +229,16 @@ std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::ScanKey(
 //===--------------------------------------------------------------------===//
 // IPage Methods
 //===--------------------------------------------------------------------===//
-//@abj please fix the warnings :P
 template <typename KeyType, typename ValueType, class KeyComparator>
 bool IPage<KeyType, ValueType, KeyComparator>::InsertEntry(
     __attribute__((unused)) KeyType key,
-    __attribute__((unused)) ValueType location, __attribute__((unused)) LPID self) {
+    __attribute__((unused)) ValueType location,
+    __attribute__((unused)) LPID self) {
   /* int i;
    bool last_level_page;
    LPID target_child_lpid;  // TODO: write code to get this -- partially done*/
   LPID child_lpid = GetChild(key, children_, size_);
-  return this->map->GetNode(child_lpid)
-      ->InsertEntry(key, location, child_lpid);
+  return this->map->GetNode(child_lpid)->InsertEntry(key, location, child_lpid);
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
