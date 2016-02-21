@@ -102,10 +102,20 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::AddLeafData(
   KeyType key = new_pair.first;
   int index = this->map->BinarySearch(key, locations_, this->size);
   assert(index < IPAGE_ARITY + DELTA_CHAIN_LIMIT);
-
-  // shift every element to the right
-  for (int i = this->size; i > index; i--) {
-    locations_[i] = locations_[i - 1];
+  // not found. shift every element to the right
+  if (index < 0) {
+    index = -1 * index;
+    for (int i = this->size; i > index; i--) {
+      locations_[i] = locations_[i - 1];
+    }
+  } else {
+    // found
+    if (!this->map->unique_keys) {
+      // shift every element to the right if we allow non-unique keys
+      for (int i = this->size; i > index; i--) {
+        locations_[i] = locations_[i - 1];
+      }
+    }
   }
   // insert at the found index
   locations_[index] = new_pair;
@@ -120,6 +130,7 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::RemoveLeafData(
   assert(locations_ != nullptr);
   // keys are unique
   assert(this->map->unique_keys);
+  // TODO implement non-unique-key case
 
   int index = this->map->BinarySearch(key_to_remove, locations_, this->size);
   // if key found
