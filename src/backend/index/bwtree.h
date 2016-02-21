@@ -717,7 +717,8 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   static int BinarySearch(__attribute__((unused)) KeyType key,
                           __attribute__((unused))
                           std::pair<KeyType, ValueType> *locations,
-                          __attribute__((unused)) oid_t len);
+                          __attribute__((unused)) oid_t len,
+                          BWTree<KeyType, ValueType, KeyComparator> *tree);
 
   // get the index of the first occurrence of the given <k, v> pair
   // used when deleting a <k-v> entry from non-unique keys
