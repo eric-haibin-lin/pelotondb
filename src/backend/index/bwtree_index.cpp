@@ -100,7 +100,9 @@ std::vector<ItemPointer>
 BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::ScanKey(
     __attribute__((unused)) const storage::Tuple *key) {
   std::vector<ItemPointer> result;
-  // Add your implementation here
+  KeyType index_key;
+  index_key.SetFromKey(key);
+  result = container.ScanKey(index_key);
   return result;
 }
 

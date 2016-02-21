@@ -126,7 +126,6 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::AddLeafData(
 template <typename KeyType, typename ValueType, class KeyComparator>
 void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::RemoveLeafData(
     KeyType &key_to_remove) {
-
   // TODO remove entry based on key
   assert(locations_ != nullptr);
   // keys are unique
@@ -222,11 +221,12 @@ std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::Scan(
     const std::vector<ExpressionType> &expr_types,
     const ScanDirectionType &scan_direction) {
   std::vector<ValueType> result;
-
+  LOG_INFO("Enter BWTree::Scan");
   // recursive call scan from the root of BWTree
   result =
       GetNode(root_)->Scan(values, key_column_ids, expr_types, scan_direction);
 
+  LOG_INFO("Leave BWTree::Scan");
   return result;
 };
 
@@ -244,6 +244,7 @@ BWTree<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
 template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::ScanKey(
     KeyType key) {
+  // LOG_INFO
   std::vector<ValueType> result;
 
   // recursive call scan from the root of BWTree
@@ -263,11 +264,12 @@ bool IPage<KeyType, ValueType, KeyComparator>::InsertEntry(
   /* int i;
    bool last_level_page;
    LPID target_child_lpid;  // TODO: write code to get this -- partially done*/
-	LOG_INFO("Inside IPage InsertEntry");
-	int child_lpid_index = GetChild(key, children_, size_);
-	LOG_INFO("Got child_lpid_index as %d", child_lpid_index);
-  //LPID child_lpid = GetChild(key, children_, size_);
-  return this->map->GetNode(children_[child_lpid].second)->InsertEntry(key, location, child_lpid);
+  LOG_INFO("Inside IPage InsertEntry");
+  int child_lpid_index = GetChild(key, children_, size_);
+  LOG_INFO("Got child_lpid_index as %d", child_lpid_index);
+  // LPID child_lpid = GetChild(key, children_, size_);
+  LPID child_lpid = children_[child_lpid_index].second;
+  return this->map->GetNode(child_lpid)->InsertEntry(key, location, child_lpid);
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -291,6 +293,7 @@ std::vector<ValueType> IPage<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
 template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType> IPage<KeyType, ValueType, KeyComparator>::ScanKey(
     KeyType key) {
+  LOG_INFO("Enter IPage::ScanKey");
   std::vector<ValueType> result;
   // locate the child who covers the key
   int child_idx = GetChild(key, this->children_, this->size_);
@@ -300,6 +303,7 @@ std::vector<ValueType> IPage<KeyType, ValueType, KeyComparator>::ScanKey(
       this->map->GetNode(child_id);
   assert(child != nullptr);
   result = child->ScanKey(key);
+  LOG_INFO("Leave IPage::ScanKey");
   return result;
 };
 
@@ -451,14 +455,14 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType>
 LPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
   std::vector<ValueType> result;
-  LOG_INFO(" ");
+  LOG_INFO("LPageUpdateDelta::ScanKey");
   if (this->map->unique_keys) {
     // the modified key matches the scanKey
     if (this->map->CompareKey(modified_key_, key) == 0) {
-      LOG_INFO("Found a matching key");
+      LOG_INFO("LPageUpdateDelta::ScanKey Found a matching key");
       if (!is_delete_) {
         // the modified key is inserted, add to result vector
-        LOG_INFO("Inserts the matching key");
+        LOG_INFO("LPageUpdateDelta::ScanKey Inserts the matching item pointer");
         result.push_back(modified_val_);
       }
       return result;
@@ -536,7 +540,7 @@ int BWTree<KeyType, ValueType, KeyComparator>::BinarySearch(
         break;
     }
   }
-  if (first < 0) {
+  if (first != -1) {
     return first;
   } else {
     return -low;
