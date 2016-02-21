@@ -455,6 +455,7 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType>
 LPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
   std::vector<ValueType> result;
+  assert(this->modified_node != nullptr);
   LOG_INFO("LPageUpdateDelta::ScanKey");
   if (this->map->unique_keys) {
     // the modified key matches the scanKey
@@ -472,8 +473,8 @@ LPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
 
   // non unique key. we have to build the state
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
-      this->modified_node->BuildScanState(key);
-
+      this->modified_node->BuildNodeState();
+  assert(builder != nullptr);
   BWTreeNode<KeyType, ValueType, KeyComparator> *page = builder->GetPage();
   assert(page != nullptr);
   // TODO check split status of builder for shortcut
