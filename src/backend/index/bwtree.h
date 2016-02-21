@@ -187,8 +187,6 @@ class LNodeStateBuilder
 template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTree {
  private:
-  // the default LPID for the root node is 2^64 - 1
-  static const LPID DEFAULT_ROOT_LPID = ULLONG_MAX;
 
   // the logical page id for the root node
   LPID root_;
@@ -217,8 +215,7 @@ class BWTree {
    * The IPage serves as the root of all other nodes.
    */
   BWTree(bool unique_keys, KeyComparator comparator)
-      : root_(DEFAULT_ROOT_LPID),
-        comparator(comparator),
+      : comparator(comparator),
         unique_keys(unique_keys) {
     // this->unique_keys = unique_keys;
     // BWTreeNode<KeyType, ValueType, KeyComparator>::comparator = comparator;
