@@ -722,7 +722,8 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   static int BinarySearch(__attribute__((unused)) KeyType key,
                           __attribute__((unused))
                           std::pair<KeyType, ValueType> *locations,
-                          __attribute__((unused)) oid_t len);
+                          __attribute__((unused)) oid_t len,
+                          BWTree<KeyType, ValueType, KeyComparator> *tree);
 
   LPage(BWTree<KeyType, ValueType, KeyComparator> *map)
       : BWTreeNode<KeyType, ValueType, KeyComparator>(map, 0) {

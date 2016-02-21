@@ -102,7 +102,7 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::AddLeafData(
   assert(locations_ != nullptr);
   KeyType key = new_pair.first;
   int index = LPage<KeyType, ValueType, KeyComparator>::BinarySearch(
-      key, locations_, this->size);
+      key, locations_, this->size, this->map);
   assert(index < IPAGE_ARITY + DELTA_CHAIN_LIMIT);
 
   // shift every element to the right
@@ -124,7 +124,7 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::RemoveLeafData(
   assert(this->map->unique_keys);
 
   int index = LPage<KeyType, ValueType, KeyComparator>::BinarySearch(
-      key_to_remove, locations_, this->size);
+      key_to_remove, locations_, this->size, this->map);
   // if key found
   if (index < this->size && index >= 0) {
     for (int i = index; i < this->size - 1; i++) {
@@ -144,8 +144,8 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::RemoveLeafData(
   assert(this->map->unique_keys == false);
 
   KeyType key = entry_to_remove.first;
-  int index = LPage<KeyType, ValueType, KeyComparator>::BinarySearch(
-      key, locations_, this->size);
+  static int index = LPage<KeyType, ValueType, KeyComparator>::BinarySearch(
+      key, locations_, this->size, this->map);
   // we have the first appearance of the given key, do linear scan to see
   // which one matches exactly
   bool found_exact_key = false;
@@ -470,9 +470,30 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 int LPage<KeyType, ValueType, KeyComparator>::BinarySearch(
     __attribute__((unused)) KeyType key,
     __attribute__((unused)) std::pair<KeyType, ValueType> *locations,
-    __attribute__((unused)) oid_t len) {
-  // TODO @Matt implement this
-  return 0;
+    __attribute__((unused)) oid_t len,
+    __attribute__((unused)) BWTree<KeyType, ValueType, KeyComparator> *tree) {
+  int low = 0, high = len - 1, first = -1;
+  int mid;
+  while (low <= high) {
+    mid = low + ((high - low) >> 1);
+    switch (tree->CompareKey(locations[mid].first, key)) {
+      case -1:
+        low = mid + 1;
+        break;
+      case 0:
+        first = mid;
+      // no break
+      default:
+        // positive case
+        high = mid - 1;
+        break;
+    }
+  }
+  if (first < 0) {
+    return first;
+  } else {
+    return -low;
+  }
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -523,7 +544,7 @@ std::vector<oid_t> LPage<KeyType, ValueType, KeyComparator>::ScanKeyInternal(
   }
   assert(size_ > 0);
   // do a binary search on locations to get the key
-  int index = BinarySearch(key, locations_, size_);
+  int index = BinarySearch(key, locations_, size_, this->map);
   if (index == -1) {
     // key not found, return empty result
     return result;
