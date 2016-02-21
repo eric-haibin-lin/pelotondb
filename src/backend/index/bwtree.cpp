@@ -126,11 +126,11 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::AddLeafData(
 template <typename KeyType, typename ValueType, class KeyComparator>
 void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::RemoveLeafData(
     KeyType &key_to_remove) {
+
   // TODO remove entry based on key
   assert(locations_ != nullptr);
   // keys are unique
   assert(this->map->unique_keys);
-  // TODO implement non-unique-key case
 
   int index = this->map->BinarySearch(key_to_remove, locations_, this->size);
   // if key found
@@ -345,6 +345,7 @@ std::vector<ValueType> Delta<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
 template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType> Delta<KeyType, ValueType, KeyComparator>::ScanKey(
     KeyType key) {
+  LOG_INFO(" ");
   std::vector<ValueType> result;
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
       this->BuildNodeState();
