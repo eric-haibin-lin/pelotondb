@@ -88,6 +88,9 @@ class NodeStateBuilder {
   inline LPID GetSplitNewPageId() { return split_new_page_id; }
 
   virtual ~NodeStateBuilder() { ; };
+
+  friend class LPage<KeyType, ValueType, KeyComparator>;
+  friend class IPage<KeyType, ValueType, KeyComparator>;
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -123,6 +126,8 @@ class INodeStateBuilder
   void RemoveChild(KeyType &key_to_remove);
 
   void SeparateFromKey(KeyType separator_key, LPID split_new_page_id);
+
+  friend class LPage<KeyType, ValueType, KeyComparator>;
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -181,6 +186,8 @@ class LNodeStateBuilder
 
  private:
   bool ItemPointerEquals(ValueType v1, ValueType v2);
+
+  friend class LPage<KeyType, ValueType, KeyComparator>;
 };
 
 //===--------------------------------------------------------------------===//
@@ -189,7 +196,6 @@ class LNodeStateBuilder
 template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTree {
  private:
-
   // the logical page id for the root node
   LPID root_;
 
@@ -217,8 +223,7 @@ class BWTree {
    * The IPage serves as the root of all other nodes.
    */
   BWTree(bool unique_keys, KeyComparator comparator)
-      : comparator(comparator),
-        unique_keys(unique_keys) {
+      : comparator(comparator), unique_keys(unique_keys) {
     // this->unique_keys = unique_keys;
     // BWTreeNode<KeyType, ValueType, KeyComparator>::comparator = comparator;
     mapping_table_ =
@@ -565,10 +570,11 @@ class LPageSplitDelta : public Delta<KeyType, ValueType, KeyComparator> {
  public:
   LPageSplitDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
                   BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
-                  KeyType splitterKey, ValueType splitterVal, LPID rightSplitPage)
+                  KeyType splitterKey, ValueType splitterVal,
+                  LPID rightSplitPage)
       : Delta<KeyType, ValueType, KeyComparator>(map, modified_node),
         modified_key_(splitterKey),
-		modified_key_location_(splitterVal),
+        modified_key_location_(splitterVal),
         modified_val_(rightSplitPage){};
 
   bool InsertEntry(__attribute__((unused)) KeyType key,
@@ -741,13 +747,18 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   };
 
   LPage(BWTree<KeyType, ValueType, KeyComparator> *map,
-        NodeStateBuilder<KeyType, ValueType, KeyComparator> &state)
-      : BWTreeNode<KeyType, ValueType, KeyComparator>(map) {
-    // TODO initialize these with the proper values
+        NodeStateBuilder<KeyType, ValueType, KeyComparator> *state)
+      : BWTreeNode<KeyType, ValueType, KeyComparator>(map, 0) {
+    size_ = state->size;
+    LNodeStateBuilder<KeyType, ValueType, KeyComparator> *lstate =
+        reinterpret_cast<
+            LNodeStateBuilder<KeyType, ValueType, KeyComparator> *>(state);
+    for (oid_t index = 0; index < size_; index++) {
+      locations_[index] = lstate->locations_[index];
+    }
     left_sib_ = 0;
     right_sib_ = 0;
-    // locations_ = new std::pair<KeyType, ValueType>[LPAGE_ARITY]();
-    size_ = 0;
+    // TODO handle split case
   };
 
   ~LPage(){};
@@ -788,52 +799,52 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_LPAGE; };
 
   void MergeNodes(LPID self, LPID parent) {
+    LPID newLpageLPID;
+    int j = 0;
+    KeyType splitterKey;
+    ValueType splitterVal;
+    bool swapSuccess;
 
-	  LPID newLpageLPID;
-	  int j = 0;
-	  KeyType splitterKey;
-	  ValueType splitterVal;
-	  bool swapSuccess;
+    LPage<KeyType, ValueType, KeyComparator> newLpage(this->map, 0);
 
-	  LPage<KeyType, ValueType, KeyComparator> newLpage(this->map, 0);
+    for (int i = size_ / 2; i < size_; i++) {
+      newLpage.locations_[j++] = locations_[i];
+    }
 
-	  for (int i = size_ / 2; i < size_; i++)
-	  {
-		  newLpage.locations_[j++] = locations_[i];
-	  }
+    // TODO Why am I able to access this size_ private variable?
+    newLpage.size_ = j;
 
-	  //TODO Why am I able to access this size_ private variable?
-	  newLpage.size_ = j;
+    // TODO left_sib is set to self
+    newLpage.right_sib_ = right_sib_;
 
-	  //TODO left_sib is set to self
-	  newLpage.right_sib_ = right_sib_;
+    splitterKey = locations_[size_ / 2 + 1].first;
+    splitterVal = locations_[size_ / 2 + 1].second;
 
-	  splitterKey = locations_[size_ / 2 + 1].first;
-	  splitterVal = locations_[size_ / 2 + 1].second;
+    newLpageLPID = this->map->InstallPage(&newLpage);
 
-	  newLpageLPID = this->map->InstallPage(&newLpage);
+    LPageSplitDelta<KeyType, ValueType, KeyComparator> splitDelta(
+        this->map, this, splitterKey, splitterVal, newLpageLPID);
 
-	  LPageSplitDelta<KeyType, ValueType, KeyComparator> splitDelta(this->map, this, splitterKey,
-			  splitterVal, newLpageLPID);
+    swapSuccess = this->map->SwapNode(self, this, &splitDelta);
 
-	  swapSuccess = this->map->SwapNode(self, this, &splitDelta);
+    if (swapSuccess == false) {
+      // What should we do on failure? This means that someone else succeeded in
+      // doing the
+      // atomic half split. Now if try and install our own Insert / Delete /
+      // Update delta, it
+      // will automatically be created on top of the LPageSplitDelta
+      return;
+    }
 
-	  if (swapSuccess == false)
-	  {
-		  // What should we do on failure? This means that someone else succeeded in doing the
-		  // atomic half split. Now if try and install our own Insert / Delete / Update delta, it
-		  // will automatically be created on top of the LPageSplitDelta
-		  return;
-	  }
+    // This completes the atomic half split
+    // At this point no one else can succeed with the complete split because
+    // this guy won in the half split
+    // Now we still have to update the size field and the right_sib of this
+    // node... how can we do it atomically?
+    // Edit: No need to do that! Because the consolidation will do that lol you
+    // dumbo abj
 
-	  // This completes the atomic half split
-	  // At this point no one else can succeed with the complete split because this guy won in the half split
-	  // Now we still have to update the size field and the right_sib of this node... how can we do it atomically?
-	  // Edit: No need to do that! Because the consolidation will do that lol you dumbo abj
-
-	  // Now start with the second half
-
-
+    // Now start with the second half
   };
 
  private:
