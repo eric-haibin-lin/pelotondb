@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "backend/index/bwtree.h"
+#include "backend/common/exception.h"
 
 namespace peloton {
 namespace index {
@@ -52,7 +53,7 @@ void INodeStateBuilder<KeyType, ValueType, KeyComparator>::AddChild(
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 void INodeStateBuilder<KeyType, ValueType, KeyComparator>::RemoveChild(
-    KeyType key_to_remove) {
+    KeyType &key_to_remove) {
   assert(children_ != nullptr);
   int index = IPage<KeyType, ValueType, KeyComparator>::GetChild(
       key_to_remove, children_, this->size);
@@ -64,6 +65,22 @@ void INodeStateBuilder<KeyType, ValueType, KeyComparator>::RemoveChild(
     // decrement size
     this->size--;
   }
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+void INodeStateBuilder<KeyType, ValueType, KeyComparator>::SeparateFromKey(
+    KeyType separator_key, LPID split_new_page_id) {
+  assert(children_ != nullptr);
+  int index = IPage<KeyType, ValueType, KeyComparator>::GetChild(
+      separator_key, children_, this->size);
+  assert(index < this->size && index >= 0);
+  // assume we exclude the key at the split page
+  // decrement size
+  this->size = index;
+  // update separator info
+  this->is_separated = true;
+  this->separator_key = separator_key;
+  this->split_new_page_id = split_new_page_id;
 }
 
 //===--------------------------------------------------------------------===//
@@ -134,7 +151,7 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::RemoveLeafData(
   bool found_exact_key = false;
   for (; index < this->size; index++) {
     std::pair<KeyType, ValueType> pair = locations_[index];
-    if (this->map->comparator(pair.first, key)) {
+    if (this->map->CompareKey(key, pair.first) == 0) {
       if (ItemPointerEquals(pair.second, entry_to_remove.second)) {
         found_exact_key = true;
       }
@@ -266,7 +283,7 @@ IPage<KeyType, ValueType, KeyComparator>::BuildNodeState() {
 };
 
 //===--------------------------------------------------------------------===//
-// Delta Methods
+// Delta Methods Begin
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType> Delta<KeyType, ValueType, KeyComparator>::Scan(
@@ -294,25 +311,52 @@ std::vector<ValueType> Delta<KeyType, ValueType, KeyComparator>::ScanKey(
       this->BuildNodeState();
   BWTreeNode<KeyType, ValueType, KeyComparator> *page = builder->GetPage();
   assert(page != nullptr);
-  // do scan on the new state
-  result = page->ScanKey(key);
+  if (!builder->IsSeparated()) {
+    // the Page doesn't split, scan left page
+    result = page->ScanKey(key);
+  } else {
+    // the Page splits
+    KeyType separator_key = builder->GetSeparatorKey();
+    // the desired key is in the left page, scan left page
+    if (this->map->CompareKey(separator_key, key) < 0) {
+      result = page->ScanKey(key);
+    } else {
+      // the desired key is in the right page
+      LPID right_page_id = builder->GetSplitNewPageId();
+      // scan right page
+      result = this->map->GetNode(right_page_id)->ScanKey(key);
+    }
+  }
   // release builder
   delete (builder);
   return result;
 };
+//===--------------------------------------------------------------------===//
+// Delta Methods End
+//===--------------------------------------------------------------------===//
 
 //===--------------------------------------------------------------------===//
-// IPageSplitDelta Methods
+// IPageSplitDelta Methods Begin
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
 NodeStateBuilder<KeyType, ValueType, KeyComparator> *
 IPageSplitDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
-  // TODO implement this
-  return nullptr;
+  // Children of IPageDelta always return a INodeStateBuilder
+  INodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
+      reinterpret_cast<INodeStateBuilder<KeyType, ValueType, KeyComparator> *>(
+          this->modified_node->BuildNodeState());
+  assert(builder != nullptr);
+  std::pair<KeyType, LPID> separator(modified_key_, modified_val_);
+  builder->SeparateFromKey(separator);
+
+  return builder;
 }
+//===--------------------------------------------------------------------===//
+// IPageSplitDelta Methods End
+//===--------------------------------------------------------------------===//
 
 //===--------------------------------------------------------------------===//
-// IPageUpdateDelta Methods
+// IPageUpdateDelta Methods Begin
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
 NodeStateBuilder<KeyType, ValueType, KeyComparator> *
@@ -332,37 +376,20 @@ IPageUpdateDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
   }
   return builder;
 };
+//===--------------------------------------------------------------------===//
+// IPageUpdateDelta Methods End
+//===--------------------------------------------------------------------===//
 
 //===--------------------------------------------------------------------===//
-// LPageUpdateDelta Methods
+// LPageUpdateDelta Methods Begin
 //===--------------------------------------------------------------------===//
-template <typename KeyType, typename ValueType, class KeyComparator>
-std::vector<ValueType>
-LPageUpdateDelta<KeyType, ValueType, KeyComparator>::Scan(
-    __attribute__((unused)) const std::vector<Value> &values,
-    __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
-    __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
-    __attribute__((unused)) const ScanDirectionType &scan_direction) {
-  std::vector<ValueType> result;
-  // TODO implement this
-  return result;
-};
-
-template <typename KeyType, typename ValueType, class KeyComparator>
-std::vector<ValueType>
-LPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
-  std::vector<ValueType> result;
-  // TODO implement this
-  return result;
-};
-
 template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType>
 LPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
   std::vector<ValueType> result;
   if (this->map->unique_keys) {
     // the modified key matches the scanKey
-    if (this->map->comparator(modified_key_, key) == true) {
+    if (this->map->CompareKey(modified_key_, key) == 0) {
       if (!is_delete_) {
         // the modified key is inserted, add to result vector
         result.push_back(modified_val_);
@@ -376,6 +403,7 @@ LPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
 
   BWTreeNode<KeyType, ValueType, KeyComparator> *page = builder->GetPage();
   assert(page != nullptr);
+  // TODO check split status of builder for shortcut
   // do scan on the new state
   result = page->ScanKey(key);
   // release builder
@@ -407,9 +435,12 @@ LPageUpdateDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
   }
   return builder;
 };
+//===--------------------------------------------------------------------===//
+// LPageUpdateDelta Methods End
+//===--------------------------------------------------------------------===//
 
 //===--------------------------------------------------------------------===//
-// LPage Methods
+// LPage Methods Begin
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
 int LPage<KeyType, ValueType, KeyComparator>::BinarySearch(
@@ -448,7 +479,7 @@ std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::ScanKey(
   for (index = 0; index < indices.size(); index++) {
     result.push_back((locations_)[index].second);
   }
-  // reach the end of current LPage, go to next Lpage for more results
+  // reach the end of current LPage, go to next LPage for more results
   if (index == size_) {
     std::vector<ValueType> sib_result =
         this->map->GetNode(right_sib_)->ScanKey(key);
@@ -477,7 +508,7 @@ std::vector<oid_t> LPage<KeyType, ValueType, KeyComparator>::ScanKeyInternal(
   // try to collect all matching keys. If unique_keys, only one key matches
   while (index < size_) {
     std::pair<KeyType, ValueType> location = (locations_)[index];
-    if (this->map->comparator(location.first, key) == true) {
+    if (this->map->CompareKey(location.first, key) == 0) {
       // found a matching key
       result.push_back(index++);
     } else {
@@ -498,30 +529,17 @@ LPage<KeyType, ValueType, KeyComparator>::BuildNodeState() {
   return builder;
 };
 
-template <typename KeyType, typename ValueType, class KeyComparator>
-NodeStateBuilder<KeyType, ValueType, KeyComparator> *
-LPage<KeyType, ValueType, KeyComparator>::BuildScanState(__attribute__((unused))
-                                                         KeyType key) {
-  // TODO call ScanKeyInternal(key);
-  return nullptr;
-};
-
-template <typename KeyType, typename ValueType, class KeyComparator>
-NodeStateBuilder<KeyType, ValueType, KeyComparator> *
-LPage<KeyType, ValueType, KeyComparator>::BuildScanState(
-    __attribute__((unused)) const std::vector<Value> &values,
-    __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
-    __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
-    __attribute__((unused)) const ScanDirectionType &scan_direction) {
-  // TODO call ScanKeyInternal(values, ...);
-  return nullptr;
-};
-
-template <typename KeyType, typename ValueType, class KeyComparator>
-bool LPage<KeyType, ValueType, KeyComparator>::IsInvalidItemPointer(
+// DO NOT DELETE
+/*
+ template <typename KeyType, typename ValueType, class KeyComparator>
+ bool LPage<KeyType, ValueType, KeyComparator>::IsInvalidItemPointer(
     ValueType val) {
   return val.block == INVALID_OID || val.offset == INVALID_OID;
-}
+}*/
+
+//===--------------------------------------------------------------------===//
+// LPage Methods End
+//===--------------------------------------------------------------------===//
 
 }  // End index namespace
 }  // End peloton namespace
