@@ -295,6 +295,10 @@ class BWTree {
     while (newLPID >= mapping_table_cap_) {
       // only one thread should expand the table
       AquireWrite();
+      if (newLPID < mapping_table_cap_) {
+        ReleaseWrite();
+        break;
+      }
       int new_mapping_table_cap = mapping_table_cap_ * 2;
       auto new_mapping_table =
           new BWTreeNode<KeyType, ValueType,
