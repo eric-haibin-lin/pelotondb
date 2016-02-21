@@ -237,6 +237,8 @@ class BWTree {
 
     root_ = InstallPage(root);
 
+    LOG_INFO("Root got LPID: %d", root_);
+
     LPage<KeyType, ValueType, KeyComparator> *first_lpage =
         new LPage<KeyType, ValueType, KeyComparator>(this);
 
@@ -627,7 +629,7 @@ class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
                    KeyType key, ValueType value)
       : Delta<KeyType, ValueType, KeyComparator>(map, modified_node),
         modified_key_(key),
-        modified_val_(value){};
+        modified_val_(value){ LOG_INFO("Isside LPageUpdateDelta Constructor"); };
 
   bool InsertEntry(__attribute__((unused)) KeyType key,
                    __attribute__((unused)) ValueType location,
@@ -772,9 +774,12 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   bool InsertEntry(__attribute__((unused)) KeyType key,
                    __attribute__((unused)) ValueType location,
                    __attribute__((unused)) LPID self) {
+	  LOG_INFO("Inside LPage InsertEntry");
+
     LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
         new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
                                                                 key, location);
+
 
     return this->map->SwapNode(self, this, new_delta);
     // return false;
