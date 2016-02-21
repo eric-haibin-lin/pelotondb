@@ -317,8 +317,10 @@ std::vector<ValueType> Delta<KeyType, ValueType, KeyComparator>::ScanKey(
   } else {
     // the Page splits
     KeyType separator_key = builder->GetSeparatorKey();
-    // the desired key is in the left page, scan left page
-    if (this->map->CompareKey(separator_key, key) < 0) {
+    // the scan key is in the left page, scan left page
+    // if the scan == separator key, we still scan from the left page since non
+    // duplicate key and go across boarder
+    if (this->map->CompareKey(separator_key, key) <= 0) {
       result = page->ScanKey(key);
     } else {
       // the desired key is in the right page
@@ -353,6 +355,26 @@ IPageSplitDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
 }
 //===--------------------------------------------------------------------===//
 // IPageSplitDelta Methods End
+//===--------------------------------------------------------------------===//
+
+//===--------------------------------------------------------------------===//
+// LPageSplitDelta Methods Begin
+//===--------------------------------------------------------------------===//
+template <typename KeyType, typename ValueType, class KeyComparator>
+NodeStateBuilder<KeyType, ValueType, KeyComparator> *
+LPageSplitDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
+  // Children of IPageDelta always return a INodeStateBuilder
+  LNodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
+      reinterpret_cast<LNodeStateBuilder<KeyType, ValueType, KeyComparator> *>(
+          this->modified_node->BuildNodeState());
+  assert(builder != nullptr);
+  std::pair<KeyType, LPID> separator(modified_key_, modified_val_);
+  builder->SeparateFromKey(separator);
+
+  return builder;
+}
+//===--------------------------------------------------------------------===//
+// LPageSplitDelta Methods End
 //===--------------------------------------------------------------------===//
 
 //===--------------------------------------------------------------------===//

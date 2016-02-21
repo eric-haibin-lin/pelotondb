@@ -130,6 +130,7 @@ class LNodeStateBuilder
   LPID left_sibling_ = 0;
   LPID right_sibling_ = 0;
   LPage<KeyType, ValueType, KeyComparator> *new_page_ = nullptr;
+  ValueType location_;
 
   // LPage members
   std::pair<KeyType, ValueType> *locations_ = nullptr;
@@ -171,6 +172,9 @@ class LNodeStateBuilder
 
   // only called when keys are non unique
   void RemoveLeafData(std::pair<KeyType, ValueType> &entry_to_remove);
+
+  void SeparateFromKey(KeyType separator_key, ValueType location,
+                       LPID split_new_page_id);
 
  private:
   bool ItemPointerEquals(ValueType v1, ValueType v2);
@@ -509,6 +513,43 @@ class IPageSplitDelta : public Delta<KeyType, ValueType, KeyComparator> {
  private:
   // This key excluded in left child, included in the right child
   KeyType modified_key_;
+
+  // The LPID of the new LPage
+  LPID modified_val_;
+};
+//===--------------------------------------------------------------------===//
+// LPageSplitDelta
+//===--------------------------------------------------------------------===//
+template <typename KeyType, typename ValueType, class KeyComparator>
+class LPageSplitDelta : public Delta<KeyType, ValueType, KeyComparator> {
+ public:
+  LPageSplitDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
+                  BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
+                  KeyType key, LPID value)
+      : Delta<KeyType, ValueType, KeyComparator>(map, modified_node),
+        modified_key_(key),
+        modified_val_(value){};
+
+  bool InsertEntry(__attribute__((unused)) KeyType key,
+                   __attribute__((unused)) ValueType location) {
+    // TODO implement this
+    return false;
+  };
+
+  bool DeleteEntry(__attribute__((unused)) KeyType key,
+                   __attribute__((unused)) ValueType location) {
+    // TODO implement this
+    return false;
+  };
+
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState();
+
+  inline BWTreeNodeType GetTreeNodeType() const { return TYPE_LPAGE; };
+
+ private:
+  // This key excluded in left child, included in the right child
+  KeyType modified_key_;
+  ValueType modified_key_location_;
 
   // The LPID of the new LPage
   LPID modified_val_;
