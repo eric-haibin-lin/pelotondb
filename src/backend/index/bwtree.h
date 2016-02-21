@@ -133,7 +133,7 @@ class LNodeStateBuilder
   LPID left_sibling_ = 0;
   LPID right_sibling_ = 0;
   LPage<KeyType, ValueType, KeyComparator> *new_page_ = nullptr;
-  ValueType location_;
+  ValueType separator_location_;
 
   // LPage members
   std::pair<KeyType, ValueType> *locations_ = nullptr;
@@ -721,6 +721,15 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
  public:
   // get the index of the first occurrence of the given key
   static int BinarySearch(__attribute__((unused)) KeyType key,
+                          __attribute__((unused))
+                          std::pair<KeyType, ValueType> *locations,
+                          __attribute__((unused)) oid_t len,
+                          BWTree<KeyType, ValueType, KeyComparator> *tree);
+
+  // get the index of the first occurrence of the given <k, v> pair
+  // used when deleting a <k-v> entry from non-unique keys
+  static int BinarySearch(__attribute__((unused))
+                          std::pair<KeyType, ValueType> pair,
                           __attribute__((unused))
                           std::pair<KeyType, ValueType> *locations,
                           __attribute__((unused)) oid_t len);
