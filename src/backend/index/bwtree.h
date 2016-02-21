@@ -12,6 +12,7 @@
 
 #pragma once
 #include "backend/common/types.h"
+#include "backend/common/logger.h"
 #include <map>
 #include <vector>
 #include <climits>
@@ -750,6 +751,7 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   LPage(BWTree<KeyType, ValueType, KeyComparator> *map,
         NodeStateBuilder<KeyType, ValueType, KeyComparator> *state)
       : BWTreeNode<KeyType, ValueType, KeyComparator>(map, 0) {
+    LOG_INFO(" ");
     size_ = state->size;
     LNodeStateBuilder<KeyType, ValueType, KeyComparator> *lstate =
         reinterpret_cast<

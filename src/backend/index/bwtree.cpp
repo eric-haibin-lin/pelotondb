@@ -447,16 +447,21 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType>
 LPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
   std::vector<ValueType> result;
+  LOG_INFO(" ");
   if (this->map->unique_keys) {
     // the modified key matches the scanKey
     if (this->map->CompareKey(modified_key_, key) == 0) {
+      LOG_INFO("Found a matching key");
       if (!is_delete_) {
         // the modified key is inserted, add to result vector
+        LOG_INFO("Inserts the matching key");
         result.push_back(modified_val_);
       }
+      return result;
     }
-    return result;
   }
+  LOG_INFO("Building NodeState of all children nodes");
+
   // non unique key. we have to build the state
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
       this->modified_node->BuildScanState(key);
@@ -465,6 +470,7 @@ LPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
   assert(page != nullptr);
   // TODO check split status of builder for shortcut
   // do scan on the new state
+  LOG_INFO("Scan on the new NodeState");
   result = page->ScanKey(key);
   // release builder
   delete (builder);
@@ -474,6 +480,7 @@ LPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
 template <typename KeyType, typename ValueType, class KeyComparator>
 NodeStateBuilder<KeyType, ValueType, KeyComparator> *
 LPageUpdateDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
+  LOG_INFO(" ");
   // Children of LPageDelta always return a LNodeStateBuilder
   LNodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
       reinterpret_cast<LNodeStateBuilder<KeyType, ValueType, KeyComparator> *>(
@@ -553,6 +560,7 @@ std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
 template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::ScanKey(
     KeyType key) {
+  LOG_INFO(" ");
   std::vector<ValueType> result;
   std::vector<oid_t> indices = ScanKeyInternal(key);
   // we only need the values
@@ -572,6 +580,7 @@ std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::ScanKey(
 template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<oid_t> LPage<KeyType, ValueType, KeyComparator>::ScanKeyInternal(
     KeyType key) {
+  LOG_INFO(" ");
   assert(locations_ != nullptr);
   std::vector<oid_t> result;
   // empty LPage
