@@ -189,8 +189,6 @@ class LNodeStateBuilder
 template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTree {
  private:
-  // the default LPID for the root node is 2^64 - 1
-  static const LPID DEFAULT_ROOT_LPID = ULLONG_MAX;
 
   // the logical page id for the root node
   LPID root_;
@@ -219,8 +217,7 @@ class BWTree {
    * The IPage serves as the root of all other nodes.
    */
   BWTree(bool unique_keys, KeyComparator comparator)
-      : root_(DEFAULT_ROOT_LPID),
-        comparator(comparator),
+      : comparator(comparator),
         unique_keys(unique_keys) {
     // this->unique_keys = unique_keys;
     // BWTreeNode<KeyType, ValueType, KeyComparator>::comparator = comparator;
@@ -228,20 +225,21 @@ class BWTree {
         new BWTreeNode<KeyType, ValueType, KeyComparator> *[mapping_table_cap_];
 
     // TODO @abj initialize the root IPage (and maybe a LPage?)
-    IPage<KeyType, ValueType, KeyComparator> root(this);
 
-    root_ = InstallPage(&root);
+    IPage<KeyType, ValueType, KeyComparator> *root = new IPage<KeyType, ValueType, KeyComparator>(this);
 
-    LPage<KeyType, ValueType, KeyComparator> first_lpage(this);
+    root_ = InstallPage(root);
+
+    LPage<KeyType, ValueType, KeyComparator> *first_lpage = new LPage<KeyType, ValueType, KeyComparator>(this);
 
     std::pair<KeyType, LPID> first_lpage_pair;
 
     LPID first_lpage_lpid;
 
-    first_lpage_lpid = InstallPage(&first_lpage);
+    first_lpage_lpid = InstallPage(first_lpage);
     first_lpage_pair.second = first_lpage_lpid;
 
-    root.GetChildren()[0] = first_lpage_pair;
+    root->GetChildren()[0] = first_lpage_pair;
 
     // with the given comparator
   };
@@ -627,19 +625,21 @@ class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
                    __attribute__((unused)) ValueType location,
                    __attribute__((unused)) LPID self) {
     // TODO implement this
-    LPageUpdateDelta<KeyType, ValueType, KeyComparator> new_delta(
+    LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta = new
+    		LPageUpdateDelta<KeyType, ValueType, KeyComparator> (
         this->map, this, key, location);
 
-    return this->map->SwapNode(self, this, &new_delta);
+    return this->map->SwapNode(self, this, new_delta);
   };
 
   bool DeleteEntry(__attribute__((unused)) KeyType key,
                    __attribute__((unused)) ValueType location, LPID self) {
-    LPageUpdateDelta<KeyType, ValueType, KeyComparator> new_delta(
+    LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta = new
+    		LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
         this->map, this, key, location);
 
-    new_delta.SetDeleteFlag();
-    return this->map->SwapNode(self, this, &new_delta);
+    new_delta->SetDeleteFlag();
+    return this->map->SwapNode(self, this, new_delta);
   };
 
   std::vector<ValueType> ScanKey(KeyType key);
@@ -759,10 +759,11 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   bool InsertEntry(__attribute__((unused)) KeyType key,
                    __attribute__((unused)) ValueType location,
                    __attribute__((unused)) LPID self) {
-    LPageUpdateDelta<KeyType, ValueType, KeyComparator> new_delta(
+    LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
+    		new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
         this->map, this, key, location);
 
-    return this->map->SwapNode(self, this, &new_delta);
+    return this->map->SwapNode(self, this, new_delta);
     // return false;
   };
 
@@ -771,11 +772,12 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
                    __attribute__((unused)) LPID self) {
     // TODO implement this
 
-    LPageUpdateDelta<KeyType, ValueType, KeyComparator> new_delta(
+    LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
+    		new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
         this->map, this, key, location);
 
-    new_delta.SetDeleteFlag();
-    return this->map->SwapNode(self, this, &new_delta);
+    new_delta->SetDeleteFlag();
+    return this->map->SwapNode(self, this, new_delta);
   };
 
   std::vector<ValueType> Scan(const std::vector<Value> &values,
