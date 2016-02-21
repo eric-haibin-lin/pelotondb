@@ -131,7 +131,7 @@ class LNodeStateBuilder
   LPID left_sibling_ = 0;
   LPID right_sibling_ = 0;
   LPage<KeyType, ValueType, KeyComparator> *new_page_ = nullptr;
-  ValueType location_;
+  ValueType separator_location_;
 
   // LPage members
   std::pair<KeyType, ValueType> *locations_ = nullptr;
@@ -722,6 +722,14 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
                           std::pair<KeyType, ValueType> *locations,
                           __attribute__((unused)) oid_t len);
 
+  // get the index of the first occurrence of the given <k, v> pair
+  // used when deleting a <k-v> entry from non-unique keys
+  static int BinarySearch(__attribute__((unused))
+                          std::pair<KeyType, ValueType> pair,
+                          __attribute__((unused))
+                          std::pair<KeyType, ValueType> *locations,
+                          __attribute__((unused)) oid_t len);
+
   LPage(BWTree<KeyType, ValueType, KeyComparator> *map)
       : BWTreeNode<KeyType, ValueType, KeyComparator>(map, 0) {
     // TODO initialize these with the proper values
@@ -732,13 +740,13 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   };
 
   LPage(BWTree<KeyType, ValueType, KeyComparator> *map,
-		  NodeStateBuilder<KeyType, ValueType, KeyComparator> &state)
-  : BWTreeNode<KeyType, ValueType, KeyComparator>(map){
-	  // TODO initialize these with the proper values
-	  left_sib_ = 0;
-	  right_sib_ = 0;
-	  // locations_ = new std::pair<KeyType, ValueType>[LPAGE_ARITY]();
-	  size_ = 0;
+        NodeStateBuilder<KeyType, ValueType, KeyComparator> &state)
+      : BWTreeNode<KeyType, ValueType, KeyComparator>(map) {
+    // TODO initialize these with the proper values
+    left_sib_ = 0;
+    right_sib_ = 0;
+    // locations_ = new std::pair<KeyType, ValueType>[LPAGE_ARITY]();
+    size_ = 0;
   };
 
   ~LPage(){};
