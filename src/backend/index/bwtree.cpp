@@ -22,6 +22,49 @@ namespace index {
 //===--------------------------------------------------------------------===//
 // INodeStateBuilder
 //===--------------------------------------------------------------------===//
+template <typename KeyType, typename ValueType, class KeyComparator>
+BWTreeNode<KeyType, ValueType, KeyComparator> *
+INodeStateBuilder<KeyType, ValueType, KeyComparator>::GetPage() {
+  if (new_page_ == nullptr) {
+    // TODO call IPage constructor
+    // new_page = new IPage<KeyType, ValueType, KeyComparator>();
+  }
+  return new_page_;
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+void INodeStateBuilder<KeyType, ValueType, KeyComparator>::AddChild(
+    std::pair<KeyType, LPID> &new_pair) {
+  assert(children_ != nullptr);
+  KeyType key = new_pair.first;
+  int index = IPage<KeyType, ValueType, KeyComparator>::GetChild(key, children_,
+                                                                 this->size);
+  assert(index < IPAGE_ARITY + DELTA_CHAIN_LIMIT);
+  // shift every element to the right
+  for (int i = this->size; i > index; i--) {
+    children_[i] = children_[i - 1];
+  }
+  // insert at the found index
+  children_[index] = new_pair;
+  // increase size
+  this->size++;
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+void INodeStateBuilder<KeyType, ValueType, KeyComparator>::RemoveChild(
+    KeyType key_to_remove) {
+  assert(children_ != nullptr);
+  int index = IPage<KeyType, ValueType, KeyComparator>::GetChild(
+      key_to_remove, children_, this->size);
+  // if key found
+  if (index < this->size && index >= 0) {
+    for (int i = index; i < this->size - 1; i++) {
+      children_[i] = children_[i + 1];
+    }
+    // decrement size
+    this->size--;
+  }
+}
 
 //===--------------------------------------------------------------------===//
 // LNodeStateBuilder
@@ -29,11 +72,30 @@ namespace index {
 template <typename KeyType, typename ValueType, class KeyComparator>
 BWTreeNode<KeyType, ValueType, KeyComparator> *
 LNodeStateBuilder<KeyType, ValueType, KeyComparator>::GetPage() {
-  if (new_page == nullptr) {
+  if (new_page_ == nullptr) {
     // TODO call LPage constructor
     // new_page = new LPage<KeyType, ValueType, KeyComparator>();
   }
-  return new_page;
+  return new_page_;
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::AddLeafData(
+    std::pair<KeyType, ValueType> &new_pair) {
+  assert(locations_ != nullptr);
+  KeyType key = new_pair.first;
+  int index = LPage<KeyType, ValueType, KeyComparator>::BinarySearch(
+      key, locations_, this->size);
+  assert(index < IPAGE_ARITY + DELTA_CHAIN_LIMIT);
+
+  // shift every element to the right
+  for (int i = this->size; i > index; i--) {
+    locations_[i] = locations_[i - 1];
+  }
+  // insert at the found index
+  locations_[index] = new_pair;
+  // increase size
+  this->size++;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -46,12 +108,14 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::RemoveLeafData(
 
   int index = LPage<KeyType, ValueType, KeyComparator>::BinarySearch(
       key_to_remove, locations_, this->size);
-  // delete at the found index
-  for (int i = index; i < this->size - 1; i++) {
-    locations_[i] = locations_[i + 1];
+  // if key found
+  if (index < this->size && index >= 0) {
+    for (int i = index; i < this->size - 1; i++) {
+      locations_[i] = locations_[i + 1];
+    }
+    // decrement size
+    this->size--;
   }
-  // decrement size
-  this->size--;
   return;
 };
 
@@ -98,6 +162,15 @@ bool LNodeStateBuilder<KeyType, ValueType, KeyComparator>::ItemPointerEquals(
 // BWTree Methods
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
+bool BWTree<KeyType, ValueType, KeyComparator>::InsertEntry(
+    __attribute__((unused)) KeyType key,
+    __attribute__((unused)) ValueType location) {
+  // just call InsertEntry on root
+  // return false;
+  return GetNode(root_)->InsertEntry(key, location);
+};
+
+template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::Scan(
     const std::vector<Value> &values, const std::vector<oid_t> &key_column_ids,
     const std::vector<ExpressionType> &expr_types,
@@ -133,18 +206,22 @@ std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::ScanKey(
   return result;
 };
 
-template <typename KeyType, typename ValueType, class KeyComparator>
-bool BWTree<KeyType, ValueType, KeyComparator>::InsertEntry(
-    __attribute__((unused)) KeyType key,
-    __attribute__((unused)) ValueType location) {
-  // just call InsertEntry on root
-  // return false;
-  return GetNode(root_)->InsertEntry(key, location);
-};
-
 //===--------------------------------------------------------------------===//
 // IPage Methods
 //===--------------------------------------------------------------------===//
+//@abj please fix the warnings :P
+template <typename KeyType, typename ValueType, class KeyComparator>
+bool IPage<KeyType, ValueType, KeyComparator>::InsertEntry(
+    __attribute__((unused)) KeyType key,
+    __attribute__((unused)) ValueType location) {
+  /* int i;
+   bool last_level_page;
+   LPID target_child_lpid;  // TODO: write code to get this -- partially done*/
+
+  return this->map->GetNode(GetChild(key, children_, size_))
+      ->InsertEntry(key, location);
+};
+
 template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType> IPage<KeyType, ValueType, KeyComparator>::Scan(
     __attribute__((unused)) const std::vector<Value> &values,
@@ -167,31 +244,27 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType> IPage<KeyType, ValueType, KeyComparator>::ScanKey(
     KeyType key) {
   std::vector<ValueType> result;
-
+  // locate the child who covers the key
   int child_idx = GetChild(key, this->children_, this->size_);
   LPID child_id = this->children_[child_idx].second;
 
   BWTreeNode<KeyType, ValueType, KeyComparator> *child =
       this->map->GetNode(child_id);
-  if (child == nullptr) {
-    // Key is not included in the tree, do nothing
-  } else {
-    result = child->ScanKey(key);
-  }
+  assert(child != nullptr);
+  result = child->ScanKey(key);
   return result;
 };
-//@abj please fix the warnings :P
-template <typename KeyType, typename ValueType, class KeyComparator>
-bool IPage<KeyType, ValueType, KeyComparator>::InsertEntry(
-    __attribute__((unused)) KeyType key,
-    __attribute__((unused)) ValueType location) {
-  /* int i;
-   bool last_level_page;
-   LPID target_child_lpid;  // TODO: write code to get this -- partially done*/
 
-  return this->map->GetNode(GetChild(key, children_, size_))
-      ->InsertEntry(key, location);
+template <typename KeyType, typename ValueType, class KeyComparator>
+NodeStateBuilder<KeyType, ValueType, KeyComparator> *
+IPage<KeyType, ValueType, KeyComparator>::BuildNodeState() {
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder;
+  // build node state for IPage
+  builder = new INodeStateBuilder<KeyType, ValueType, KeyComparator>(
+      children_, size_, this->map);
+  return builder;
 };
+
 //===--------------------------------------------------------------------===//
 // IPageUpdateDelta Methods
 //===--------------------------------------------------------------------===//
@@ -219,18 +292,33 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType>
 IPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
   std::vector<ValueType> result;
-
-  // TODO implement this
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
+      BuildScanState(key);
+  BWTreeNode<KeyType, ValueType, KeyComparator> *page = builder->GetPage();
+  assert(page != nullptr);
+  // do scan on the new state
+  result = page->ScanKey(key);
+  // release builder
+  delete (builder);
   return result;
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 NodeStateBuilder<KeyType, ValueType, KeyComparator> *
-IPage<KeyType, ValueType, KeyComparator>::BuildNodeState() {
-  NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder;
-  // build node state for IPage
-  builder = new INodeStateBuilder<KeyType, ValueType, KeyComparator>(
-      children_, size_, this->map);
+IPageUpdateDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
+  // Children of IPageDelta always return a INodeStateBuilder
+  INodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
+      reinterpret_cast<INodeStateBuilder<KeyType, ValueType, KeyComparator> *>(
+          this->modified_node->BuildNodeState());
+  assert(builder != nullptr);
+  // delete delta
+  if (is_delete_) {
+    builder->RemoveChild(this->modified_key_);
+  } else {
+    // insert delta
+    std::pair<KeyType, LPID> pair(modified_key_, modified_id_);
+    builder->AddChild(pair);
+  }
   return builder;
 };
 
@@ -278,8 +366,8 @@ LPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
   assert(page != nullptr);
   // do scan on the new state
   result = page->ScanKey(key);
-  //release builder
-  delete(builder);
+  // release builder
+  delete (builder);
   return result;
 };
 
@@ -290,6 +378,7 @@ LPageUpdateDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
   LNodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
       reinterpret_cast<LNodeStateBuilder<KeyType, ValueType, KeyComparator> *>(
           this->modified_node->BuildNodeState());
+  assert(builder != nullptr);
   // delete delta
   if (is_delete_) {
     if (this->map->unique_keys) {
