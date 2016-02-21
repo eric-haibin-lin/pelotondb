@@ -231,11 +231,13 @@ class BWTree {
 
     // TODO @abj initialize the root IPage (and maybe a LPage?)
 
-    IPage<KeyType, ValueType, KeyComparator> *root = new IPage<KeyType, ValueType, KeyComparator>(this);
+    IPage<KeyType, ValueType, KeyComparator> *root =
+        new IPage<KeyType, ValueType, KeyComparator>(this);
 
     root_ = InstallPage(root);
 
-    LPage<KeyType, ValueType, KeyComparator> *first_lpage = new LPage<KeyType, ValueType, KeyComparator>(this);
+    LPage<KeyType, ValueType, KeyComparator> *first_lpage =
+        new LPage<KeyType, ValueType, KeyComparator>(this);
 
     std::pair<KeyType, LPID> first_lpage_pair;
 
@@ -491,13 +493,9 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_IPAGE; };
 
   // get the index of the child at next level, which contains the given key
-  static int GetChild(__attribute__((unused)) KeyType key,
-                      __attribute__((unused))
-                      std::pair<KeyType, LPID> *children,
-                      __attribute__((unused)) oid_t len) {
-    return 0;
-    // TODO @Matt implement this
-  };
+  int GetChild(__attribute__((unused)) KeyType key,
+               __attribute__((unused)) std::pair<KeyType, LPID> *children,
+               __attribute__((unused)) oid_t len);
 
   std::pair<KeyType, LPID> *GetChildren() { return children_; }
 
@@ -630,18 +628,18 @@ class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
                    __attribute__((unused)) ValueType location,
                    __attribute__((unused)) LPID self) {
     // TODO implement this
-    LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta = new
-    		LPageUpdateDelta<KeyType, ValueType, KeyComparator> (
-        this->map, this, key, location);
+    LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
+        new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
+                                                                key, location);
 
     return this->map->SwapNode(self, this, new_delta);
   };
 
   bool DeleteEntry(__attribute__((unused)) KeyType key,
                    __attribute__((unused)) ValueType location, LPID self) {
-    LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta = new
-    		LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
-        this->map, this, key, location);
+    LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
+        new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
+                                                                key, location);
 
     new_delta->SetDeleteFlag();
     return this->map->SwapNode(self, this, new_delta);
@@ -770,8 +768,8 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
                    __attribute__((unused)) ValueType location,
                    __attribute__((unused)) LPID self) {
     LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
-    		new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
-        this->map, this, key, location);
+        new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
+                                                                key, location);
 
     return this->map->SwapNode(self, this, new_delta);
     // return false;
@@ -783,8 +781,8 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     // TODO implement this
 
     LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
-    		new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
-        this->map, this, key, location);
+        new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
+                                                                key, location);
 
     new_delta->SetDeleteFlag();
     return this->map->SwapNode(self, this, new_delta);

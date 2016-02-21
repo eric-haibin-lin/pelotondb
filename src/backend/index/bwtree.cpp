@@ -310,6 +310,16 @@ IPage<KeyType, ValueType, KeyComparator>::BuildNodeState() {
   return builder;
 };
 
+template <typename KeyType, typename ValueType, class KeyComparator>
+// get the index of the child at next level, which contains the given key
+int IPage<KeyType, ValueType, KeyComparator>::GetChild(
+    __attribute__((unused)) KeyType key,
+    __attribute__((unused)) std::pair<KeyType, LPID> *children,
+    __attribute__((unused)) oid_t len) {
+  int index = this->map->BinarySearch(key, children, len);
+  return index >= 0 ? index : -index;
+};
+
 //===--------------------------------------------------------------------===//
 // Delta Methods Begin
 //===--------------------------------------------------------------------===//
