@@ -856,9 +856,8 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     // dumbo abj
 
     // Now start with the second half
-    IPageUpdateDelta<KeyType, ValueType, KeyComparator> *parentUpdateDelta = new
-    		IPageUpdateDelta
-
+//    IPageUpdateDelta<KeyType, ValueType, KeyComparator> *parentUpdateDelta = new
+//    		IPageUpdateDelta
 
   };
 
