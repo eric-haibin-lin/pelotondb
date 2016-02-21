@@ -266,13 +266,12 @@ IPage<KeyType, ValueType, KeyComparator>::BuildNodeState() {
 };
 
 //===--------------------------------------------------------------------===//
-// IPageUpdateDelta Methods
+// Delta Methods
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
-std::vector<ValueType>
-IPageUpdateDelta<KeyType, ValueType, KeyComparator>::Scan(
+std::vector<ValueType> Delta<KeyType, ValueType, KeyComparator>::Scan(
     __attribute__((unused)) const std::vector<Value> &values,
-    const std::vector<oid_t> &key_column_ids,
+    __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
     __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
     __attribute__((unused)) const ScanDirectionType &scan_direction) {
   std::vector<ValueType> result;
@@ -281,19 +280,18 @@ IPageUpdateDelta<KeyType, ValueType, KeyComparator>::Scan(
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
-std::vector<ValueType>
-IPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
+std::vector<ValueType> Delta<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
   std::vector<ValueType> result;
   // TODO implement this
   return result;
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
-std::vector<ValueType>
-IPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
+std::vector<ValueType> Delta<KeyType, ValueType, KeyComparator>::ScanKey(
+    KeyType key) {
   std::vector<ValueType> result;
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
-      BuildScanState(key);
+      this->BuildNodeState();
   BWTreeNode<KeyType, ValueType, KeyComparator> *page = builder->GetPage();
   assert(page != nullptr);
   // do scan on the new state
@@ -303,6 +301,19 @@ IPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
   return result;
 };
 
+//===--------------------------------------------------------------------===//
+// IPageSplitDelta Methods
+//===--------------------------------------------------------------------===//
+template <typename KeyType, typename ValueType, class KeyComparator>
+NodeStateBuilder<KeyType, ValueType, KeyComparator> *
+IPageSplitDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
+  // TODO implement this
+  return nullptr;
+}
+
+//===--------------------------------------------------------------------===//
+// IPageUpdateDelta Methods
+//===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
 NodeStateBuilder<KeyType, ValueType, KeyComparator> *
 IPageUpdateDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
@@ -362,6 +373,7 @@ LPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
   // non unique key. we have to build the state
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
       this->modified_node->BuildScanState(key);
+
   BWTreeNode<KeyType, ValueType, KeyComparator> *page = builder->GetPage();
   assert(page != nullptr);
   // do scan on the new state
