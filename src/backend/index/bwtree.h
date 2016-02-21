@@ -281,6 +281,7 @@ class BWTree {
 
  private:
   inline void AquireRead() {
+	LOG_INFO("Aquiring read Lock");
     while (true) {
       while (current_writers == 1)
         ;
@@ -291,14 +292,19 @@ class BWTree {
         __sync_add_and_fetch(&current_readers, -1);
     }
   }
-  inline void ReleaseRead() { __sync_add_and_fetch(&current_readers, -1); }
+  inline void ReleaseRead() {
+	  LOG_INFO("Releasing read Lock");
+	  __sync_add_and_fetch(&current_readers, -1);
+  }
   inline void AquireWrite() {
+	  LOG_INFO("Aquiring write Lock");
     while (__sync_bool_compare_and_swap(&current_writers, 0, 1))
       ;
     while (current_readers > 0)
       ;
   }
   inline void ReleaseWrite() {
+	  LOG_INFO("Releasing write Lock");
     assert(__sync_bool_compare_and_swap(&current_writers, 1, 0));
   }
 
@@ -310,16 +316,20 @@ class BWTree {
   // return 0 if the page install is not successful
 
   LPID InstallPage(BWTreeNode<KeyType, ValueType, KeyComparator> *node) {
+	  LOG_INFO("Installing page in mapping table");
     LPID newLPID = __sync_fetch_and_add(&next_LPID_, 1);
     // table grew too large, expand it
     while (newLPID >= mapping_table_cap_) {
+    	LOG_INFO("mapping table has grown too large");
       // only one thread should expand the table
       AquireWrite();
       if (newLPID < mapping_table_cap_) {
         ReleaseWrite();
         break;
       }
+
       int new_mapping_table_cap = mapping_table_cap_ * 2;
+      LOG_INFO("doubleing size of mapping table capacity from %d to %d", mapping_table_cap_, new_mapping_table_cap);
       auto new_mapping_table =
           new BWTreeNode<KeyType, ValueType,
                          KeyComparator> *[new_mapping_table_cap];
@@ -330,6 +340,7 @@ class BWTree {
       ReleaseWrite();
     }
     AquireRead();
+    LOG_INFO("adding LPID: %d to mapping table", newLPID);
     mapping_table_[newLPID] = node;
     ReleaseRead();
     return newLPID;
@@ -337,6 +348,7 @@ class BWTree {
 
   bool SwapNode(LPID id, BWTreeNode<KeyType, ValueType, KeyComparator> *oldNode,
                 BWTreeNode<KeyType, ValueType, KeyComparator> *newNode) {
+	LOG_INFO("swapping node for LPID: %d into mapping table", id);
     AquireRead();
     bool ret =
         __sync_bool_compare_and_swap(mapping_table_ + id, oldNode, newNode);
@@ -346,6 +358,7 @@ class BWTree {
 
   // assumes that LPID is valid
   BWTreeNode<KeyType, ValueType, KeyComparator> *GetNode(LPID id) {
+	  LOG_INFO("getting node for LPID: %d frommapping table", newLPID);
     AquireRead();
     auto ret = mapping_table_[id];
     ReleaseRead();
@@ -353,7 +366,7 @@ class BWTree {
   }
 
   // return 0 if equal, -1 if left < right, 1 otherwise
-  int CompareKey(KeyType left, KeyType right) {
+  inline int CompareKey(KeyType left, KeyType right) {
     bool less_than_right = comparator(left, right);
     bool greater_than_right = comparator(right, left);
     if (!less_than_right && !greater_than_right) {
@@ -442,7 +455,7 @@ class BWTreeNode {
 
   };
 
-  int GetDeltaChainLen() { return delta_chain_len_; }
+  inline int GetDeltaChainLen() { return delta_chain_len_; }
 
  protected:
   // the handler to the mapping table
