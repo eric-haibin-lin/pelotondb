@@ -264,8 +264,10 @@ bool IPage<KeyType, ValueType, KeyComparator>::InsertEntry(
    bool last_level_page;
    LPID target_child_lpid;  // TODO: write code to get this -- partially done*/
 	LOG_INFO("Inside IPage InsertEntry");
-  LPID child_lpid = GetChild(key, children_, size_);
-  return this->map->GetNode(child_lpid)->InsertEntry(key, location, child_lpid);
+	int child_lpid_index = GetChild(key, children_, size_);
+	LOG_INFO("Got child_lpid_index as %d", child_lpid_index);
+  //LPID child_lpid = GetChild(key, children_, size_);
+  return this->map->GetNode(children_[child_lpid].second)->InsertEntry(key, location, child_lpid);
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>

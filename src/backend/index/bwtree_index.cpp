@@ -27,7 +27,7 @@ BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::BWTreeIndex(
       container(metadata->unique_keys, KeyComparator(metadata)),
       equals(metadata),
       comparator(metadata) {
-	LOG_INFO("Inside BWTreeIndex constructor");
+  LOG_INFO("Inside BWTreeIndex constructor");
   // Add your implementation here
   // abj1: I think this will culminate in the BWTree constructor being called
   // TODO instantiate BWTree with KeyComparator(metadata);
@@ -47,7 +47,6 @@ bool BWTreeIndex<KeyType, ValueType, KeyComparator,
                                                   const storage::Tuple *key,
                                                   __attribute__((unused))
                                                   const ItemPointer location) {
-
   KeyType index_key;
   index_key.SetFromKey(key);
   ValueType value(location);
