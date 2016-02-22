@@ -840,9 +840,9 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_LPAGE; };
 
-  void MergeNodes(LPID self, LPID parent) {
+  void SplitNodes(LPID self, LPID parent) {
     LPID newLpageLPID;
-    int j = 0;
+    int newPageIndex = 0;
     KeyType splitterKey;
     ValueType splitterVal;
     bool swapSuccess;
@@ -851,11 +851,11 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
         new LPage<KeyType, ValueType, KeyComparator>(this->map);
 
     for (int i = size_ / 2; i < size_; i++) {
-      newLpage->locations_[j++] = locations_[i];
+      newLpage->locations_[newPageIndex++] = locations_[newPageIndex];
     }
 
     // TODO Why am I able to access this size_ private variable?
-    newLpage->size_ = j;
+    newLpage->size_ = newPageIndex;
 
     // TODO left_sib is set to self
     newLpage->right_sib_ = right_sib_;
@@ -872,6 +872,8 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     swapSuccess = this->map->SwapNode(self, this, splitDelta);
 
     if (swapSuccess == false) {
+    	delete splitDelta;
+    	delete newLpage;
       // What should we do on failure? This means that someone else succeeded in
       // doing the
       // atomic half split. Now if try and install our own Insert / Delete /
@@ -887,7 +889,7 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     // node... how can we do it atomically?
     // Edit: No need to do that! Because the consolidation will do that lol you
     // dumbo abj
-
+    LOG_INFO("Split page %lu, into new page %lu", self, newLpageLPID);
     // Now start with the second half
     //    IPageUpdateDelta<KeyType, ValueType, KeyComparator> *parentUpdateDelta
     //    = new
