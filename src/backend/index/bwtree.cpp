@@ -257,7 +257,9 @@ std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::ScanKey(
   std::vector<ValueType> result;
 
   // recursive call scan from the root of BWTree
+  LOG_INFO("Inside ScanKey of BWTree");
   result = GetNode(root_)->ScanKey(key);
+  LOG_INFO("Leaving ScanKey of BWTree");
 
   return result;
 };
@@ -336,6 +338,7 @@ std::vector<ValueType> IPage<KeyType, ValueType, KeyComparator>::ScanKey(
   std::vector<ValueType> result;
   // locate the child who covers the key
   int child_idx = GetChild(key, this->children_, this->size_);
+  LOG_INFO("Got child_idx as %d", child_idx);
   LPID child_id = this->children_[child_idx].second;
 
   BWTreeNode<KeyType, ValueType, KeyComparator> *child =
