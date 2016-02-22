@@ -706,7 +706,7 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
   // node... how can we do it atomically?
   // Edit: No need to do that! Because the consolidation will do that.
 
-  LOG_INFO("Split page %lu, into new page %lu", self, newLpageLPID);
+  LOG_INFO("Split page %lu, into new page %lu", self, newIpageLPID);
 
   // Now start with the second half
   LOG_INFO("Now try to create a new IPageUpdateDelta");
