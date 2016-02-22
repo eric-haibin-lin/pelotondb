@@ -650,6 +650,87 @@ LPage<KeyType, ValueType, KeyComparator>::BuildNodeState() {
   return builder;
 };
 
+template <typename KeyType, typename ValueType, class KeyComparator>
+void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
+                                                          LPID parent) {
+  LPID newIpageLPID;
+  int newPageIndex = 0;
+  KeyType maxLeftSplitNodeKey, maxRightSplitNodeKey;
+  // ValueType leftSplitNodeVal;
+  bool swapSuccess;
+
+  LOG_INFO("Splitting Node with LPID: %lu, whose parent is %lu", self, parent);
+
+  LOG_INFO("The size of this node (LPID %lu) is %d", self, size_);
+  IPage<KeyType, ValueType, KeyComparator> *newIpage =
+      new IPage<KeyType, ValueType, KeyComparator>(this->map);
+
+  for (int i = size_ / 2 + 1; i < size_; i++) {
+    newIpage->children_[newPageIndex++] = children_[i];
+  }
+
+  newIpage->size_ = newPageIndex;
+  LOG_INFO("The size of the new right split node is %d", newIpage->size_);
+
+  // Assuming we have ( .. ] ranges
+  maxLeftSplitNodeKey = children_[size_ / 2].first;
+  maxRightSplitNodeKey = children_[size_ - 1].first;
+
+  newIpageLPID = this->map->InstallPage(newIpage);
+
+  LOG_INFO("This newly created right split node got LPID: %d", newIpageLPID);
+
+  IPageSplitDelta<KeyType, ValueType, KeyComparator> *splitDelta =
+      new IPageSplitDelta<KeyType, ValueType, KeyComparator>(
+          this->map, this, maxLeftSplitNodeKey, newIpageLPID);
+
+  swapSuccess = this->map->SwapNode(self, this, splitDelta);
+
+  if (swapSuccess == false) {
+    LOG_INFO("This SwapNode attempt for split failed");
+    delete splitDelta;
+    delete newIpage;
+    // What should we do on failure? This means that someone else succeeded in
+    // doing the
+    // atomic half split. Now if try and install our own Insert / Delete /
+    // Update delta, it
+    // will automatically be created on top of the LPageSplitDelta
+    return;
+  }
+
+  LOG_INFO("The SwapNode attempt for split succeeded.");
+  // This completes the atomic half split
+  // At this point no one else can succeed with the complete split because
+  // this guy won in the half split
+  // Now we still have to update the size field and the right_sib of this
+  // node... how can we do it atomically?
+  // Edit: No need to do that! Because the consolidation will do that.
+
+  LOG_INFO("Split page %lu, into new page %lu", self, newLpageLPID);
+
+  // Now start with the second half
+  LOG_INFO("Now try to create a new IPageUpdateDelta");
+
+  BWTreeNode<KeyType, ValueType, KeyComparator> *parentHardPtr;
+
+  parentHardPtr = this->map->GetNode(parent);
+
+  IPageUpdateDelta<KeyType, ValueType, KeyComparator> *parentUpdateDelta =
+      new IPageUpdateDelta<KeyType, ValueType, KeyComparator>(
+          this->map, parentHardPtr, maxLeftSplitNodeKey, maxRightSplitNodeKey,
+          newIpageLPID);
+
+  LOG_INFO("Now Doing a SwapNode to install this IPageUpdateDelta");
+
+  // This SwapNode has to be successful. No one else can do this for now.
+  // TODO if we allow any node to complete a partial SMO, then this will change
+  swapSuccess = this->map->SwapNode(parent, parentHardPtr, parentUpdateDelta);
+
+  assert(swapSuccess == true);
+
+  LOG_INFO("Split finished");
+};
+
 // DO NOT DELETE
 /*
  template <typename KeyType, typename ValueType, class KeyComparator>

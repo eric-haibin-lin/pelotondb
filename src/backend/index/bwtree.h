@@ -520,6 +520,8 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   std::pair<KeyType, LPID> *GetChildren() { return children_; }
 
+  void SplitNodes(LPID self, LPID parent);
+
  private:
   std::pair<KeyType, LPID> children_[IPAGE_ARITY];
 
@@ -644,7 +646,7 @@ class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
       : Delta<KeyType, ValueType, KeyComparator>(map, modified_node),
         modified_key_(key),
         modified_val_(value) {
-    LOG_INFO("Isside LPageUpdateDelta Constructor");
+    LOG_INFO("Inside LPageUpdateDelta Constructor");
   };
 
   bool InsertEntry(__attribute__((unused)) KeyType key,
@@ -723,6 +725,17 @@ class IPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
  public:
   // TODO @abj initialize "is_delete_" to the desired value as well
 
+  IPageUpdateDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
+                   BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
+                   KeyType maxKeyLeftSplitNode, KeyType maxKeyRightSplitNode,
+                   LPID rightSplitNodeLPID)
+      : Delta<KeyType, ValueType, KeyComparator>(map, modified_node),
+        maxKeyLeftSplitNode(maxKeyLeftSplitNode),
+        maxKeyRightSplitNode(maxKeyRightSplitNode),
+        modified_id_(rightSplitNodeLPID) {
+    LOG_INFO("Inside IPageUpdateDelta Constructor");
+  };
+
   bool InsertEntry(__attribute__((unused)) KeyType key,
                    __attribute__((unused)) ValueType location,
                    __attribute__((unused)) LPID self) {
@@ -741,9 +754,11 @@ class IPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
 
  private:
   // The key which is modified
-  KeyType modified_key_;
+  KeyType maxKeyLeftSplitNode, maxKeyRightSplitNode;
 
-  // The logical page id of the updated key. Set to 0 for delete delta
+  KeyType modified_key_;  // TODO this has to be removed, @eric, please replace
+                          // all usage of this :P, and use the above
+  // two members
   LPID modified_id_;
 
   // Whether it's a delete delta
@@ -843,35 +858,46 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   void SplitNodes(LPID self, LPID parent) {
     LPID newLpageLPID;
     int newPageIndex = 0;
-    KeyType splitterKey;
-    ValueType splitterVal;
+    KeyType maxLeftSplitNodeKey, maxRightSplitNodeKey;
+    ValueType leftSplitNodeVal;
     bool swapSuccess;
 
+    LOG_INFO("Splitting Node with LPID: %lu, whose parent is %lu", self,
+             parent);
+
+    LOG_INFO("The size of this node (LPID %lu) is %d", self, size_);
     LPage<KeyType, ValueType, KeyComparator> *newLpage =
         new LPage<KeyType, ValueType, KeyComparator>(this->map);
 
-    for (int i = size_ / 2; i < size_; i++) {
-      newLpage->locations_[newPageIndex++] = locations_[newPageIndex];
+    for (int i = size_ / 2 + 1; i < size_; i++) {
+      newLpage->locations_[newPageIndex++] = locations_[i];
     }
 
-    // TODO Why am I able to access this size_ private variable?
     newLpage->size_ = newPageIndex;
+    LOG_INFO("The size of the new right split node is %d", newLpage->size_);
 
     // TODO left_sib is set to self
     newLpage->right_sib_ = right_sib_;
 
-    splitterKey = locations_[size_ / 2 + 1].first;
-    splitterVal = locations_[size_ / 2 + 1].second;
+    // Assuming we have ( .. ] ranges
+    maxLeftSplitNodeKey = locations_[size_ / 2].first;
+    leftSplitNodeVal = locations_[size_ / 2].second;
+
+    maxRightSplitNodeKey = locations_[size_ - 1].first;
 
     newLpageLPID = this->map->InstallPage(newLpage);
 
+    LOG_INFO("This newly created right split node got LPID: %d", newLpageLPID);
+
     LPageSplitDelta<KeyType, ValueType, KeyComparator> *splitDelta =
         new LPageSplitDelta<KeyType, ValueType, KeyComparator>(
-            this->map, this, splitterKey, splitterVal, newLpageLPID);
+            this->map, this, maxLeftSplitNodeKey, leftSplitNodeVal,
+            newLpageLPID);
 
     swapSuccess = this->map->SwapNode(self, this, splitDelta);
 
     if (swapSuccess == false) {
+      LOG_INFO("This SwapNode attempt for split failed");
       delete splitDelta;
       delete newLpage;
       // What should we do on failure? This means that someone else succeeded in
@@ -882,18 +908,37 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
       return;
     }
 
+    LOG_INFO("The SwapNode attempt for split succeeded.");
     // This completes the atomic half split
     // At this point no one else can succeed with the complete split because
     // this guy won in the half split
     // Now we still have to update the size field and the right_sib of this
     // node... how can we do it atomically?
-    // Edit: No need to do that! Because the consolidation will do that lol you
-    // dumbo abj
+    // Edit: No need to do that! Because the consolidation will do that.
+
     LOG_INFO("Split page %lu, into new page %lu", self, newLpageLPID);
+
     // Now start with the second half
-    //    IPageUpdateDelta<KeyType, ValueType, KeyComparator> *parentUpdateDelta
-    //    = new
-    //    		IPageUpdateDelta
+    LOG_INFO("Now try to create a new IPageUpdateDelta");
+
+    BWTreeNode<KeyType, ValueType, KeyComparator> *parentHardPtr;
+
+    parentHardPtr = this->map->GetNode(parent);
+    IPageUpdateDelta<KeyType, ValueType, KeyComparator> *parentUpdateDelta =
+        new IPageUpdateDelta<KeyType, ValueType, KeyComparator>(
+            this->map, parentHardPtr, maxLeftSplitNodeKey, maxRightSplitNodeKey,
+            newLpageLPID);
+
+    LOG_INFO("Now Doing a SwapNode to install this IPageUpdateDelta");
+
+    // This SwapNode has to be successful. No one else can do this for now.
+    // TODO if we allow any node to complete a partial SMO, then this will
+    // change
+    swapSuccess = this->map->SwapNode(parent, parentHardPtr, parentUpdateDelta);
+
+    assert(swapSuccess == true);
+
+    LOG_INFO("Split finished");
   };
 
  private:
