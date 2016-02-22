@@ -650,12 +650,14 @@ class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
   bool InsertEntry(__attribute__((unused)) KeyType key,
                    __attribute__((unused)) ValueType location,
                    __attribute__((unused)) LPID self) {
-    // TODO implement this
     LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
         new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
                                                                 key, location);
-
-    return this->map->SwapNode(self, this, new_delta);
+    bool status = this->map->SwapNode(self, this, new_delta);
+    if (!status) {
+      delete new_delta;
+    }
+    return status;
   };
 
   bool DeleteEntry(__attribute__((unused)) KeyType key,
@@ -665,7 +667,11 @@ class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
                                                                 key, location);
 
     new_delta->SetDeleteFlag();
-    return this->map->SwapNode(self, this, new_delta);
+    bool status = this->map->SwapNode(self, this, new_delta);
+    if (!status) {
+      delete new_delta;
+    }
+    return status;
   };
 
   std::vector<ValueType> ScanKey(KeyType key);
@@ -763,9 +769,8 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   LPage(BWTree<KeyType, ValueType, KeyComparator> *map)
       : BWTreeNode<KeyType, ValueType, KeyComparator>(map, 0) {
-    // TODO initialize these with the proper values
-    left_sib_ = 0;
-    right_sib_ = 0;
+    left_sib_ = INVALID_LPID;
+    right_sib_ = INVALID_LPID;
     // locations_ = new std::pair<KeyType, ValueType>[LPAGE_ARITY]();
     size_ = 0;
   };
@@ -781,8 +786,9 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     for (oid_t index = 0; index < size_; index++) {
       locations_[index] = lstate->locations_[index];
     }
-    left_sib_ = 0;
-    right_sib_ = 0;
+    // TODO get this from builder
+    left_sib_ = INVALID_LPID;
+    right_sib_ = INVALID_LPID;
     // TODO handle split case
   };
 
@@ -797,8 +803,11 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
         new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
                                                                 key, location);
 
-    return this->map->SwapNode(self, this, new_delta);
-    // return false;
+    bool status = this->map->SwapNode(self, this, new_delta);
+    if (!status) {
+      delete new_delta;
+    }
+    return status;
   };
 
   bool DeleteEntry(__attribute__((unused)) KeyType key,
@@ -811,7 +820,11 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
                                                                 key, location);
 
     new_delta->SetDeleteFlag();
-    return this->map->SwapNode(self, this, new_delta);
+    bool status = this->map->SwapNode(self, this, new_delta);
+    if (!status) {
+      delete new_delta;
+    }
+    return status;
   };
 
   std::vector<ValueType> Scan(const std::vector<Value> &values,
