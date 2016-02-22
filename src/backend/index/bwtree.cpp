@@ -596,7 +596,8 @@ std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::ScanKey(
   // we only need the values
   oid_t index;
   for (index = 0; index < indices.size(); index++) {
-    result.push_back((locations_)[index].second);
+    std::pair<KeyType, ValueType> result_pair = (locations_[indices[index]]);
+    result.push_back(result_pair.second);
   }
   // reach the end of current LPage, go to next LPage for more results
   if (index == size_ && right_sib_ != INVALID_LPID) {
