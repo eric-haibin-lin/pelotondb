@@ -38,25 +38,26 @@ void INodeStateBuilder<KeyType, ValueType, KeyComparator>::AddChild(
     std::pair<KeyType, LPID> &new_pair) {
   assert(children_ != nullptr);
   KeyType key = new_pair.first;
-  int index = IPage<KeyType, ValueType, KeyComparator>::GetChild(key, children_,
-                                                                 this->size);
+  int index = this->map->BinarySearch(key, children_, this->size);
   assert(index < IPAGE_ARITY + DELTA_CHAIN_LIMIT);
   // shift every element to the right
-  for (int i = this->size; i > index; i--) {
-    children_[i] = children_[i - 1];
+  if (index < 0) {
+    index = -index;
+    for (int i = this->size; i > index; i--) {
+      children_[i] = children_[i - 1];
+    }
+    // increase size
+    this->size++;
   }
   // insert at the found index
   children_[index] = new_pair;
-  // increase size
-  this->size++;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 void INodeStateBuilder<KeyType, ValueType, KeyComparator>::RemoveChild(
     KeyType &key_to_remove) {
   assert(children_ != nullptr);
-  int index = IPage<KeyType, ValueType, KeyComparator>::GetChild(
-      key_to_remove, children_, this->size);
+  int index = this->map->BinarySearch(key_to_remove, children_, this->size);
   // if key found
   if (index < this->size && index >= 0) {
     for (int i = index; i < this->size - 1; i++) {
@@ -71,12 +72,12 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 void INodeStateBuilder<KeyType, ValueType, KeyComparator>::SeparateFromKey(
     KeyType separator_key, LPID split_new_page_id) {
   assert(children_ != nullptr);
-  int index = IPage<KeyType, ValueType, KeyComparator>::GetChild(
-      separator_key, children_, this->size);
+  int index = this->map->BinarySearch(separator_key, children_, this->size);
   assert(index < this->size && index >= 0);
-  // assume we exclude the key at the split page
+  // assume we include the key at the split page
   // decrement size
-  this->size = index;
+  assert(index > 0);
+  this->size = index + 1;
   // update separator info
   this->is_separated = true;
   this->separator_key = separator_key;
@@ -101,13 +102,14 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::AddLeafData(
   assert(locations_ != nullptr);
   KeyType key = new_pair.first;
   int index = this->map->BinarySearch(key, locations_, this->size);
-  assert(index < IPAGE_ARITY + DELTA_CHAIN_LIMIT);
+  assert(index < LPAGE_ARITY + DELTA_CHAIN_LIMIT);
   // not found. shift every element to the right
   if (index < 0) {
     index = -1 * index;
     for (int i = this->size; i > index; i--) {
       locations_[i] = locations_[i - 1];
     }
+    this->size++;
   } else {
     // found
     if (!this->map->unique_keys) {
@@ -115,12 +117,11 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::AddLeafData(
       for (int i = this->size; i > index; i--) {
         locations_[i] = locations_[i - 1];
       }
+      this->size++;
     }
   }
   // insert at the found index
   locations_[index] = new_pair;
-  // increase size
-  this->size++;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -151,22 +152,23 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::RemoveLeafData(
   assert(this->map->unique_keys == false);
 
   KeyType key = entry_to_remove.first;
-  static int index = this->map->BinarySearch(key, locations_, this->size);
+  int index = this->map->BinarySearch(key, locations_, this->size);
   // we have the first appearance of the given key, do linear scan to see
   // which one matches exactly
-  bool found_exact_key = false;
-  for (; index < this->size; index++) {
+  bool found_exact_entry = false;
+  for (; index >= 0 && index < this->size; index++) {
     std::pair<KeyType, ValueType> pair = locations_[index];
     if (this->map->CompareKey(key, pair.first) == 0) {
       if (ItemPointerEquals(pair.second, entry_to_remove.second)) {
-        found_exact_key = true;
+        found_exact_entry = true;
+        break;
       }
     } else {
       // not found
       break;
     }
   }
-  if (found_exact_key) {
+  if (found_exact_entry) {
     for (int i = index; i < this->size - 1; i++) {
       locations_[i] = locations_[i + 1];
     }
@@ -184,9 +186,9 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::SeparateFromKey(
       std::pair<KeyType, ValueType>(separator_key, location), locations_,
       this->size);
   assert(index < this->size && index >= 0);
-  // assume we exclude the key at the split page
+  // assume we include the key at the split page
   // decrement size
-  this->size = index;
+  this->size = index + 1;
   // update separator info
   this->is_separated = true;
   this->separator_key = separator_key;
@@ -251,6 +253,36 @@ std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::ScanKey(
   result = GetNode(root_)->ScanKey(key);
 
   return result;
+};
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+template <typename PairSecond>
+int BWTree<KeyType, ValueType, KeyComparator>::BinarySearch(
+    __attribute__((unused)) KeyType key,
+    __attribute__((unused)) std::pair<KeyType, PairSecond> *locations,
+    __attribute__((unused)) oid_t len) {
+  int low = 0, high = len - 1, first = -1;
+  int mid;
+  while (low <= high) {
+    mid = low + ((high - low) >> 1);
+    switch (CompareKey(locations[mid].first, key)) {
+      case -1:
+        low = mid + 1;
+        break;
+      case 0:
+        first = mid;
+      // no break
+      default:
+        // positive case
+        high = mid - 1;
+        break;
+    }
+  }
+  if (first != -1) {
+    return first;
+  } else {
+    return -low;
+  }
 };
 
 //===--------------------------------------------------------------------===//
@@ -394,8 +426,8 @@ IPageSplitDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
       reinterpret_cast<INodeStateBuilder<KeyType, ValueType, KeyComparator> *>(
           this->modified_node->BuildNodeState());
   assert(builder != nullptr);
-  std::pair<KeyType, LPID> separator(modified_key_, modified_val_);
-  builder->SeparateFromKey(separator);
+  std::pair<KeyType, LPID> splitter(modified_key_, modified_val_);
+  builder->SeparateFromKey(splitter);
 
   return builder;
 }
@@ -435,6 +467,7 @@ IPageUpdateDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
           this->modified_node->BuildNodeState());
   assert(builder != nullptr);
   // delete delta
+  // TODO make sure seperator case is covered (two pairs)
   if (is_delete_) {
     builder->RemoveChild(this->modified_key_);
   } else {
@@ -482,6 +515,7 @@ LPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
   LOG_INFO("Scan on the new NodeState");
   result = page->ScanKey(key);
   // release builder
+  delete page;
   delete (builder);
   return result;
 };
@@ -518,35 +552,6 @@ LPageUpdateDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
 //===--------------------------------------------------------------------===//
 // LPage Methods Begin
 //===--------------------------------------------------------------------===//
-template <typename KeyType, typename ValueType, class KeyComparator>
-template <typename PairSecond>
-int BWTree<KeyType, ValueType, KeyComparator>::BinarySearch(
-    __attribute__((unused)) KeyType key,
-    __attribute__((unused)) std::pair<KeyType, PairSecond> *locations,
-    __attribute__((unused)) oid_t len) {
-  int low = 0, high = len - 1, first = -1;
-  int mid;
-  while (low <= high) {
-    mid = low + ((high - low) >> 1);
-    switch (CompareKey(locations[mid].first, key)) {
-      case -1:
-        low = mid + 1;
-        break;
-      case 0:
-        first = mid;
-      // no break
-      default:
-        // positive case
-        high = mid - 1;
-        break;
-    }
-  }
-  if (first != -1) {
-    return first;
-  } else {
-    return -low;
-  }
-}
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::Scan(

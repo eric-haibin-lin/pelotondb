@@ -872,8 +872,8 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     swapSuccess = this->map->SwapNode(self, this, splitDelta);
 
     if (swapSuccess == false) {
-    	delete splitDelta;
-    	delete newLpage;
+      delete splitDelta;
+      delete newLpage;
       // What should we do on failure? This means that someone else succeeded in
       // doing the
       // atomic half split. Now if try and install our own Insert / Delete /
