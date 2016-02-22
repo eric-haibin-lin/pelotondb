@@ -323,7 +323,7 @@ int IPage<KeyType, ValueType, KeyComparator>::GetChild(
     __attribute__((unused)) KeyType key,
     __attribute__((unused)) std::pair<KeyType, LPID> *children,
     __attribute__((unused)) oid_t len) {
-  int index = this->map->BinarySearch(key, children, len);
+  int index = this->map->BinarySearch(key, children, len - 1);
   return index >= 0 ? index : -index;
 };
 

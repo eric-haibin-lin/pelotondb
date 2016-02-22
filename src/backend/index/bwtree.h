@@ -205,7 +205,6 @@ class BWTree {
   // the mapping table
   unsigned int mapping_table_cap_ = 128;
   unsigned int mapping_table_size_ = 0;
-  LPID *free_LPIDs = new LPID[mapping_table_cap_];
   int free_LPID_index = 0;
   //  BWTreeNode<KeyType, ValueType, KeyComparator> ** mapping_table_ =
   //		  (BWTreeNode<KeyType, ValueType, KeyComparator> **)
@@ -259,10 +258,7 @@ class BWTree {
     // with the given comparator
   };
 
-  ~BWTree() {
-    delete[] free_LPIDs;
-    delete[] mapping_table_;
-  }
+  ~BWTree() { delete[] mapping_table_; }
 
   // get the index of the first occurrence of the given key
   template <typename PairSecond>
@@ -306,7 +302,7 @@ class BWTree {
   }
   inline void AquireWrite() {
     LOG_INFO("Aquiring write Lock");
-    while (__sync_bool_compare_and_swap(&current_writers, 0, 1))
+    while (!__sync_bool_compare_and_swap(&current_writers, 0, 1))
       ;
     while (current_readers > 0)
       ;
@@ -342,7 +338,9 @@ class BWTree {
       auto new_mapping_table =
           new BWTreeNode<KeyType, ValueType,
                          KeyComparator> *[new_mapping_table_cap];
-      memcpy(new_mapping_table, mapping_table_, mapping_table_cap_);
+      memcpy(new_mapping_table, mapping_table_,
+             mapping_table_cap_ *
+                 sizeof(new BWTreeNode<KeyType, ValueType, KeyComparator> *));
       delete[] mapping_table_;
       mapping_table_ = new_mapping_table;
       mapping_table_cap_ = new_mapping_table_cap;
