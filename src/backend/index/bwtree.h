@@ -32,8 +32,8 @@ enum BWTreeNodeType {
   TYPE_OTHER = 2,
 };
 
-#define IPAGE_ARITY 5
-#define LPAGE_ARITY 5
+#define IPAGE_ARITY 256
+#define LPAGE_ARITY 256
 
 #define INVALID_LPID ULLONG_MAX
 

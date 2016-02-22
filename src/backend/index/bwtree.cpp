@@ -41,7 +41,7 @@ void INodeStateBuilder<KeyType, ValueType, KeyComparator>::AddChild(
   int index = this->map->BinarySearch(key, children_, this->size);
   assert(index < IPAGE_ARITY + DELTA_CHAIN_LIMIT);
   // shift every element to the right
-  if (index < 0) {
+  if (index < 0 || this->size == 0) {
     index = -index;
     for (int i = this->size; i > index; i--) {
       children_[i] = children_[i - 1];
@@ -104,15 +104,22 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::AddLeafData(
   int index = this->map->BinarySearch(key, locations_, this->size);
   assert(index < LPAGE_ARITY + DELTA_CHAIN_LIMIT);
   // not found. shift every element to the right
-  if (index < 0) {
+  if (index < 0 || this->size == 0) {
     index = -1 * index;
     for (int i = this->size; i > index; i--) {
       locations_[i] = locations_[i - 1];
     }
     this->size++;
   } else {
-    // found
     if (!this->map->unique_keys) {
+      while (index < this->size &&
+             this->map->CompareKey(locations_[index].first, key) == 0) {
+        if (ItemPointerEquals(new_pair.second, locations_[index].second)) {
+          return;
+        }
+        index++;
+      }
+
       // shift every element to the right if we allow non-unique keys
       for (int i = this->size; i > index; i--) {
         locations_[i] = locations_[i - 1];
@@ -505,8 +512,14 @@ LPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
   LOG_INFO("Building NodeState of all children nodes");
 
   // non unique key. we have to build the state
-  NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
-      this->modified_node->BuildNodeState();
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder;
+
+  if (this->map->unique_keys) {
+    builder = this->modified_node->BuildNodeState();
+  } else {
+    builder = this->BuildNodeState();
+  }
+
   assert(builder != nullptr);
   BWTreeNode<KeyType, ValueType, KeyComparator> *page = builder->GetPage();
   assert(page != nullptr);
@@ -583,7 +596,7 @@ std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::ScanKey(
     result.push_back((locations_)[index].second);
   }
   // reach the end of current LPage, go to next LPage for more results
-  if (index == size_) {
+  if (index == size_ && right_sib_ != INVALID_LPID) {
     std::vector<ValueType> sib_result =
         this->map->GetNode(right_sib_)->ScanKey(key);
     result.insert(result.end(), sib_result.begin(), sib_result.end());
