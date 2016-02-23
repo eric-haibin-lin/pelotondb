@@ -112,14 +112,6 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::AddLeafData(
     this->size++;
   } else {
     if (!this->map->unique_keys) {
-      while (index < this->size &&
-             this->map->CompareKey(locations_[index].first, key) == 0) {
-        if (ItemPointerEquals(new_pair.second, locations_[index].second)) {
-          return;
-        }
-        index++;
-      }
-
       // shift every element to the right if we allow non-unique keys
       for (int i = this->size; i > index; i--) {
         locations_[i] = locations_[i - 1];
@@ -162,25 +154,24 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::RemoveLeafData(
   int index = this->map->BinarySearch(key, locations_, this->size);
   // we have the first appearance of the given key, do linear scan to see
   // which one matches exactly
-  bool found_exact_entry = false;
-  for (; index >= 0 && index < this->size; index++) {
-    std::pair<KeyType, ValueType> pair = locations_[index];
+  int found_exact_entry_count = 0;
+  for (int i = index; i >= 0 && i < this->size; i++) {
+    std::pair<KeyType, ValueType> pair = locations_[i];
     if (this->map->CompareKey(key, pair.first) == 0) {
       if (ItemPointerEquals(pair.second, entry_to_remove.second)) {
-        found_exact_entry = true;
-        break;
+        found_exact_entry_count++;
       }
     } else {
       // not found
       break;
     }
   }
-  if (found_exact_entry) {
+  if (found_exact_entry_count) {
     for (int i = index; i < this->size - 1; i++) {
-      locations_[i] = locations_[i + 1];
+      locations_[i] = locations_[i + found_exact_entry_count];
     }
     // decrement size
-    this->size--;
+    this->size -= found_exact_entry_count;
   }
 }
 
