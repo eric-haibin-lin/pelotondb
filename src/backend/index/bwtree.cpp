@@ -40,7 +40,7 @@ void INodeStateBuilder<KeyType, ValueType, KeyComparator>::AddChild(
   KeyType key = new_pair.first;
   int index = this->map->BinarySearch(key, children_, this->size);
   assert(index < IPAGE_ARITY + DELTA_CHAIN_LIMIT);
-  // shift every element to the right
+  // Key not found. shift every element to the right
   if (index < 0 || this->size == 0) {
     index = -index;
     for (int i = this->size; i > index; i--) {
@@ -212,7 +212,9 @@ bool BWTree<KeyType, ValueType, KeyComparator>::InsertEntry(
   LPID child_lpid;
   child_lpid = root_;
 
-  return GetNode(child_lpid)->InsertEntry(key, location, child_lpid);
+  while (!GetNode(child_lpid)->InsertEntry(key, location, child_lpid))
+    ;
+  return true;
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -360,6 +362,87 @@ int IPage<KeyType, ValueType, KeyComparator>::GetChild(
   return index >= 0 ? index : -index;
 };
 
+template <typename KeyType, typename ValueType, class KeyComparator>
+void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
+                                                          LPID parent) {
+  LPID newIpageLPID;
+  int newPageIndex = 0;
+  KeyType maxLeftSplitNodeKey, maxRightSplitNodeKey;
+  // ValueType leftSplitNodeVal;
+  bool swapSuccess;
+
+  LOG_INFO("Splitting Node with LPID: %lu, whose parent is %lu", self, parent);
+
+  LOG_INFO("The size of this node (LPID %lu) is %d", self, size_);
+  IPage<KeyType, ValueType, KeyComparator> *newIpage =
+      new IPage<KeyType, ValueType, KeyComparator>(this->map);
+
+  for (int i = size_ / 2 + 1; i < size_; i++) {
+    newIpage->children_[newPageIndex++] = children_[i];
+  }
+
+  newIpage->size_ = newPageIndex;
+  LOG_INFO("The size of the new right split node is %d", newIpage->size_);
+
+  // Assuming we have ( .. ] ranges
+  maxLeftSplitNodeKey = children_[size_ / 2].first;
+  maxRightSplitNodeKey = children_[size_ - 1].first;
+
+  newIpageLPID = this->map->InstallPage(newIpage);
+
+  LOG_INFO("This newly created right split node got LPID: %d", newIpageLPID);
+
+  IPageSplitDelta<KeyType, ValueType, KeyComparator> *splitDelta =
+      new IPageSplitDelta<KeyType, ValueType, KeyComparator>(
+          this->map, this, maxLeftSplitNodeKey, newIpageLPID);
+
+  swapSuccess = this->map->SwapNode(self, this, splitDelta);
+
+  if (swapSuccess == false) {
+    LOG_INFO("This SwapNode attempt for split failed");
+    delete splitDelta;
+    delete newIpage;
+    // What should we do on failure? This means that someone else succeeded in
+    // doing the
+    // atomic half split. Now if try and install our own Insert / Delete /
+    // Update delta, it
+    // will automatically be created on top of the LPageSplitDelta
+    return;
+  }
+
+  LOG_INFO("The SwapNode attempt for split succeeded.");
+  // This completes the atomic half split
+  // At this point no one else can succeed with the complete split because
+  // this guy won in the half split
+  // Now we still have to update the size field and the right_sib of this
+  // node... how can we do it atomically?
+  // Edit: No need to do that! Because the consolidation will do that.
+
+  LOG_INFO("Split page %lu, into new page %lu", self, newIpageLPID);
+
+  // Now start with the second half
+  LOG_INFO("Now try to create a new IPageUpdateDelta");
+
+  BWTreeNode<KeyType, ValueType, KeyComparator> *parentHardPtr;
+
+  parentHardPtr = this->map->GetNode(parent);
+
+  IPageUpdateDelta<KeyType, ValueType, KeyComparator> *parentUpdateDelta =
+      new IPageUpdateDelta<KeyType, ValueType, KeyComparator>(
+          this->map, parentHardPtr, maxLeftSplitNodeKey, maxRightSplitNodeKey,
+          newIpageLPID);
+
+  LOG_INFO("Now Doing a SwapNode to install this IPageUpdateDelta");
+
+  // This SwapNode has to be successful. No one else can do this for now.
+  // TODO if we allow any node to complete a partial SMO, then this will change
+  swapSuccess = this->map->SwapNode(parent, parentHardPtr, parentUpdateDelta);
+
+  assert(swapSuccess == true);
+
+  LOG_INFO("Split finished");
+};
+
 //===--------------------------------------------------------------------===//
 // Delta Methods Begin
 //===--------------------------------------------------------------------===//
@@ -440,6 +523,26 @@ IPageSplitDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
 // LPageSplitDelta Methods Begin
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
+std::vector<ValueType>
+LPageSplitDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
+  std::vector<ValueType> result;
+  assert(this->modified_node != nullptr);
+  LOG_INFO("LPageSplitDelta::ScanKey");
+
+  bool greater_than_left_key = this->map->CompareKey(key, modified_key_) > 0;
+
+  if (greater_than_left_key) {
+    LOG_INFO(
+        "LPageSplitDelta::ScanKey Found a matching key for right split page");
+    result = this->map->GetNode(right_split_page_lpid_).ScanKey(key);
+  } else {
+    // Scan the modified node
+    result = this->modified_node->ScanKey(key);
+  }
+  return result;
+};
+
+template <typename KeyType, typename ValueType, class KeyComparator>
 NodeStateBuilder<KeyType, ValueType, KeyComparator> *
 LPageSplitDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
   // Children of IPageDelta always return a INodeStateBuilder
@@ -448,7 +551,7 @@ LPageSplitDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
           this->modified_node->BuildNodeState());
   assert(builder != nullptr);
   builder->SeparateFromKey(modified_key_, modified_key_location_,
-                           modified_val_);
+                           right_split_page_lpid_);
 
   return builder;
 }
@@ -460,6 +563,34 @@ LPageSplitDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
 // IPageUpdateDelta Methods Begin
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
+std::vector<ValueType>
+IPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
+  std::vector<ValueType> result;
+  assert(this->modified_node != nullptr);
+  LOG_INFO("IPageUpdateDelta::ScanKey");
+
+  bool greater_than_left_key =
+      this->map->CompareKey(key, max_key_left_split_node_) > 0;
+  bool not_greater_than_right_key =
+      this->map->CompareKey(key, max_key_right_split_node_) <= 0;
+
+  if (!is_delete_) {
+    // the scanKey is in the range of the right split page
+    if (greater_than_left_key && not_greater_than_right_key) {
+      LOG_INFO("IPageUpdateDelta::ScanKey Found a matching key in range");
+      result = this->map->GetNode(right_split_node_lpid_).ScanKey(key);
+    } else {
+      // ScanKey on modified node
+      result = this->modified_node->ScanKey(key);
+    }
+
+  } else {
+    // TODO handle the merge case
+  }
+  return result;
+};
+
+template <typename KeyType, typename ValueType, class KeyComparator>
 NodeStateBuilder<KeyType, ValueType, KeyComparator> *
 IPageUpdateDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
   // Children of IPageDelta always return a INodeStateBuilder
@@ -468,13 +599,17 @@ IPageUpdateDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
           this->modified_node->BuildNodeState());
   assert(builder != nullptr);
   // delete delta
-  // TODO make sure seperator case is covered (two pairs)
   if (is_delete_) {
-    builder->RemoveChild(this->modified_key_);
+    builder->RemoveChild(max_key_right_split_node_);
   } else {
     // insert delta
-    std::pair<KeyType, LPID> pair(modified_key_, modified_id_);
-    builder->AddChild(pair);
+    std::pair<KeyType, LPID> right_pair(max_key_right_split_node_,
+                                        right_split_node_lpid_);
+    builder->AddChild(right_pair);
+
+    std::pair<KeyType, LPID> left_pair(max_key_left_split_node_,
+                                       right_split_node_lpid_);
+    builder->AddChild(left_pair);
   }
   return builder;
 };
@@ -642,45 +777,50 @@ LPage<KeyType, ValueType, KeyComparator>::BuildNodeState() {
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
-void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
+void LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
                                                           LPID parent) {
-  LPID newIpageLPID;
+  LPID newLpageLPID, left_page_lpid = self;
   int newPageIndex = 0;
   KeyType maxLeftSplitNodeKey, maxRightSplitNodeKey;
-  // ValueType leftSplitNodeVal;
+  ValueType leftSplitNodeVal;
   bool swapSuccess;
 
   LOG_INFO("Splitting Node with LPID: %lu, whose parent is %lu", self, parent);
 
   LOG_INFO("The size of this node (LPID %lu) is %d", self, size_);
-  IPage<KeyType, ValueType, KeyComparator> *newIpage =
-      new IPage<KeyType, ValueType, KeyComparator>(this->map);
+  LPage<KeyType, ValueType, KeyComparator> *newLpage =
+      new LPage<KeyType, ValueType, KeyComparator>(this->map);
 
   for (int i = size_ / 2 + 1; i < size_; i++) {
-    newIpage->children_[newPageIndex++] = children_[i];
+    newLpage->locations_[newPageIndex++] = locations_[i];
   }
 
-  newIpage->size_ = newPageIndex;
-  LOG_INFO("The size of the new right split node is %d", newIpage->size_);
+  newLpage->size_ = newPageIndex;
+  LOG_INFO("The size of the new right split node is %d", newLpage->size_);
+
+  // TODO left_sib is set to self
+  newLpage->right_sib_ = right_sib_;
 
   // Assuming we have ( .. ] ranges
-  maxLeftSplitNodeKey = children_[size_ / 2].first;
-  maxRightSplitNodeKey = children_[size_ - 1].first;
+  maxLeftSplitNodeKey = locations_[size_ / 2].first;
+  leftSplitNodeVal = locations_[size_ / 2].second;
 
-  newIpageLPID = this->map->InstallPage(newIpage);
+  maxRightSplitNodeKey = locations_[size_ - 1].first;
 
-  LOG_INFO("This newly created right split node got LPID: %d", newIpageLPID);
+  newLpageLPID = this->map->InstallPage(newLpage);
 
-  IPageSplitDelta<KeyType, ValueType, KeyComparator> *splitDelta =
-      new IPageSplitDelta<KeyType, ValueType, KeyComparator>(
-          this->map, this, maxLeftSplitNodeKey, newIpageLPID);
+  LOG_INFO("This newly created right split node got LPID: %d", newLpageLPID);
+
+  LPageSplitDelta<KeyType, ValueType, KeyComparator> *splitDelta =
+      new LPageSplitDelta<KeyType, ValueType, KeyComparator>(
+          this->map, this, maxLeftSplitNodeKey, leftSplitNodeVal, newLpageLPID);
 
   swapSuccess = this->map->SwapNode(self, this, splitDelta);
 
   if (swapSuccess == false) {
     LOG_INFO("This SwapNode attempt for split failed");
     delete splitDelta;
-    delete newIpage;
+    delete newLpage;
     // What should we do on failure? This means that someone else succeeded in
     // doing the
     // atomic half split. Now if try and install our own Insert / Delete /
@@ -697,7 +837,7 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
   // node... how can we do it atomically?
   // Edit: No need to do that! Because the consolidation will do that.
 
-  LOG_INFO("Split page %lu, into new page %lu", self, newIpageLPID);
+  LOG_INFO("Split page %lu, into new page %lu", self, newLpageLPID);
 
   // Now start with the second half
   LOG_INFO("Now try to create a new IPageUpdateDelta");
@@ -705,22 +845,22 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
   BWTreeNode<KeyType, ValueType, KeyComparator> *parentHardPtr;
 
   parentHardPtr = this->map->GetNode(parent);
-
   IPageUpdateDelta<KeyType, ValueType, KeyComparator> *parentUpdateDelta =
       new IPageUpdateDelta<KeyType, ValueType, KeyComparator>(
           this->map, parentHardPtr, maxLeftSplitNodeKey, maxRightSplitNodeKey,
-          newIpageLPID);
+          left_page_lpid, newLpageLPID, false);
 
   LOG_INFO("Now Doing a SwapNode to install this IPageUpdateDelta");
 
   // This SwapNode has to be successful. No one else can do this for now.
-  // TODO if we allow any node to complete a partial SMO, then this will change
+  // TODO if we allow any node to complete a partial SMO, then this will
+  // change
   swapSuccess = this->map->SwapNode(parent, parentHardPtr, parentUpdateDelta);
 
   assert(swapSuccess == true);
 
   LOG_INFO("Split finished");
-};
+}
 
 // DO NOT DELETE
 /*
