@@ -99,7 +99,7 @@ class INodeStateBuilder
     : public NodeStateBuilder<KeyType, ValueType, KeyComparator> {
  private:
   // IPage children nodes
-  std::pair<KeyType, LPID> *children_ = nullptr;
+  std::pair<KeyType, LPID> children_[IPAGE_ARITY + DELTA_CHAIN_LIMIT];
   IPage<KeyType, ValueType, KeyComparator> *new_page_ = nullptr;
 
  public:
@@ -107,10 +107,8 @@ class INodeStateBuilder
   INodeStateBuilder(std::pair<KeyType, LPID> *children, int children_len,
                     BWTree<KeyType, ValueType, KeyComparator> *map)
       : NodeStateBuilder<KeyType, ValueType, KeyComparator>(children_len, map) {
-    children_ = new std::pair<KeyType, LPID>[IPAGE_ARITY + DELTA_CHAIN_LIMIT]();
-    for (int i = 0; i < children_len; i++) {
-      children_[i] = children[i];
-    }
+    memcpy(children_, children,
+           sizeof(std::pair<KeyType, LPID>) * children_len);
   };
 
   BWTreeNode<KeyType, ValueType, KeyComparator> *GetPage();
@@ -139,13 +137,13 @@ class LNodeStateBuilder
     : public NodeStateBuilder<KeyType, ValueType, KeyComparator> {
  private:
   // LPage members
-  LPID left_sibling_ = 0;
-  LPID right_sibling_ = 0;
+  LPID left_sibling_ = INVALID_LPID;
+  LPID right_sibling_ = INVALID_LPID;
   LPage<KeyType, ValueType, KeyComparator> *new_page_ = nullptr;
   ValueType separator_location_;
 
   // LPage members
-  std::pair<KeyType, ValueType> *locations_ = nullptr;
+  std::pair<KeyType, ValueType> locations_[IPAGE_ARITY + DELTA_CHAIN_LIMIT];
 
  public:
   // LPage constructor
@@ -155,11 +153,8 @@ class LNodeStateBuilder
       : NodeStateBuilder<KeyType, ValueType, KeyComparator>(location_len, map),
         left_sibling_(left_sibling),
         right_sibling_(right_sibling) {
-    locations_ =
-        new std::pair<KeyType, ValueType>[IPAGE_ARITY + DELTA_CHAIN_LIMIT]();
-    for (int i = 0; i < location_len; i++) {
-      locations_[i] = locations[i];
-    }
+    memcpy(locations_, locations,
+           sizeof(std::pair<KeyType, ValueType>) * location_len);
   };
 
   BWTreeNode<KeyType, ValueType, KeyComparator> *GetPage();
@@ -811,13 +806,15 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     LNodeStateBuilder<KeyType, ValueType, KeyComparator> *lstate =
         reinterpret_cast<
             LNodeStateBuilder<KeyType, ValueType, KeyComparator> *>(state);
-    for (oid_t index = 0; index < size_; index++) {
-      locations_[index] = lstate->locations_[index];
+
+    memcpy(locations_, lstate->locations_,
+           sizeof(std::pair<KeyType, ValueType>) * size_);
+    left_sib_ = lstate->left_sibling_;
+    if (state->IsSeparated()) {
+      right_sib_ = state->split_new_page_id;
+    } else {
+      right_sib_ = lstate->right_sibling_;
     }
-    // TODO get this from builder
-    left_sib_ = INVALID_LPID;
-    right_sib_ = INVALID_LPID;
-    // TODO handle split case
   };
 
   ~LPage(){};
