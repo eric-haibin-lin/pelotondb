@@ -581,15 +581,13 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
  protected:
   // the modified node could either be a LPage or IPage or Delta
   BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node;
-  inline bool IsOverDeltaChainLimit() {
-    return this->GetDeltaChainLen() > this->GetDeltaChainLimit();
-  }
+
   virtual int GetDeltaChainLimit() = 0;
 
   bool PerformDeltaInsert(LPID my_lpid,
                           Delta<KeyType, ValueType, KeyComparator> *new_delta) {
     bool status;
-    if (new_delta->IsOverDeltaChainLimit()) {
+    if (new_delta->GetDeltaChainLen() > this->GetDeltaChainLimit()) {
       status = this->map->CompressDeltaChain(my_lpid, this, new_delta);
     } else {
       status = this->map->GetMappingTable()->SwapNode(my_lpid, this, new_delta);
