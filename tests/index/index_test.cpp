@@ -163,17 +163,22 @@ TEST(IndexTests, BWTreeMappingTableTest) {
       new index::BWTreeNode<TestKeyType, TestValueType,
                             TestComparatorType> *[size_to_test];
   for (int i = 0; i < size_to_test; i++) {
-    swapped_nodes[i] = reinterpret_cast<
-        index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *>(
-        new int(52));
-    map.SwapNode(LPIDs[i], initial_nodes[i], swapped_nodes[i]);
+    if (i % 2) {
+      swapped_nodes[i] = reinterpret_cast<
+          index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *>(
+          new int(52));
+      map.SwapNode(LPIDs[i], initial_nodes[i], swapped_nodes[i]);
+    }
   }
 
   for (int i = 0; i < size_to_test; i++) {
-    EXPECT_EQ(swapped_nodes[i], map.GetNode(LPIDs[i]));
-    ;
+    if (i % 2) {
+      EXPECT_EQ(swapped_nodes[i], map.GetNode(LPIDs[i]));
+    } else {
+      EXPECT_EQ(initial_nodes[i], map.GetNode(LPIDs[i]));
+    };
   }
-
+  delete[] LPIDs;
   delete[] initial_nodes;
   delete[] swapped_nodes;
 }
