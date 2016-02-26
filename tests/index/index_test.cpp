@@ -373,8 +373,8 @@ TEST(IndexTests, MultiThreadedInsertTest) {
   std::unique_ptr<index::Index> index(BuildIndex(NON_UNIQUE_KEY));
 
   // Parallel Test
-  size_t num_threads = 4;
-  size_t scale_factor = 6;
+  size_t num_threads = 24;
+  size_t scale_factor = 1;
   LaunchParallelTest(num_threads, InsertTest, index.get(), pool, scale_factor);
 
   //  locations = index->ScanAllKeys();
@@ -474,6 +474,158 @@ void LPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
 TEST(IndexTests, LPageScanTest) {
   for (unsigned int i = 0; i < index_types.size(); i++) {
     LPageScanTestHelper(index_types[1]);
+  }
+}
+
+void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
+  auto pool = TestingHarness::GetInstance().GetTestingPool();
+  auto map = BuildBWTree(index_key_type);
+  auto baseNode =
+      new index::LPage<TestKeyType, TestValueType, TestComparatorType>(map);
+  index::LPID lpid = map->GetMappingTable()->InstallPage(baseNode);
+  std::vector<ItemPointer> locations;
+  // Insert a bunch of keys based on scale itr
+
+  std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
+  std::unique_ptr<storage::Tuple> key1(new storage::Tuple(key_schema, true));
+  std::unique_ptr<storage::Tuple> key2(new storage::Tuple(key_schema, true));
+  std::unique_ptr<storage::Tuple> key3(new storage::Tuple(key_schema, true));
+  std::unique_ptr<storage::Tuple> key4(new storage::Tuple(key_schema, true));
+  std::unique_ptr<storage::Tuple> keynonce(
+      new storage::Tuple(key_schema, true));
+
+  key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+  key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
+  key1->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+  key1->SetValue(1, ValueFactory::GetStringValue("b"), pool);
+  key2->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+  key2->SetValue(1, ValueFactory::GetStringValue("c"), pool);
+  key3->SetValue(0, ValueFactory::GetIntegerValue(400), pool);
+  key3->SetValue(1, ValueFactory::GetStringValue("d"), pool);
+  key4->SetValue(0, ValueFactory::GetIntegerValue(500), pool);
+  key4->SetValue(1, ValueFactory::GetStringValue(
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"),
+                 pool);
+  keynonce->SetValue(0, ValueFactory::GetIntegerValue(1000), pool);
+  keynonce->SetValue(1, ValueFactory::GetStringValue("f"), pool);
+
+  TestKeyType index_key0;
+  TestKeyType index_key1;
+  TestKeyType index_key2;
+  TestKeyType index_key3;
+  TestKeyType index_key4;
+  TestKeyType index_nonce;
+
+  index_key0.SetFromKey(key0.get());
+  index_key1.SetFromKey(key1.get());
+  index_key2.SetFromKey(key2.get());
+  index_key3.SetFromKey(key3.get());
+  index_key4.SetFromKey(key4.get());
+  index_nonce.SetFromKey(keynonce.get());
+
+  locations = baseNode->ScanKey(index_key0);
+  EXPECT_EQ(locations.size(), 0);
+  locations = baseNode->ScanKey(index_key1);
+  EXPECT_EQ(locations.size(), 0);
+  locations = baseNode->ScanKey(index_key2);
+  EXPECT_EQ(locations.size(), 0);
+  locations = baseNode->ScanKey(index_key3);
+  EXPECT_EQ(locations.size(), 0);
+  locations = baseNode->ScanKey(index_key4);
+  EXPECT_EQ(locations.size(), 0);
+  locations = baseNode->ScanKey(index_nonce);
+  EXPECT_EQ(locations.size(), 0);
+  // perform many inserts
+  index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *prev =
+      baseNode;
+  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                     TestComparatorType>(map, prev, index_key0,
+                                                         item0);
+  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                     TestComparatorType>(map, prev, index_key1,
+                                                         item1);
+  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                     TestComparatorType>(map, prev, index_key1,
+                                                         item2);
+  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                     TestComparatorType>(map, prev, index_key1,
+                                                         item1);
+  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                     TestComparatorType>(map, prev, index_key1,
+                                                         item1);
+  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                     TestComparatorType>(map, prev, index_key1,
+                                                         item0);
+  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                     TestComparatorType>(map, prev, index_key2,
+                                                         item1);
+  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                     TestComparatorType>(map, prev, index_key3,
+                                                         item1);
+  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                     TestComparatorType>(map, prev, index_key4,
+                                                         item1);
+  EXPECT_TRUE(map->GetMappingTable()->SwapNode(lpid, baseNode, prev));
+
+  locations = prev->ScanKey(index_key0);
+  EXPECT_EQ(locations.size(), 1);
+  locations = prev->ScanKey(index_key1);
+  if (index_key_type == UNIQUE_KEY) {
+    EXPECT_EQ(locations.size(), 1);
+  } else {
+    EXPECT_EQ(locations.size(), 5);
+  }
+
+  locations = prev->ScanKey(index_key2);
+  EXPECT_EQ(locations.size(), 1);
+  locations = prev->ScanKey(index_key3);
+  EXPECT_EQ(locations.size(), 1);
+  locations = prev->ScanKey(index_key4);
+  EXPECT_EQ(locations.size(), 1);
+
+  map->CompressDeltaChain(lpid, baseNode, prev);
+  EXPECT_EQ(map->GetMappingTable()->GetNode(lpid), prev);
+  locations = prev->ScanKey(index_key0);
+  EXPECT_EQ(locations.size(), 1);
+  locations = prev->ScanKey(index_key1);
+  if (index_key_type == UNIQUE_KEY) {
+    EXPECT_EQ(locations.size(), 1);
+  } else {
+    EXPECT_EQ(locations.size(), 5);
+  }
+
+  locations = prev->ScanKey(index_key2);
+  EXPECT_EQ(locations.size(), 1);
+  locations = prev->ScanKey(index_key3);
+  EXPECT_EQ(locations.size(), 1);
+  locations = prev->ScanKey(index_key4);
+  EXPECT_EQ(locations.size(), 1);
+  locations = prev->ScanKey(index_nonce);
+  EXPECT_EQ(locations.size(), 0);
+}
+
+TEST(IndexTests, BWTreeLPageDeltaConsilidationTest) {
+  for (unsigned int i = 0; i < index_types.size(); i++) {
+    BWTreeLPageDeltaConsilidationTestHelper(index_types[1]);
   }
 }
 
