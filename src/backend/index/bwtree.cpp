@@ -216,7 +216,9 @@ bool BWTree<KeyType, ValueType, KeyComparator>::InsertEntry(
   LPID child_lpid;
   child_lpid = root_;
 
-  while (!GetNode(child_lpid)->InsertEntry(key, location, child_lpid))
+  while (!GetMappingTable()
+              ->GetNode(child_lpid)
+              ->InsertEntry(key, location, child_lpid))
     ;
   return true;
 };
@@ -229,8 +231,8 @@ std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::Scan(
   std::vector<ValueType> result;
   LOG_INFO("Enter BWTree::Scan");
   // recursive call scan from the root of BWTree
-  result =
-      GetNode(root_)->Scan(values, key_column_ids, expr_types, scan_direction);
+  result = GetMappingTable()->GetNode(root_)->Scan(values, key_column_ids,
+                                                   expr_types, scan_direction);
 
   LOG_INFO("Leave BWTree::Scan");
   return result;
@@ -242,7 +244,7 @@ BWTree<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
   std::vector<ValueType> result;
 
   // recursive call scan from the root of BWTree
-  result = GetNode(root_)->ScanAllKeys();
+  result = GetMappingTable()->GetNode(root_)->ScanAllKeys();
 
   return result;
 };
@@ -255,7 +257,7 @@ std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::ScanKey(
 
   // recursive call scan from the root of BWTree
   LOG_INFO("Inside ScanKey of BWTree");
-  result = GetNode(root_)->ScanKey(key);
+  result = GetMappingTable()->GetNode(root_)->ScanKey(key);
   LOG_INFO("Leaving ScanKey of BWTree");
 
   return result;
@@ -305,10 +307,10 @@ bool IPage<KeyType, ValueType, KeyComparator>::InsertEntry(
   LOG_INFO("Got child_lpid_index as %d", child_lpid_index);
   // LPID child_lpid = GetChild(key, children_, size_);
   LPID child_lpid = children_[child_lpid_index].second;
-  auto child = this->map->GetNode(child_lpid);
+  auto child = this->map->GetMappingTable()->GetNode(child_lpid);
   while (child->GetDeltaChainLen() > DELTA_CHAIN_LIMIT) {
     this->map->CompressDeltaChain(child_lpid);
-    child = this->map->GetNode(child_lpid);
+    child = this->map->GetMappingTable()->GetNode(child_lpid);
   }
   return child->InsertEntry(key, location, child_lpid);
 };
@@ -342,7 +344,7 @@ std::vector<ValueType> IPage<KeyType, ValueType, KeyComparator>::ScanKey(
   LPID child_id = this->children_[child_idx].second;
 
   BWTreeNode<KeyType, ValueType, KeyComparator> *child =
-      this->map->GetNode(child_id);
+      this->map->GetMappingTable()->GetNode(child_id);
   assert(child != nullptr);
   result = child->ScanKey(key);
   LOG_INFO("Leave IPage::ScanKey");
@@ -393,7 +395,7 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
   maxLeftSplitNodeKey = children_[size_ / 2].first;
   maxRightSplitNodeKey = children_[size_ - 1].first;
 
-  newIpageLPID = this->map->InstallPage(newIpage);
+  newIpageLPID = this->map->GetMappingTable()->InstallPage(newIpage);
 
   LOG_INFO("This newly created right split node got LPID: %d", newIpageLPID);
 
@@ -401,7 +403,7 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
       new IPageSplitDelta<KeyType, ValueType, KeyComparator>(
           this->map, this, maxLeftSplitNodeKey, newIpageLPID);
 
-  swapSuccess = this->map->SwapNode(self, this, splitDelta);
+  swapSuccess = this->map->GetMappingTable()->SwapNode(self, this, splitDelta);
 
   if (swapSuccess == false) {
     LOG_INFO("This SwapNode attempt for split failed");
@@ -430,7 +432,7 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
 
   BWTreeNode<KeyType, ValueType, KeyComparator> *parentHardPtr;
 
-  parentHardPtr = this->map->GetNode(parent);
+  parentHardPtr = this->map->GetMappingTable()->GetNode(parent);
 
   IPageUpdateDelta<KeyType, ValueType, KeyComparator> *parentUpdateDelta =
       new IPageUpdateDelta<KeyType, ValueType, KeyComparator>(
@@ -441,7 +443,8 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
 
   // This SwapNode has to be successful. No one else can do this for now.
   // TODO if we allow any node to complete a partial SMO, then this will change
-  swapSuccess = this->map->SwapNode(parent, parentHardPtr, parentUpdateDelta);
+  swapSuccess = this->map->GetMappingTable()->SwapNode(parent, parentHardPtr,
+                                                       parentUpdateDelta);
 
   assert(swapSuccess == true);
 
@@ -493,7 +496,8 @@ std::vector<ValueType> Delta<KeyType, ValueType, KeyComparator>::ScanKey(
       // the desired key is in the right page
       LPID right_page_id = builder->GetSplitNewPageId();
       // scan right page
-      result = this->map->GetNode(right_page_id)->ScanKey(key);
+      result =
+          this->map->GetMappingTable()->GetNode(right_page_id)->ScanKey(key);
     }
   }
   // release builder
@@ -539,7 +543,9 @@ LPageSplitDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
   if (greater_than_left_key) {
     LOG_INFO(
         "LPageSplitDelta::ScanKey Found a matching key for right split page");
-    result = this->map->GetNode(right_split_page_lpid_).ScanKey(key);
+    result = this->map->GetMappingTable()
+                 ->GetNode(right_split_page_lpid_)
+                 .ScanKey(key);
   } else {
     // Scan the modified node
     result = this->modified_node->ScanKey(key);
@@ -583,7 +589,9 @@ IPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
     // the scanKey is in the range of the right split page
     if (greater_than_left_key && not_greater_than_right_key) {
       LOG_INFO("IPageUpdateDelta::ScanKey Found a matching key in range");
-      result = this->map->GetNode(right_split_node_lpid_).ScanKey(key);
+      result = this->map->GetMappingTable()
+                   ->GetNode(right_split_node_lpid_)
+                   .ScanKey(key);
     } else {
       // ScanKey on modified node
       result = this->modified_node->ScanKey(key);
@@ -731,7 +739,7 @@ std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::ScanKey(
   // reach the end of current LPage, go to next LPage for more results
   if (index == size_ && right_sib_ != INVALID_LPID) {
     std::vector<ValueType> sib_result =
-        this->map->GetNode(right_sib_)->ScanKey(key);
+        this->map->GetMappingTable()->GetNode(right_sib_)->ScanKey(key);
     result.insert(result.end(), sib_result.begin(), sib_result.end());
   }
   return result;
@@ -810,7 +818,7 @@ void LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
 
   maxRightSplitNodeKey = locations_[size_ - 1].first;
 
-  newLpageLPID = this->map->InstallPage(newLpage);
+  newLpageLPID = this->map->GetMappingTable()->InstallPage(newLpage);
 
   LOG_INFO("This newly created right split node got LPID: %d", newLpageLPID);
 
@@ -818,7 +826,7 @@ void LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
       new LPageSplitDelta<KeyType, ValueType, KeyComparator>(
           this->map, this, maxLeftSplitNodeKey, leftSplitNodeVal, newLpageLPID);
 
-  swapSuccess = this->map->SwapNode(self, this, splitDelta);
+  swapSuccess = this->map->GetMappingTable()->SwapNode(self, this, splitDelta);
 
   if (swapSuccess == false) {
     LOG_INFO("This SwapNode attempt for split failed");
@@ -847,7 +855,7 @@ void LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
 
   BWTreeNode<KeyType, ValueType, KeyComparator> *parentHardPtr;
 
-  parentHardPtr = this->map->GetNode(parent);
+  parentHardPtr = this->map->GetMappingTable()->GetNode(parent);
   IPageUpdateDelta<KeyType, ValueType, KeyComparator> *parentUpdateDelta =
       new IPageUpdateDelta<KeyType, ValueType, KeyComparator>(
           this->map, parentHardPtr, maxLeftSplitNodeKey, maxRightSplitNodeKey,
@@ -858,7 +866,8 @@ void LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
   // This SwapNode has to be successful. No one else can do this for now.
   // TODO if we allow any node to complete a partial SMO, then this will
   // change
-  swapSuccess = this->map->SwapNode(parent, parentHardPtr, parentUpdateDelta);
+  swapSuccess = this->map->GetMappingTable()->SwapNode(parent, parentHardPtr,
+                                                       parentUpdateDelta);
 
   assert(swapSuccess == true);
 
