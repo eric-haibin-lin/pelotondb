@@ -583,15 +583,27 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 };
 
 //===--------------------------------------------------------------------===//
+// IPageDelta
+//===--------------------------------------------------------------------===//
+template <typename KeyType, typename ValueType, class KeyComparator>
+class IPageDelta : public Delta<KeyType, ValueType, KeyComparator> {
+  IPageDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
+             BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node)
+      : Delta<KeyType, ValueType, KeyComparator>(map, modified_node){};
+
+  inline BWTreeNodeType GetTreeNodeType() const { return TYPE_IPAGE; };
+};
+
+//===--------------------------------------------------------------------===//
 // IPageSplitDelta
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
-class IPageSplitDelta : public Delta<KeyType, ValueType, KeyComparator> {
+class IPageSplitDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
  public:
   IPageSplitDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
                   BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
                   KeyType key, LPID value)
-      : Delta<KeyType, ValueType, KeyComparator>(map, modified_node),
+      : IPageDelta<KeyType, ValueType, KeyComparator>(map, modified_node),
         modified_key_(key),
         modified_val_(value){};
 
@@ -610,8 +622,6 @@ class IPageSplitDelta : public Delta<KeyType, ValueType, KeyComparator> {
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState();
 
-  inline BWTreeNodeType GetTreeNodeType() const { return TYPE_IPAGE; };
-
  private:
   // This key excluded in left child, included in the right child
   KeyType modified_key_;
@@ -619,17 +629,30 @@ class IPageSplitDelta : public Delta<KeyType, ValueType, KeyComparator> {
   // The LPID of the new LPage
   LPID modified_val_;
 };
+
+//===--------------------------------------------------------------------===//
+// IPageDelta
+//===--------------------------------------------------------------------===//
+template <typename KeyType, typename ValueType, class KeyComparator>
+class LPageDelta : public Delta<KeyType, ValueType, KeyComparator> {
+ public:
+  LPageDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
+             BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node)
+      : Delta<KeyType, ValueType, KeyComparator>(map, modified_node){};
+
+  inline BWTreeNodeType GetTreeNodeType() const { return TYPE_LPAGE; };
+};
 //===--------------------------------------------------------------------===//
 // LPageSplitDelta
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
-class LPageSplitDelta : public Delta<KeyType, ValueType, KeyComparator> {
+class LPageSplitDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
  public:
   LPageSplitDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
                   BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
                   KeyType splitterKey, ValueType splitterVal,
                   LPID rightSplitPage)
-      : Delta<KeyType, ValueType, KeyComparator>(map, modified_node),
+      : LPageDelta<KeyType, ValueType, KeyComparator>(map, modified_node),
         modified_key_(splitterKey),
         modified_key_location_(splitterVal),
         right_split_page_lpid_(rightSplitPage){};
@@ -651,8 +674,6 @@ class LPageSplitDelta : public Delta<KeyType, ValueType, KeyComparator> {
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState();
 
-  inline BWTreeNodeType GetTreeNodeType() const { return TYPE_LPAGE; };
-
  private:
   // This key included in left child, excluded in the right child
   KeyType modified_key_;
@@ -667,13 +688,13 @@ class LPageSplitDelta : public Delta<KeyType, ValueType, KeyComparator> {
 // LPageUpdateDelta either represents a insert delta or delete delta on LPage
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
-class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
+class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
  public:
   // TODO @abj initialize "is_delete_" to the desired value as well
   LPageUpdateDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
                    BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
                    KeyType key, ValueType value)
-      : Delta<KeyType, ValueType, KeyComparator>(map, modified_node),
+      : LPageDelta<KeyType, ValueType, KeyComparator>(map, modified_node),
         modified_key_(key),
         modified_val_(value) {
     LOG_INFO("Inside LPageUpdateDelta Constructor");
@@ -723,8 +744,6 @@ class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
     return nullptr;
   };
 
-  inline BWTreeNodeType GetTreeNodeType() const { return TYPE_LPAGE; };
-
   void SetKey(KeyType modified_key) { modified_key_ = modified_key; }
 
   void SetValue(ValueType modified_val) { modified_val_ = modified_val; }
@@ -751,14 +770,14 @@ class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
 // case of a merge SMO, where an old LPID has to be removed.
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
-class IPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
+class IPageUpdateDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
  public:
   IPageUpdateDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
                    BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
                    KeyType max_key_left_split_node,
                    KeyType max_key_right_split_node, LPID left_split_node_lpid,
                    LPID right_split_node_lpid, bool is_delete)
-      : Delta<KeyType, ValueType, KeyComparator>(map, modified_node),
+      : IPageDelta<KeyType, ValueType, KeyComparator>(map, modified_node),
         max_key_left_split_node_(max_key_left_split_node),
         max_key_right_split_node_(max_key_right_split_node),
         left_split_node_lpid_(left_split_node_lpid),
