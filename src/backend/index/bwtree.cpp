@@ -39,9 +39,10 @@ void INodeStateBuilder<KeyType, ValueType, KeyComparator>::AddChild(
   assert(children_ != nullptr);
   KeyType key = new_pair.first;
   int index = this->map->BinarySearch(key, children_, this->size);
-  assert(index < IPAGE_ARITY + DELTA_CHAIN_LIMIT);
+  assert(index < IPAGE_ARITY + IPAGE_DELTA_CHAIN_LIMIT);
   // Key not found. shift every element to the right
-  if (index < 0 || this->size == 0) {
+  if (index < 0 || this->size == 0 ||
+      (index == 0 && CompareKey(children_[0].first, key) != 0)) {
     index = -index;
     for (int i = this->size; i > index; i--) {
       children_[i] = children_[i - 1];
@@ -59,7 +60,9 @@ void INodeStateBuilder<KeyType, ValueType, KeyComparator>::RemoveChild(
   assert(children_ != nullptr);
   int index = this->map->BinarySearch(key_to_remove, children_, this->size);
   // if key found
-  if (index < this->size && index >= 0) {
+  if ((index == 0 &&
+       this->map->CompareKey(children_[0].first, key_to_remove) == 0) ||
+      (index < this->size && index > 0)) {
     for (int i = index; i < this->size - 1; i++) {
       children_[i] = children_[i + 1];
     }
@@ -76,7 +79,6 @@ void INodeStateBuilder<KeyType, ValueType, KeyComparator>::SeparateFromKey(
   assert(index < this->size && index >= 0);
   // assume we include the key at the split page
   // decrement size
-  assert(index > 0);
   this->size = index + 1;
   // update separator info
   this->is_separated = true;
@@ -102,15 +104,24 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::AddLeafData(
   assert(locations_ != nullptr);
   KeyType key = new_pair.first;
   int index = this->map->BinarySearch(key, locations_, this->size);
-  assert(index < LPAGE_ARITY + DELTA_CHAIN_LIMIT);
+
+  LOG_INFO(
+      "LNodeStateBuilder::AddLeafData - BinarySearch (%lu, %lu) result %d, "
+      "original size: %lu",
+      new_pair.second.block, new_pair.second.offset, index, this->size);
+
+  assert(index < LPAGE_ARITY + LPAGE_DELTA_CHAIN_LIMIT);
   // not found. shift every element to the right
-  if (index < 0 || this->size == 0) {
+  if (index < 0 || this->size == 0 ||
+      (index == 0 && this->map->CompareKey(locations_[0].first, key) != 0)) {
+    LOG_INFO("LNodeStateBuilder::AddLeafData - key not found");
     index = -1 * index;
     for (int i = this->size; i > index; i--) {
       locations_[i] = locations_[i - 1];
     }
     this->size++;
   } else {
+    LOG_INFO("LNodeStateBuilder::AddLeafData - key found");
     if (!this->map->unique_keys) {
       // shift every element to the right if we allow non-unique keys
       for (int i = this->size; i > index; i--) {
@@ -121,58 +132,51 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::AddLeafData(
   }
   // insert at the found index
   locations_[index] = new_pair;
+  LOG_INFO("LNodeStateBuilder::AddLeafData - size after addition %lu",
+           this->size);
 }
-
-template <typename KeyType, typename ValueType, class KeyComparator>
-void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::RemoveLeafData(
-    KeyType &key_to_remove) {
-  // TODO remove entry based on key
-  assert(locations_ != nullptr);
-  // keys are unique
-  assert(this->map->unique_keys);
-
-  int index = this->map->BinarySearch(key_to_remove, locations_, this->size);
-  // if key found
-  if (index < this->size && index >= 0) {
-    for (int i = index; i < this->size - 1; i++) {
-      locations_[i] = locations_[i + 1];
-    }
-    // decrement size
-    this->size--;
-  }
-  return;
-};
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::RemoveLeafData(
     std::pair<KeyType, ValueType> &entry_to_remove) {
   assert(locations_ != nullptr);
-  // keys are not unique
-  assert(this->map->unique_keys == false);
 
+  // key doesn't have to be unique
   KeyType key = entry_to_remove.first;
   int index = this->map->BinarySearch(key, locations_, this->size);
+  LOG_INFO(
+      "LNodeStateBuilder::RemoveLeafData - BinarySearch result %d, original "
+      "size: %lu",
+      index, this->size);
   // we have the first appearance of the given key, do linear scan to see
   // which one matches exactly
   int found_exact_entry_count = 0;
-  for (int i = index; i >= 0 && i < this->size; i++) {
-    std::pair<KeyType, ValueType> pair = locations_[i];
-    if (this->map->CompareKey(key, pair.first) == 0) {
+  int dest = index;
+  bool key_matches = true;
+  for (int src = index; src >= 0 && src < this->size; src++) {
+    std::pair<KeyType, ValueType> pair = locations_[src];
+    if (key_matches && this->map->CompareKey(key, pair.first) == 0) {
       if (ItemPointerEquals(pair.second, entry_to_remove.second)) {
+        LOG_INFO(
+            "LNodeStateBuilder::RemoveLeafData - found exact entry at index %d",
+            src);
         found_exact_entry_count++;
+      } else {
+        // value doesn't match
+        LOG_INFO("LNodeStateBuilder::RemoveLeafData - not exact entry");
+        locations_[dest++] = pair;
       }
     } else {
-      // not found
-      break;
+      key_matches = false;
+      LOG_INFO("LNodeStateBuilder::RemoveLeafData - key not match");
+      locations_[dest++] = pair;
     }
   }
-  if (found_exact_entry_count) {
-    for (int i = index; i < this->size - 1; i++) {
-      locations_[i] = locations_[i + found_exact_entry_count];
-    }
-    // decrement size
-    this->size -= found_exact_entry_count;
-  }
+
+  // decrement size
+  this->size -= found_exact_entry_count;
+  LOG_INFO("LNodeStateBuilder::RemoveLeafData - size after removal %lu",
+           this->size);
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -212,7 +216,9 @@ bool BWTree<KeyType, ValueType, KeyComparator>::InsertEntry(
   LPID child_lpid;
   child_lpid = root_;
 
-  while (!GetNode(child_lpid)->InsertEntry(key, location, child_lpid))
+  while (!GetMappingTable()
+              ->GetNode(child_lpid)
+              ->InsertEntry(key, location, child_lpid))
     ;
   return true;
 };
@@ -225,8 +231,8 @@ std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::Scan(
   std::vector<ValueType> result;
   LOG_INFO("Enter BWTree::Scan");
   // recursive call scan from the root of BWTree
-  result =
-      GetNode(root_)->Scan(values, key_column_ids, expr_types, scan_direction);
+  result = GetMappingTable()->GetNode(root_)->Scan(values, key_column_ids,
+                                                   expr_types, scan_direction);
 
   LOG_INFO("Leave BWTree::Scan");
   return result;
@@ -238,7 +244,7 @@ BWTree<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
   std::vector<ValueType> result;
 
   // recursive call scan from the root of BWTree
-  result = GetNode(root_)->ScanAllKeys();
+  result = GetMappingTable()->GetNode(root_)->ScanAllKeys();
 
   return result;
 };
@@ -251,7 +257,7 @@ std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::ScanKey(
 
   // recursive call scan from the root of BWTree
   LOG_INFO("Inside ScanKey of BWTree");
-  result = GetNode(root_)->ScanKey(key);
+  result = GetMappingTable()->GetNode(root_)->ScanKey(key);
   LOG_INFO("Leaving ScanKey of BWTree");
 
   return result;
@@ -260,9 +266,7 @@ std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::ScanKey(
 template <typename KeyType, typename ValueType, class KeyComparator>
 template <typename PairSecond>
 int BWTree<KeyType, ValueType, KeyComparator>::BinarySearch(
-    __attribute__((unused)) KeyType key,
-    __attribute__((unused)) std::pair<KeyType, PairSecond> *locations,
-    __attribute__((unused)) oid_t len) {
+    KeyType key, std::pair<KeyType, PairSecond> *locations, oid_t len) {
   int low = 0, high = len - 1, first = -1;
   int mid;
   while (low <= high) {
@@ -303,7 +307,9 @@ bool IPage<KeyType, ValueType, KeyComparator>::InsertEntry(
   LOG_INFO("Got child_lpid_index as %d", child_lpid_index);
   // LPID child_lpid = GetChild(key, children_, size_);
   LPID child_lpid = children_[child_lpid_index].second;
-  return this->map->GetNode(child_lpid)->InsertEntry(key, location, child_lpid);
+  return this->map->GetMappingTable()
+      ->GetNode(child_lpid)
+      ->InsertEntry(key, location, child_lpid);
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -335,7 +341,7 @@ std::vector<ValueType> IPage<KeyType, ValueType, KeyComparator>::ScanKey(
   LPID child_id = this->children_[child_idx].second;
 
   BWTreeNode<KeyType, ValueType, KeyComparator> *child =
-      this->map->GetNode(child_id);
+      this->map->GetMappingTable()->GetNode(child_id);
   assert(child != nullptr);
   result = child->ScanKey(key);
   LOG_INFO("Leave IPage::ScanKey");
@@ -355,9 +361,7 @@ IPage<KeyType, ValueType, KeyComparator>::BuildNodeState() {
 template <typename KeyType, typename ValueType, class KeyComparator>
 // get the index of the child at next level, which contains the given key
 int IPage<KeyType, ValueType, KeyComparator>::GetChild(
-    __attribute__((unused)) KeyType key,
-    __attribute__((unused)) std::pair<KeyType, LPID> *children,
-    __attribute__((unused)) oid_t len) {
+    KeyType key, std::pair<KeyType, LPID> *children, oid_t len) {
   int index = this->map->BinarySearch(key, children, len - 1);
   return index >= 0 ? index : -index;
 };
@@ -388,7 +392,7 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
   maxLeftSplitNodeKey = children_[size_ / 2].first;
   maxRightSplitNodeKey = children_[size_ - 1].first;
 
-  newIpageLPID = this->map->InstallPage(newIpage);
+  newIpageLPID = this->map->GetMappingTable()->InstallPage(newIpage);
 
   LOG_INFO("This newly created right split node got LPID: %d", newIpageLPID);
 
@@ -396,7 +400,7 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
       new IPageSplitDelta<KeyType, ValueType, KeyComparator>(
           this->map, this, maxLeftSplitNodeKey, newIpageLPID);
 
-  swapSuccess = this->map->SwapNode(self, this, splitDelta);
+  swapSuccess = this->map->GetMappingTable()->SwapNode(self, this, splitDelta);
 
   if (swapSuccess == false) {
     LOG_INFO("This SwapNode attempt for split failed");
@@ -427,7 +431,7 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
 
 	  BWTreeNode<KeyType, ValueType, KeyComparator> *parentHardPtr;
 
-	  parentHardPtr = this->map->GetNode(parent);
+  parentHardPtr = this->map->GetMappingTable()->GetNode(parent);
 
 	  IPageUpdateDelta<KeyType, ValueType, KeyComparator> *parentUpdateDelta =
 	      new IPageUpdateDelta<KeyType, ValueType, KeyComparator>(
@@ -436,14 +440,10 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
 
 	  LOG_INFO("Now Doing a SwapNode to install this IPageUpdateDelta");
 
-	  // This SwapNode has to be successful. No one else can do this for now.
-	  // TODO if we allow any node to complete a partial SMO, then this will change
-	  swapSuccess = this->map->SwapNode(parent, parentHardPtr, parentUpdateDelta);
-
-	  assert(swapSuccess == true);
-
-	  LOG_INFO("Split finished");
-	  return;
+  // This SwapNode has to be successful. No one else can do this for now.
+  // TODO if we allow any node to complete a partial SMO, then this will change
+  swapSuccess = this->map->GetMappingTable()->SwapNode(parent, parentHardPtr,
+                                                       parentUpdateDelta);
   }
 
 
@@ -494,7 +494,8 @@ std::vector<ValueType> Delta<KeyType, ValueType, KeyComparator>::ScanKey(
       // the desired key is in the right page
       LPID right_page_id = builder->GetSplitNewPageId();
       // scan right page
-      result = this->map->GetNode(right_page_id)->ScanKey(key);
+      result =
+          this->map->GetMappingTable()->GetNode(right_page_id)->ScanKey(key);
     }
   }
   // release builder
@@ -567,7 +568,9 @@ LPageSplitDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
   if (greater_than_left_key) {
     LOG_INFO(
         "LPageSplitDelta::ScanKey Found a matching key for right split page");
-    result = this->map->GetNode(right_split_page_lpid_).ScanKey(key);
+    result = this->map->GetMappingTable()
+                 ->GetNode(right_split_page_lpid_)
+                 .ScanKey(key);
   } else {
     // Scan the modified node
     result = this->modified_node->ScanKey(key);
@@ -650,7 +653,9 @@ IPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
     // the scanKey is in the range of the right split page
     if (greater_than_left_key && not_greater_than_right_key) {
       LOG_INFO("IPageUpdateDelta::ScanKey Found a matching key in range");
-      result = this->map->GetNode(right_split_node_lpid_).ScanKey(key);
+      result = this->map->GetMappingTable()
+                   ->GetNode(right_split_node_lpid_)
+                   .ScanKey(key);
     } else {
       // ScanKey on modified node
       result = this->modified_node->ScanKey(key);
@@ -729,15 +734,18 @@ LPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
   std::vector<ValueType> result;
   assert(this->modified_node != nullptr);
   LOG_INFO("LPageUpdateDelta::ScanKey");
+  // if unique keys, just walk down the delta chain without building node state
   if (this->map->unique_keys) {
     // the modified key matches the scanKey
     if (this->map->CompareKey(modified_key_, key) == 0) {
       LOG_INFO("LPageUpdateDelta::ScanKey Found a matching key");
       if (!is_delete_) {
-        // the modified key is inserted, add to result vector
+        // the modified key is insert, add to result vector
         LOG_INFO("LPageUpdateDelta::ScanKey Inserts the matching item pointer");
         result.push_back(modified_val_);
       }
+      // if the modified key is delete, then we have to build the state to see
+      // if the delete<k, v> is valid.
       return result;
     }
   }
@@ -768,7 +776,7 @@ LPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
 template <typename KeyType, typename ValueType, class KeyComparator>
 NodeStateBuilder<KeyType, ValueType, KeyComparator> *
 LPageUpdateDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
-  LOG_INFO(" ");
+  LOG_INFO("LPageUpdateDelta::BuildNodeState");
   // Children of LPageDelta always return a LNodeStateBuilder
   LNodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
       reinterpret_cast<LNodeStateBuilder<KeyType, ValueType, KeyComparator> *>(
@@ -776,13 +784,8 @@ LPageUpdateDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
   assert(builder != nullptr);
   // delete delta
   if (is_delete_) {
-    if (this->map->unique_keys) {
-      builder->RemoveLeafData(this->modified_key_);
-    } else {
-      std::pair<KeyType, ValueType> pair(modified_key_, modified_val_);
-      builder->RemoveLeafData(pair);
-    }
-
+    std::pair<KeyType, ValueType> pair(modified_key_, modified_val_);
+    builder->RemoveLeafData(pair);
   } else {
     // insert delta
     std::pair<KeyType, ValueType> pair(modified_key_, modified_val_);
@@ -831,7 +834,7 @@ std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::ScanKey(
   // reach the end of current LPage, go to next LPage for more results
   if (index == size_ && right_sib_ != INVALID_LPID) {
     std::vector<ValueType> sib_result =
-        this->map->GetNode(right_sib_)->ScanKey(key);
+        this->map->GetMappingTable()->GetNode(right_sib_)->ScanKey(key);
     result.insert(result.end(), sib_result.begin(), sib_result.end());
   }
   return result;
@@ -850,7 +853,7 @@ std::vector<oid_t> LPage<KeyType, ValueType, KeyComparator>::ScanKeyInternal(
   assert(size_ > 0);
   // do a binary search on locations to get the key
   int index = this->map->BinarySearch(key, locations_, size_);
-  if (index == -1) {
+  if (index < 0) {
     // key not found, return empty result
     return result;
   }
@@ -910,7 +913,7 @@ void LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
 
   maxRightSplitNodeKey = locations_[size_ - 1].first;
 
-  newLpageLPID = this->map->InstallPage(newLpage);
+  newLpageLPID = this->map->GetMappingTable()->InstallPage(newLpage);
 
   LOG_INFO("This newly created right split node got LPID: %d", newLpageLPID);
 
@@ -918,7 +921,7 @@ void LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
       new LPageSplitDelta<KeyType, ValueType, KeyComparator>(
           this->map, this, maxLeftSplitNodeKey, leftSplitNodeVal, newLpageLPID);
 
-  swapSuccess = this->map->SwapNode(self, this, splitDelta);
+  swapSuccess = this->map->GetMappingTable()->SwapNode(self, this, splitDelta);
 
   if (swapSuccess == false) {
     LOG_INFO("This SwapNode attempt for split failed");
@@ -947,7 +950,7 @@ void LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
 
   BWTreeNode<KeyType, ValueType, KeyComparator> *parentHardPtr;
 
-  parentHardPtr = this->map->GetNode(parent);
+  parentHardPtr = this->map->GetMappingTable()->GetNode(parent);
   IPageUpdateDelta<KeyType, ValueType, KeyComparator> *parentUpdateDelta =
       new IPageUpdateDelta<KeyType, ValueType, KeyComparator>(
           this->map, parentHardPtr, maxLeftSplitNodeKey, maxRightSplitNodeKey,
@@ -958,7 +961,8 @@ void LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
   // This SwapNode has to be successful. No one else can do this for now.
   // TODO if we allow any node to complete a partial SMO, then this will
   // change
-  swapSuccess = this->map->SwapNode(parent, parentHardPtr, parentUpdateDelta);
+  swapSuccess = this->map->GetMappingTable()->SwapNode(parent, parentHardPtr,
+                                                       parentUpdateDelta);
 
   assert(swapSuccess == true);
 

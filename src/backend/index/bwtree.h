@@ -37,7 +37,8 @@ enum BWTreeNodeType {
 
 #define INVALID_LPID ULLONG_MAX
 
-#define DELTA_CHAIN_LIMIT 5
+#define LPAGE_DELTA_CHAIN_LIMIT 5
+#define IPAGE_DELTA_CHAIN_LIMIT 5
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTree;
@@ -99,7 +100,7 @@ class INodeStateBuilder
     : public NodeStateBuilder<KeyType, ValueType, KeyComparator> {
  private:
   // IPage children nodes
-  std::pair<KeyType, LPID> *children_ = nullptr;
+  std::pair<KeyType, LPID> children_[IPAGE_ARITY + IPAGE_DELTA_CHAIN_LIMIT];
   IPage<KeyType, ValueType, KeyComparator> *new_page_ = nullptr;
 
  public:
@@ -107,10 +108,8 @@ class INodeStateBuilder
   INodeStateBuilder(std::pair<KeyType, LPID> *children, int children_len,
                     BWTree<KeyType, ValueType, KeyComparator> *map)
       : NodeStateBuilder<KeyType, ValueType, KeyComparator>(children_len, map) {
-    children_ = new std::pair<KeyType, LPID>[IPAGE_ARITY + DELTA_CHAIN_LIMIT]();
-    for (int i = 0; i < children_len; i++) {
-      children_[i] = children[i];
-    }
+    memcpy(children_, children,
+           sizeof(std::pair<KeyType, LPID>) * children_len);
   };
 
   BWTreeNode<KeyType, ValueType, KeyComparator> *GetPage();
@@ -139,13 +138,14 @@ class LNodeStateBuilder
     : public NodeStateBuilder<KeyType, ValueType, KeyComparator> {
  private:
   // LPage members
-  LPID left_sibling_ = 0;
-  LPID right_sibling_ = 0;
+  LPID left_sibling_ = INVALID_LPID;
+  LPID right_sibling_ = INVALID_LPID;
   LPage<KeyType, ValueType, KeyComparator> *new_page_ = nullptr;
   ValueType separator_location_;
 
   // LPage members
-  std::pair<KeyType, ValueType> *locations_ = nullptr;
+  std::pair<KeyType, ValueType>
+      locations_[IPAGE_ARITY + LPAGE_DELTA_CHAIN_LIMIT];
 
  public:
   // LPage constructor
@@ -155,11 +155,8 @@ class LNodeStateBuilder
       : NodeStateBuilder<KeyType, ValueType, KeyComparator>(location_len, map),
         left_sibling_(left_sibling),
         right_sibling_(right_sibling) {
-    locations_ =
-        new std::pair<KeyType, ValueType>[IPAGE_ARITY + DELTA_CHAIN_LIMIT]();
-    for (int i = 0; i < location_len; i++) {
-      locations_[i] = locations[i];
-    }
+    memcpy(locations_, locations,
+           sizeof(std::pair<KeyType, ValueType>) * location_len);
   };
 
   BWTreeNode<KeyType, ValueType, KeyComparator> *GetPage();
@@ -179,10 +176,6 @@ class LNodeStateBuilder
 
   void AddLeafData(std::pair<KeyType, ValueType> &new_pair);
 
-  // only called when keys are unique
-  void RemoveLeafData(KeyType &key_to_remove);
-
-  // only called when keys are non unique
   void RemoveLeafData(std::pair<KeyType, ValueType> &entry_to_remove);
 
   void SeparateFromKey(KeyType separator_key, ValueType location,
@@ -195,6 +188,117 @@ class LNodeStateBuilder
 };
 
 //===--------------------------------------------------------------------===//
+// ReadWriteLatch
+//===--------------------------------------------------------------------===//
+class ReadWriteLatch {
+ public:
+  inline void AquireRead() {
+    LOG_INFO("Aquiring read Lock");
+    while (true) {
+      while (current_writers_ == 1)
+        ;
+      __sync_add_and_fetch(&current_readers_, 1);
+      if (current_writers_ == 0)
+        break;
+      else
+        __sync_add_and_fetch(&current_readers_, -1);
+    }
+  }
+  inline void ReleaseRead() {
+    LOG_INFO("Releasing read Lock");
+    __sync_add_and_fetch(&current_readers_, -1);
+  }
+  inline void AquireWrite() {
+    LOG_INFO("Aquiring write Lock");
+    while (!__sync_bool_compare_and_swap(&current_writers_, 0, 1))
+      ;
+    while (current_readers_ > 0)
+      ;
+  }
+  inline void ReleaseWrite() {
+    LOG_INFO("Releasing write Lock");
+    assert(__sync_bool_compare_and_swap(&current_writers_, 1, 0));
+  }
+
+ private:
+  int current_readers_ = 0;
+  int current_writers_ = 0;
+};
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+class MappingTable {
+ private:
+  // the mapping table
+  unsigned int mapping_table_cap_ = 128;
+  unsigned int mapping_table_size_ = 0;
+
+  BWTreeNode<KeyType, ValueType, KeyComparator> **mapping_table_;
+  LPID next_LPID_ = 0;
+  ReadWriteLatch latch_;
+
+ public:
+  MappingTable() {
+    LOG_INFO("Constructing Mapping Table with initial capacity %d",
+             mapping_table_cap_);
+    mapping_table_ =
+        new BWTreeNode<KeyType, ValueType, KeyComparator> *[mapping_table_cap_];
+  };
+  ~MappingTable() { delete[] mapping_table_; }
+  LPID InstallPage(BWTreeNode<KeyType, ValueType, KeyComparator> *node) {
+    LOG_INFO("Installing page in mapping table");
+    LPID newLPID = __sync_fetch_and_add(&next_LPID_, 1);
+    // table grew too large, expand it
+    while (newLPID >= mapping_table_cap_) {
+      LOG_INFO("mapping table has grown too large");
+      // only one thread should expand the table
+      latch_.AquireWrite();
+      if (newLPID < mapping_table_cap_) {
+        latch_.ReleaseWrite();
+        break;
+      }
+
+      int new_mapping_table_cap = mapping_table_cap_ * 2;
+      LOG_INFO("doubling size of mapping table capacity from %d to %d",
+               mapping_table_cap_, new_mapping_table_cap);
+      auto new_mapping_table =
+          new BWTreeNode<KeyType, ValueType,
+                         KeyComparator> *[new_mapping_table_cap];
+      memcpy(new_mapping_table, mapping_table_,
+             mapping_table_cap_ *
+                 sizeof(new BWTreeNode<KeyType, ValueType, KeyComparator> *));
+      delete[] mapping_table_;
+      mapping_table_ = new_mapping_table;
+      mapping_table_cap_ = new_mapping_table_cap;
+      latch_.ReleaseWrite();
+    }
+    latch_.AquireRead();
+    LOG_INFO("adding LPID: %lu to mapping table", newLPID);
+    mapping_table_[newLPID] = node;
+    latch_.ReleaseRead();
+    return newLPID;
+  }
+
+  bool SwapNode(LPID id, BWTreeNode<KeyType, ValueType, KeyComparator> *oldNode,
+                BWTreeNode<KeyType, ValueType, KeyComparator> *newNode) {
+    LOG_INFO("swapping node for LPID: %lu into mapping table", id);
+    latch_.AquireRead();
+    bool ret =
+        __sync_bool_compare_and_swap(mapping_table_ + id, oldNode, newNode);
+    latch_.ReleaseRead();
+    return ret;
+  }
+
+  // assumes that LPID is valid
+  BWTreeNode<KeyType, ValueType, KeyComparator> *GetNode(LPID id) {
+    LOG_INFO("getting node for LPID: %lu frommapping table", id);
+    latch_.AquireRead();
+    auto ret = mapping_table_[id];
+    latch_.ReleaseRead();
+    return ret;
+  }
+};
+
+//===--------------------------------------------------------------------===//
 // BWTree
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -204,20 +308,7 @@ class BWTree {
   LPID root_;
 
   KeyComparator comparator;
-
-  // the mapping table
-  unsigned int mapping_table_cap_ = 128;
-  unsigned int mapping_table_size_ = 0;
-  int free_LPID_index = 0;
-  //  BWTreeNode<KeyType, ValueType, KeyComparator> ** mapping_table_ =
-  //		  (BWTreeNode<KeyType, ValueType, KeyComparator> **)
-  //		  malloc(sizeof(BWTreeNode<KeyType, ValueType, KeyComparator>
-  //*)*mapping_table_cap_);
-
-  BWTreeNode<KeyType, ValueType, KeyComparator> **mapping_table_;
-  LPID next_LPID_ = 0;
-  int current_readers = 0;
-  int current_writers = 0;
+  MappingTable<KeyType, ValueType, KeyComparator> *mapping_table_;
 
  public:
   /*
@@ -230,15 +321,14 @@ class BWTree {
     // this->unique_keys = unique_keys;
     // BWTreeNode<KeyType, ValueType, KeyComparator>::comparator = comparator;
     LOG_INFO("Inside BWTree Constructor");
-    mapping_table_ =
-        new BWTreeNode<KeyType, ValueType, KeyComparator> *[mapping_table_cap_];
+    mapping_table_ = new MappingTable<KeyType, ValueType, KeyComparator>();
 
     // TODO @abj initialize the root IPage (and maybe a LPage?)
 
     IPage<KeyType, ValueType, KeyComparator> *root =
         new IPage<KeyType, ValueType, KeyComparator>(this);
 
-    root_ = InstallPage(root);
+    root_ = GetMappingTable()->InstallPage(root);
 
     LOG_INFO("Root got LPID: %lu", root_);
 
@@ -249,7 +339,7 @@ class BWTree {
 
     LPID first_lpage_lpid;
 
-    first_lpage_lpid = InstallPage(first_lpage);
+    first_lpage_lpid = GetMappingTable()->InstallPage(first_lpage);
 
     LOG_INFO("The first LPage got LPID: %d", (int)first_lpage_lpid);
     first_lpage_pair.second = first_lpage_lpid;
@@ -261,14 +351,16 @@ class BWTree {
     // with the given comparator
   };
 
-  ~BWTree() { delete[] mapping_table_; }
+  ~BWTree() { delete mapping_table_; }
 
   // get the index of the first occurrence of the given key
   template <typename PairSecond>
-  inline int BinarySearch(__attribute__((unused)) KeyType key,
-                          __attribute__((unused))
-                          std::pair<KeyType, PairSecond> *locations,
-                          __attribute__((unused)) oid_t len);
+
+  // positive index indicates found, negative indicates not found. 0 could be
+  // either case
+  inline int BinarySearch(KeyType key,
+
+                          std::pair<KeyType, PairSecond> *locations, oid_t len);
 
   bool InsertEntry(KeyType key, ValueType location);
 
@@ -276,7 +368,9 @@ class BWTree {
     LPID child_lpid;
     child_lpid = root_;
 
-    while (!GetNode(child_lpid)->DeleteEntry(key, location, child_lpid))
+    while (!GetMappingTable()
+                ->GetNode(child_lpid)
+                ->DeleteEntry(key, location, child_lpid))
       ;
     return true;
   };
@@ -288,35 +382,6 @@ class BWTree {
   std::vector<ValueType> ScanAllKeys();
   std::vector<ValueType> ScanKey(KeyType key);
 
- private:
-  inline void AquireRead() {
-    LOG_INFO("Aquiring read Lock");
-    while (true) {
-      while (current_writers == 1)
-        ;
-      __sync_add_and_fetch(&current_readers, 1);
-      if (current_writers == 0)
-        break;
-      else
-        __sync_add_and_fetch(&current_readers, -1);
-    }
-  }
-  inline void ReleaseRead() {
-    LOG_INFO("Releasing read Lock");
-    __sync_add_and_fetch(&current_readers, -1);
-  }
-  inline void AquireWrite() {
-    LOG_INFO("Aquiring write Lock");
-    while (!__sync_bool_compare_and_swap(&current_writers, 0, 1))
-      ;
-    while (current_readers > 0)
-      ;
-  }
-  inline void ReleaseWrite() {
-    LOG_INFO("Releasing write Lock");
-    assert(__sync_bool_compare_and_swap(&current_writers, 1, 0));
-  }
-
  public:
   // whether unique key is required
   bool unique_keys;
@@ -324,57 +389,8 @@ class BWTree {
   // static bool unique_keys;
   // return 0 if the page install is not successful
 
-  LPID InstallPage(BWTreeNode<KeyType, ValueType, KeyComparator> *node) {
-    LOG_INFO("Installing page in mapping table");
-    LPID newLPID = __sync_fetch_and_add(&next_LPID_, 1);
-    // table grew too large, expand it
-    while (newLPID >= mapping_table_cap_) {
-      LOG_INFO("mapping table has grown too large");
-      // only one thread should expand the table
-      AquireWrite();
-      if (newLPID < mapping_table_cap_) {
-        ReleaseWrite();
-        break;
-      }
-
-      int new_mapping_table_cap = mapping_table_cap_ * 2;
-      LOG_INFO("doubleing size of mapping table capacity from %d to %d",
-               mapping_table_cap_, new_mapping_table_cap);
-      auto new_mapping_table =
-          new BWTreeNode<KeyType, ValueType,
-                         KeyComparator> *[new_mapping_table_cap];
-      memcpy(new_mapping_table, mapping_table_,
-             mapping_table_cap_ *
-                 sizeof(new BWTreeNode<KeyType, ValueType, KeyComparator> *));
-      delete[] mapping_table_;
-      mapping_table_ = new_mapping_table;
-      mapping_table_cap_ = new_mapping_table_cap;
-      ReleaseWrite();
-    }
-    AquireRead();
-    LOG_INFO("adding LPID: %lu to mapping table", newLPID);
-    mapping_table_[newLPID] = node;
-    ReleaseRead();
-    return newLPID;
-  }
-
-  bool SwapNode(LPID id, BWTreeNode<KeyType, ValueType, KeyComparator> *oldNode,
-                BWTreeNode<KeyType, ValueType, KeyComparator> *newNode) {
-    LOG_INFO("swapping node for LPID: %lu into mapping table", id);
-    AquireRead();
-    bool ret =
-        __sync_bool_compare_and_swap(mapping_table_ + id, oldNode, newNode);
-    ReleaseRead();
-    return ret;
-  }
-
-  // assumes that LPID is valid
-  BWTreeNode<KeyType, ValueType, KeyComparator> *GetNode(LPID id) {
-    LOG_INFO("getting node for LPID: %lu frommapping table", id);
-    AquireRead();
-    auto ret = mapping_table_[id];
-    ReleaseRead();
-    return ret;
+  inline MappingTable<KeyType, ValueType, KeyComparator> *GetMappingTable() {
+    return mapping_table_;
   }
 
   // return 0 if equal, -1 if left < right, 1 otherwise
@@ -390,15 +406,19 @@ class BWTree {
   }
 
   // compress delta chain
-  bool CompressDeltaChain(LPID page_to_compress) {
-    auto old_node_ptr = GetNode(page_to_compress);
-    auto old_node_state = old_node_ptr->BuildNodeState();
-    auto new_node_ptr = old_node_state->GetPage();
+  bool CompressDeltaChain(
+      LPID page_to_compress,
+      BWTreeNode<KeyType, ValueType, KeyComparator> *old_node_ptr,
+      BWTreeNode<KeyType, ValueType, KeyComparator> *new_node) {
+    LOG_INFO("Compressing delta chain for LPID: %lu", page_to_compress);
+    auto new_node_state = new_node->BuildNodeState();
+    auto new_node_ptr = new_node_state->GetPage();
 
     // delete the temporary state
-    delete old_node_state;
+    delete new_node_state;
 
-    bool completed = SwapNode(page_to_compress, old_node_ptr, new_node_ptr);
+    bool completed = GetMappingTable()->SwapNode(page_to_compress, old_node_ptr,
+                                                 new_node_ptr);
     // if we didn't failed to install we should clean up the page we created
     if (completed) {
       // TODO: add old node to epoch
@@ -441,7 +461,6 @@ class BWTreeNode {
 
   virtual NodeStateBuilder<KeyType, ValueType, KeyComparator> *
   BuildNodeState() = 0;
-
   // for scanKey, we have to build the node state as well. But we only care
   // about
   // the keys we want to scan
@@ -450,6 +469,7 @@ class BWTreeNode {
     return nullptr;
   };
 
+  // TODO to be implemented in the future
   //    virtual NodeStateBuilder<KeyType, ValueType, KeyComparator>
   //    *BuildScanState(
   //        __attribute__((unused)) const std::vector<Value> &values,
@@ -467,7 +487,10 @@ class BWTreeNode {
 
   };
 
-  inline int GetDeltaChainLen() { return delta_chain_len_; }
+  inline int GetDeltaChainLen() {
+    LOG_INFO("got delta chain len %d\n", delta_chain_len_);
+    return delta_chain_len_;
+  }
 
  protected:
   // the handler to the mapping table
@@ -501,7 +524,8 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
                    __attribute__((unused)) LPID self) {
     int child_index = GetChild(key, children_, size_);
     LPID child_lpid = this->children_[child_index].second;
-    return this->map->GetNode(child_lpid)
+    return this->map->GetMappingTable()
+        ->GetNode(child_lpid)
         ->DeleteEntry(key, location, child_lpid);
   };
 
@@ -557,18 +581,45 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
  protected:
   // the modified node could either be a LPage or IPage or Delta
   BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node;
+
+  virtual int GetDeltaChainLimit() = 0;
+
+  bool PerformDeltaInsert(LPID my_lpid,
+                          Delta<KeyType, ValueType, KeyComparator> *new_delta) {
+    bool status;
+    if (new_delta->GetDeltaChainLen() > this->GetDeltaChainLimit()) {
+      status = this->map->CompressDeltaChain(my_lpid, this, new_delta);
+    } else {
+      status = this->map->GetMappingTable()->SwapNode(my_lpid, this, new_delta);
+    }
+    return status;
+  }
+};
+
+//===--------------------------------------------------------------------===//
+// IPageDelta
+//===--------------------------------------------------------------------===//
+template <typename KeyType, typename ValueType, class KeyComparator>
+class IPageDelta : public Delta<KeyType, ValueType, KeyComparator> {
+  IPageDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
+             BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node)
+      : Delta<KeyType, ValueType, KeyComparator>(map, modified_node){};
+
+  inline BWTreeNodeType GetTreeNodeType() const { return TYPE_IPAGE; };
+
+  inline int GetDeltaChainLimit() { return IPAGE_DELTA_CHAIN_LIMIT; }
 };
 
 //===--------------------------------------------------------------------===//
 // IPageSplitDelta
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
-class IPageSplitDelta : public Delta<KeyType, ValueType, KeyComparator> {
+class IPageSplitDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
  public:
   IPageSplitDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
                   BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
                   KeyType key, LPID value)
-      : Delta<KeyType, ValueType, KeyComparator>(map, modified_node),
+      : IPageDelta<KeyType, ValueType, KeyComparator>(map, modified_node),
         modified_key_(key),
         modified_val_(value){};
 
@@ -580,8 +631,6 @@ class IPageSplitDelta : public Delta<KeyType, ValueType, KeyComparator> {
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState();
 
-  inline BWTreeNodeType GetTreeNodeType() const { return TYPE_IPAGE; };
-
  private:
   // This key excluded in left child, included in the right child
   KeyType modified_key_;
@@ -589,17 +638,32 @@ class IPageSplitDelta : public Delta<KeyType, ValueType, KeyComparator> {
   // The LPID of the new LPage
   LPID modified_val_;
 };
+
+//===--------------------------------------------------------------------===//
+// IPageDelta
+//===--------------------------------------------------------------------===//
+template <typename KeyType, typename ValueType, class KeyComparator>
+class LPageDelta : public Delta<KeyType, ValueType, KeyComparator> {
+ public:
+  LPageDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
+             BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node)
+      : Delta<KeyType, ValueType, KeyComparator>(map, modified_node){};
+
+  inline BWTreeNodeType GetTreeNodeType() const { return TYPE_LPAGE; };
+
+  inline int GetDeltaChainLimit() { return LPAGE_DELTA_CHAIN_LIMIT; }
+};
 //===--------------------------------------------------------------------===//
 // LPageSplitDelta
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
-class LPageSplitDelta : public Delta<KeyType, ValueType, KeyComparator> {
+class LPageSplitDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
  public:
   LPageSplitDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
                   BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
                   KeyType splitterKey, ValueType splitterVal,
                   LPID rightSplitPage)
-      : Delta<KeyType, ValueType, KeyComparator>(map, modified_node),
+      : LPageDelta<KeyType, ValueType, KeyComparator>(map, modified_node),
         modified_key_(splitterKey),
         modified_key_location_(splitterVal),
         right_split_page_lpid_(rightSplitPage){};
@@ -617,8 +681,6 @@ class LPageSplitDelta : public Delta<KeyType, ValueType, KeyComparator> {
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState();
 
-  inline BWTreeNodeType GetTreeNodeType() const { return TYPE_LPAGE; };
-
  private:
   // This key included in left child, excluded in the right child
   KeyType modified_key_;
@@ -633,13 +695,13 @@ class LPageSplitDelta : public Delta<KeyType, ValueType, KeyComparator> {
 // LPageUpdateDelta either represents a insert delta or delete delta on LPage
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
-class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
+class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
  public:
   // TODO @abj initialize "is_delete_" to the desired value as well
   LPageUpdateDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
                    BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
                    KeyType key, ValueType value)
-      : Delta<KeyType, ValueType, KeyComparator>(map, modified_node),
+      : LPageDelta<KeyType, ValueType, KeyComparator>(map, modified_node),
         modified_key_(key),
         modified_val_(value) {
     LOG_INFO("Inside LPageUpdateDelta Constructor");
@@ -647,11 +709,11 @@ class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
 
   bool InsertEntry(__attribute__((unused)) KeyType key,
                    __attribute__((unused)) ValueType location,
-                   __attribute__((unused)) LPID self) {
+                   __attribute__((unused)) LPID my_lpid) {
     LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
         new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
                                                                 key, location);
-    bool status = this->map->SwapNode(self, this, new_delta);
+    bool status = this->PerformDeltaInsert(my_lpid, new_delta);
     if (!status) {
       delete new_delta;
     }
@@ -659,13 +721,13 @@ class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
   };
 
   bool DeleteEntry(__attribute__((unused)) KeyType key,
-                   __attribute__((unused)) ValueType location, LPID self) {
+                   __attribute__((unused)) ValueType location, LPID my_lpid) {
     LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
         new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
                                                                 key, location);
 
     new_delta->SetDeleteFlag();
-    bool status = this->map->SwapNode(self, this, new_delta);
+    bool status = this->PerformDeltaInsert(my_lpid, new_delta);
     if (!status) {
       delete new_delta;
     }
@@ -688,8 +750,6 @@ class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
       __attribute__((unused)) const ScanDirectionType &scan_direction) {
     return nullptr;
   };
-
-  inline BWTreeNodeType GetTreeNodeType() const { return TYPE_LPAGE; };
 
   void SetKey(KeyType modified_key) { modified_key_ = modified_key; }
 
@@ -717,14 +777,14 @@ class LPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
 // case of a merge SMO, where an old LPID has to be removed.
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
-class IPageUpdateDelta : public Delta<KeyType, ValueType, KeyComparator> {
+class IPageUpdateDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
  public:
   IPageUpdateDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
                    BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
                    KeyType max_key_left_split_node,
                    KeyType max_key_right_split_node, LPID left_split_node_lpid,
                    LPID right_split_node_lpid, bool is_delete)
-      : Delta<KeyType, ValueType, KeyComparator>(map, modified_node),
+      : IPageDelta<KeyType, ValueType, KeyComparator>(map, modified_node),
         max_key_left_split_node_(max_key_left_split_node),
         max_key_right_split_node_(max_key_right_split_node),
         left_split_node_lpid_(left_split_node_lpid),
@@ -779,7 +839,6 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
       : BWTreeNode<KeyType, ValueType, KeyComparator>(map, 0) {
     left_sib_ = INVALID_LPID;
     right_sib_ = INVALID_LPID;
-    // locations_ = new std::pair<KeyType, ValueType>[LPAGE_ARITY]();
     size_ = 0;
   };
 
@@ -791,13 +850,15 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     LNodeStateBuilder<KeyType, ValueType, KeyComparator> *lstate =
         reinterpret_cast<
             LNodeStateBuilder<KeyType, ValueType, KeyComparator> *>(state);
-    for (oid_t index = 0; index < size_; index++) {
-      locations_[index] = lstate->locations_[index];
+
+    memcpy(locations_, lstate->locations_,
+           sizeof(std::pair<KeyType, ValueType>) * size_);
+    left_sib_ = lstate->left_sibling_;
+    if (state->IsSeparated()) {
+      right_sib_ = state->split_new_page_id;
+    } else {
+      right_sib_ = lstate->right_sibling_;
     }
-    // TODO get this from builder
-    left_sib_ = INVALID_LPID;
-    right_sib_ = INVALID_LPID;
-    // TODO handle split case
   };
 
   ~LPage(){};
@@ -811,7 +872,7 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
         new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
                                                                 key, location);
 
-    bool status = this->map->SwapNode(self, this, new_delta);
+    bool status = this->map->GetMappingTable()->SwapNode(self, this, new_delta);
     if (!status) {
       delete new_delta;
     }
@@ -828,7 +889,7 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
                                                                 key, location);
 
     new_delta->SetDeleteFlag();
-    bool status = this->map->SwapNode(self, this, new_delta);
+    bool status = this->map->GetMappingTable()->SwapNode(self, this, new_delta);
     if (!status) {
       delete new_delta;
     }
