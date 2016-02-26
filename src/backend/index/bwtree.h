@@ -179,10 +179,6 @@ class LNodeStateBuilder
 
   void AddLeafData(std::pair<KeyType, ValueType> &new_pair);
 
-  // only called when keys are unique
-  void RemoveLeafData(KeyType &key_to_remove);
-
-  // only called when keys are non unique
   void RemoveLeafData(std::pair<KeyType, ValueType> &entry_to_remove);
 
   void SeparateFromKey(KeyType separator_key, ValueType location,
@@ -265,10 +261,12 @@ class BWTree {
 
   // get the index of the first occurrence of the given key
   template <typename PairSecond>
-  inline int BinarySearch(__attribute__((unused)) KeyType key,
-                          __attribute__((unused))
-                          std::pair<KeyType, PairSecond> *locations,
-                          __attribute__((unused)) oid_t len);
+
+  // positive index indicates found, negative indicates not found. 0 could be
+  // either case
+  inline int BinarySearch(KeyType key,
+
+                          std::pair<KeyType, PairSecond> *locations, oid_t len);
 
   bool InsertEntry(KeyType key, ValueType location);
 
@@ -391,7 +389,7 @@ class BWTree {
 
   // compress delta chain
   bool CompressDeltaChain(LPID page_to_compress) {
-	LOG_INFO("Compressing delta chain for LPID: %lu", page_to_compress);
+    LOG_INFO("Compressing delta chain for LPID: %lu", page_to_compress);
     auto old_node_ptr = GetNode(page_to_compress);
     auto old_node_state = old_node_ptr->BuildNodeState();
     auto new_node_ptr = old_node_state->GetPage();
@@ -450,6 +448,7 @@ class BWTreeNode {
     return nullptr;
   };
 
+  // TODO to be implemented in the future
   //    virtual NodeStateBuilder<KeyType, ValueType, KeyComparator>
   //    *BuildScanState(
   //        __attribute__((unused)) const std::vector<Value> &values,
@@ -468,8 +467,8 @@ class BWTreeNode {
   };
 
   inline int GetDeltaChainLen() {
-	  LOG_INFO("got delta chain len %d\n", delta_chain_len_);
-	  return delta_chain_len_;
+    LOG_INFO("got delta chain len %d\n", delta_chain_len_);
+    return delta_chain_len_;
   }
 
  protected:
@@ -505,12 +504,11 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     int child_index = GetChild(key, children_, size_);
     LPID child_lpid = this->children_[child_index].second;
     auto child = this->map->GetNode(child_lpid);
-	while (child->GetDeltaChainLen() > DELTA_CHAIN_LIMIT){
-	  this->map->CompressDeltaChain(child_lpid);
-	  child = this->map->GetNode(child_lpid);
-	}
-    return
-        child->DeleteEntry(key, location, child_lpid);
+    while (child->GetDeltaChainLen() > DELTA_CHAIN_LIMIT) {
+      this->map->CompressDeltaChain(child_lpid);
+      child = this->map->GetNode(child_lpid);
+    }
+    return child->DeleteEntry(key, location, child_lpid);
   };
 
   std::vector<ValueType> Scan(const std::vector<Value> &values,
@@ -802,7 +800,6 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
       : BWTreeNode<KeyType, ValueType, KeyComparator>(map, 0) {
     left_sib_ = INVALID_LPID;
     right_sib_ = INVALID_LPID;
-    // locations_ = new std::pair<KeyType, ValueType>[LPAGE_ARITY]();
     size_ = 0;
   };
 
