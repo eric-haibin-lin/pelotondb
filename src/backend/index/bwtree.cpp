@@ -307,12 +307,9 @@ bool IPage<KeyType, ValueType, KeyComparator>::InsertEntry(
   LOG_INFO("Got child_lpid_index as %d", child_lpid_index);
   // LPID child_lpid = GetChild(key, children_, size_);
   LPID child_lpid = children_[child_lpid_index].second;
-  auto child = this->map->GetMappingTable()->GetNode(child_lpid);
-  while (child->GetDeltaChainLen() > IPAGE_DELTA_CHAIN_LIMIT) {
-    this->map->CompressDeltaChain(child_lpid);
-    child = this->map->GetMappingTable()->GetNode(child_lpid);
-  }
-  return child->InsertEntry(key, location, child_lpid);
+  return this->map->GetMappingTable()
+      ->GetNode(child_lpid)
+      ->InsertEntry(key, location, child_lpid);
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>

@@ -406,14 +406,16 @@ class BWTree {
   }
 
   // compress delta chain
-  bool CompressDeltaChain(LPID page_to_compress) {
+  bool CompressDeltaChain(
+      LPID page_to_compress,
+      BWTreeNode<KeyType, ValueType, KeyComparator> *old_node_ptr,
+      BWTreeNode<KeyType, ValueType, KeyComparator> *new_node) {
     LOG_INFO("Compressing delta chain for LPID: %lu", page_to_compress);
-    auto old_node_ptr = GetMappingTable()->GetNode(page_to_compress);
-    auto old_node_state = old_node_ptr->BuildNodeState();
-    auto new_node_ptr = old_node_state->GetPage();
+    auto new_node_state = new_node->BuildNodeState();
+    auto new_node_ptr = new_node_state->GetPage();
 
     // delete the temporary state
-    delete old_node_state;
+    delete new_node_state;
 
     bool completed = GetMappingTable()->SwapNode(page_to_compress, old_node_ptr,
                                                  new_node_ptr);
@@ -522,12 +524,9 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
                    __attribute__((unused)) LPID self) {
     int child_index = GetChild(key, children_, size_);
     LPID child_lpid = this->children_[child_index].second;
-    auto child = this->map->GetMappingTable()->GetNode(child_lpid);
-    while (child->GetDeltaChainLen() > IPAGE_DELTA_CHAIN_LIMIT) {
-      this->map->CompressDeltaChain(child_lpid);
-      child = this->map->GetMappingTable()->GetNode(child_lpid);
-    }
-    return child->DeleteEntry(key, location, child_lpid);
+    return this->map->GetMappingTable()
+        ->GetNode(child_lpid)
+        ->DeleteEntry(key, location, child_lpid);
   };
 
   std::vector<ValueType> Scan(const std::vector<Value> &values,
@@ -582,6 +581,21 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
  protected:
   // the modified node could either be a LPage or IPage or Delta
   BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node;
+  inline bool IsOverDeltaChainLimit() {
+    return this->GetDeltaChainLen() > this->GetDeltaChainLimit();
+  }
+  virtual int GetDeltaChainLimit() = 0;
+
+  bool PerformDeltaInsert(LPID my_lpid,
+                          Delta<KeyType, ValueType, KeyComparator> *new_delta) {
+    bool status;
+    if (new_delta->IsOverDeltaChainLimit()) {
+      status = this->map->CompressDeltaChain(my_lpid, this, new_delta);
+    } else {
+      status = this->map->GetMappingTable()->SwapNode(my_lpid, this, new_delta);
+    }
+    return status;
+  }
 };
 
 //===--------------------------------------------------------------------===//
@@ -594,6 +608,8 @@ class IPageDelta : public Delta<KeyType, ValueType, KeyComparator> {
       : Delta<KeyType, ValueType, KeyComparator>(map, modified_node){};
 
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_IPAGE; };
+
+  inline int GetDeltaChainLimit() { return IPAGE_DELTA_CHAIN_LIMIT; }
 };
 
 //===--------------------------------------------------------------------===//
@@ -643,6 +659,8 @@ class LPageDelta : public Delta<KeyType, ValueType, KeyComparator> {
       : Delta<KeyType, ValueType, KeyComparator>(map, modified_node){};
 
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_LPAGE; };
+
+  inline int GetDeltaChainLimit() { return LPAGE_DELTA_CHAIN_LIMIT; }
 };
 //===--------------------------------------------------------------------===//
 // LPageSplitDelta
@@ -704,11 +722,11 @@ class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
 
   bool InsertEntry(__attribute__((unused)) KeyType key,
                    __attribute__((unused)) ValueType location,
-                   __attribute__((unused)) LPID self) {
+                   __attribute__((unused)) LPID my_lpid) {
     LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
         new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
                                                                 key, location);
-    bool status = this->map->GetMappingTable()->SwapNode(self, this, new_delta);
+    bool status = this->PerformDeltaInsert(my_lpid, new_delta);
     if (!status) {
       delete new_delta;
     }
@@ -716,13 +734,13 @@ class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
   };
 
   bool DeleteEntry(__attribute__((unused)) KeyType key,
-                   __attribute__((unused)) ValueType location, LPID self) {
+                   __attribute__((unused)) ValueType location, LPID my_lpid) {
     LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
         new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
                                                                 key, location);
 
     new_delta->SetDeleteFlag();
-    bool status = this->map->GetMappingTable()->SwapNode(self, this, new_delta);
+    bool status = this->PerformDeltaInsert(my_lpid, new_delta);
     if (!status) {
       delete new_delta;
     }
