@@ -111,7 +111,6 @@ void InsertTest(index::Index *index, VarlenPool *pool, size_t scale_factor){
   // Loop based on scale factor
   for(size_t scale_itr = 1; scale_itr <= scale_factor; scale_itr++) {
     // Insert a bunch of keys based on scale itr
-	  printf("scale_itr %lu\n", scale_itr);
     std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
     std::unique_ptr<storage::Tuple> key1(new storage::Tuple(key_schema, true));
     std::unique_ptr<storage::Tuple> key2(new storage::Tuple(key_schema, true));
