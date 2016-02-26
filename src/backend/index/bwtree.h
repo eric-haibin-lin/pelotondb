@@ -391,6 +391,7 @@ class BWTree {
 
   // compress delta chain
   bool CompressDeltaChain(LPID page_to_compress) {
+	LOG_INFO("Compressing delta chain for LPID: %lu", page_to_compress);
     auto old_node_ptr = GetNode(page_to_compress);
     auto old_node_state = old_node_ptr->BuildNodeState();
     auto new_node_ptr = old_node_state->GetPage();
@@ -441,7 +442,6 @@ class BWTreeNode {
 
   virtual NodeStateBuilder<KeyType, ValueType, KeyComparator> *
   BuildNodeState() = 0;
-
   // for scanKey, we have to build the node state as well. But we only care
   // about
   // the keys we want to scan
@@ -467,7 +467,10 @@ class BWTreeNode {
 
   };
 
-  inline int GetDeltaChainLen() { return delta_chain_len_; }
+  inline int GetDeltaChainLen() {
+	  LOG_INFO("got delta chain len %d\n", delta_chain_len_);
+	  return delta_chain_len_;
+  }
 
  protected:
   // the handler to the mapping table
@@ -501,8 +504,13 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
                    __attribute__((unused)) LPID self) {
     int child_index = GetChild(key, children_, size_);
     LPID child_lpid = this->children_[child_index].second;
-    return this->map->GetNode(child_lpid)
-        ->DeleteEntry(key, location, child_lpid);
+    auto child = this->map->GetNode(child_lpid);
+	while (child->GetDeltaChainLen() > DELTA_CHAIN_LIMIT){
+	  this->map->CompressDeltaChain(child_lpid);
+	  child = this->map->GetNode(child_lpid);
+	}
+    return
+        child->DeleteEntry(key, location, child_lpid);
   };
 
   std::vector<ValueType> Scan(const std::vector<Value> &values,
