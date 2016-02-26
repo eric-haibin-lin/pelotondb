@@ -420,27 +420,33 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
 
   LOG_INFO("Split page %lu, into new page %lu", self, newIpageLPID);
 
-  // Now start with the second half
-  LOG_INFO("Now try to create a new IPageUpdateDelta");
+  if (self != parent) //Internal IPage
+  {
+	  // Now start with the second half
+	  LOG_INFO("Now try to create a new IPageUpdateDelta");
 
-  BWTreeNode<KeyType, ValueType, KeyComparator> *parentHardPtr;
+	  BWTreeNode<KeyType, ValueType, KeyComparator> *parentHardPtr;
 
-  parentHardPtr = this->map->GetNode(parent);
+	  parentHardPtr = this->map->GetNode(parent);
 
-  IPageUpdateDelta<KeyType, ValueType, KeyComparator> *parentUpdateDelta =
-      new IPageUpdateDelta<KeyType, ValueType, KeyComparator>(
-          this->map, parentHardPtr, maxLeftSplitNodeKey, maxRightSplitNodeKey,
-          newIpageLPID);
+	  IPageUpdateDelta<KeyType, ValueType, KeyComparator> *parentUpdateDelta =
+	      new IPageUpdateDelta<KeyType, ValueType, KeyComparator>(
+	          this->map, parentHardPtr, maxLeftSplitNodeKey, maxRightSplitNodeKey,
+	          newIpageLPID);
 
-  LOG_INFO("Now Doing a SwapNode to install this IPageUpdateDelta");
+	  LOG_INFO("Now Doing a SwapNode to install this IPageUpdateDelta");
 
-  // This SwapNode has to be successful. No one else can do this for now.
-  // TODO if we allow any node to complete a partial SMO, then this will change
-  swapSuccess = this->map->SwapNode(parent, parentHardPtr, parentUpdateDelta);
+	  // This SwapNode has to be successful. No one else can do this for now.
+	  // TODO if we allow any node to complete a partial SMO, then this will change
+	  swapSuccess = this->map->SwapNode(parent, parentHardPtr, parentUpdateDelta);
 
-  assert(swapSuccess == true);
+	  assert(swapSuccess == true);
 
-  LOG_INFO("Split finished");
+	  LOG_INFO("Split finished");
+	  return;
+  }
+
+
 };
 
 //===--------------------------------------------------------------------===//
@@ -514,7 +520,34 @@ IPageSplitDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
   builder->SeparateFromKey(splitter);
 
   return builder;
-}
+};
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+bool IPageSplitDelta<KeyType, ValueType, KeyComparator>::DeleteEntry(KeyType key,
+		   ValueType location, LPID self)
+	 {
+		  //This function will just call delete entry on the appropriate child
+		  if (this->map->CompareKey(key, modified_key_) > 1) //this key is greater than split key
+		  {
+			  return this->map->GetNode(modified_val_)->DeleteEntry(key, location, modified_val_);
+		  }
+
+		  return this->modified_node->DeleteEntry(key, location, self);
+};
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+bool IPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(KeyType key,
+		   ValueType location, LPID self)
+	 {
+		  //This function will just call delete entry on the appropriate child
+		  if (this->map->CompareKey(key, modified_key_) > 1) //this key is greater than split key
+		  {
+			  return this->map->GetNode(modified_val_)->InsertEntry(key, location, modified_val_);
+		  }
+
+		  return this->modified_node->InsertEntry(key, location, self);
+};
+
 //===--------------------------------------------------------------------===//
 // IPageSplitDelta Methods End
 //===--------------------------------------------------------------------===//
@@ -555,6 +588,45 @@ LPageSplitDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
 
   return builder;
 }
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(KeyType key,
+		ValueType location, LPID self) {
+
+	if (this->map->CompareKey(key, modified_key_) == 1) //this key is greater than modified_key_
+	{
+		return this->map->GetNode(right_split_page_lpid_)->InsertEntry(key, location, right_split_page_lpid_);
+	}
+
+	LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
+			new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
+					key, location);
+	bool status = this->map->SwapNode(self, this, new_delta);
+	if (!status) {
+		delete new_delta;
+	}
+	return status;
+};
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::DeleteEntry(KeyType key,
+		ValueType location, LPID self) {
+
+	if (this->map->CompareKey(key, modified_key_) == 1) //this key is greater than modified_key_
+	{
+		return this->map->GetNode(right_split_page_lpid_)->InsertEntry(key, location, right_split_page_lpid_);
+	}
+
+	LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
+			new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
+					key, location);
+	new_delta->SetDeleteFlag();
+	bool status = this->map->SwapNode(self, this, new_delta);
+	if (!status) {
+		delete new_delta;
+	}
+	return status;
+};
 //===--------------------------------------------------------------------===//
 // LPageSplitDelta Methods End
 //===--------------------------------------------------------------------===//
@@ -613,6 +685,37 @@ IPageUpdateDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
   }
   return builder;
 };
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+bool IPageUpdateDelta<KeyType, ValueType, KeyComparator>::InsertEntry(KeyType key,
+		ValueType location, LPID self) {
+	  if (this->map->CompareKey(key, max_key_right_split_node_) == 1) //should go down to the lower level IPage
+	  {
+		  return this->modified_node->InsertEntry(key, location, self);
+	  }
+	  if (this->map->CompareKey(key, max_key_left_split_node_) == 1) //should go to the right split child
+	  {
+		  return this->map->GetNode(right_split_node_lpid_)->InsertEntry(key, location, right_split_node_lpid_);
+	  }
+	  // Less than or equal to max_key_left_split_node_, go directly down
+	  return this->modified_node->InsertEntry(key, location, self);
+};
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+bool IPageUpdateDelta<KeyType, ValueType, KeyComparator>::DeleteEntry(KeyType key,
+		 ValueType location, LPID self) {
+	  if (this->map->CompareKey(key, max_key_right_split_node_) == 1) //should go down to the lower level IPage
+	  {
+		  return this->modified_node->DeleteEntry(key, location, self);
+	  }
+	  if (this->map->CompareKey(key, max_key_left_split_node_) == 1) //should go to the right split child
+	  {
+		  return this->map->GetNode(right_split_node_lpid_)->DeleteEntry(key, location, right_split_node_lpid_);
+	  }
+	  // Less than or equal to max_key_left_split_node_, go directly down
+	  return this->modified_node->DeleteEntry(key, location, self);
+ }
+
 //===--------------------------------------------------------------------===//
 // IPageUpdateDelta Methods End
 //===--------------------------------------------------------------------===//
