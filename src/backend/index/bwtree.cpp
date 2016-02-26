@@ -39,7 +39,7 @@ void INodeStateBuilder<KeyType, ValueType, KeyComparator>::AddChild(
   assert(children_ != nullptr);
   KeyType key = new_pair.first;
   int index = this->map->BinarySearch(key, children_, this->size);
-  assert(index < IPAGE_ARITY + DELTA_CHAIN_LIMIT);
+  assert(index < IPAGE_ARITY + IPAGE_DELTA_CHAIN_LIMIT);
   // Key not found. shift every element to the right
   if (index < 0 || this->size == 0 ||
       (index == 0 && CompareKey(children_[0].first, key) != 0)) {
@@ -110,7 +110,7 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::AddLeafData(
       "original size: %lu",
       new_pair.second.block, new_pair.second.offset, index, this->size);
 
-  assert(index < LPAGE_ARITY + DELTA_CHAIN_LIMIT);
+  assert(index < LPAGE_ARITY + LPAGE_DELTA_CHAIN_LIMIT);
   // not found. shift every element to the right
   if (index < 0 || this->size == 0 ||
       (index == 0 && this->map->CompareKey(locations_[0].first, key) != 0)) {
@@ -308,7 +308,7 @@ bool IPage<KeyType, ValueType, KeyComparator>::InsertEntry(
   // LPID child_lpid = GetChild(key, children_, size_);
   LPID child_lpid = children_[child_lpid_index].second;
   auto child = this->map->GetMappingTable()->GetNode(child_lpid);
-  while (child->GetDeltaChainLen() > DELTA_CHAIN_LIMIT) {
+  while (child->GetDeltaChainLen() > IPAGE_DELTA_CHAIN_LIMIT) {
     this->map->CompressDeltaChain(child_lpid);
     child = this->map->GetMappingTable()->GetNode(child_lpid);
   }

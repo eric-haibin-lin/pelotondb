@@ -37,7 +37,8 @@ enum BWTreeNodeType {
 
 #define INVALID_LPID ULLONG_MAX
 
-#define DELTA_CHAIN_LIMIT 5
+#define LPAGE_DELTA_CHAIN_LIMIT 5
+#define IPAGE_DELTA_CHAIN_LIMIT 5
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTree;
@@ -99,7 +100,7 @@ class INodeStateBuilder
     : public NodeStateBuilder<KeyType, ValueType, KeyComparator> {
  private:
   // IPage children nodes
-  std::pair<KeyType, LPID> children_[IPAGE_ARITY + DELTA_CHAIN_LIMIT];
+  std::pair<KeyType, LPID> children_[IPAGE_ARITY + IPAGE_DELTA_CHAIN_LIMIT];
   IPage<KeyType, ValueType, KeyComparator> *new_page_ = nullptr;
 
  public:
@@ -143,7 +144,8 @@ class LNodeStateBuilder
   ValueType separator_location_;
 
   // LPage members
-  std::pair<KeyType, ValueType> locations_[IPAGE_ARITY + DELTA_CHAIN_LIMIT];
+  std::pair<KeyType, ValueType>
+      locations_[IPAGE_ARITY + LPAGE_DELTA_CHAIN_LIMIT];
 
  public:
   // LPage constructor
@@ -521,7 +523,7 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     int child_index = GetChild(key, children_, size_);
     LPID child_lpid = this->children_[child_index].second;
     auto child = this->map->GetMappingTable()->GetNode(child_lpid);
-    while (child->GetDeltaChainLen() > DELTA_CHAIN_LIMIT) {
+    while (child->GetDeltaChainLen() > IPAGE_DELTA_CHAIN_LIMIT) {
       this->map->CompressDeltaChain(child_lpid);
       child = this->map->GetMappingTable()->GetNode(child_lpid);
     }
