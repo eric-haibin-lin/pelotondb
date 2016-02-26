@@ -139,6 +139,45 @@ void BasicTestHelper(INDEX_KEY_TYPE index_key_type) {
   delete tuple_schema;
 }
 
+TEST(IndexTests, BWTreeMappingTableTest) {
+  // the values of the templates dont really matter;
+  int size_to_test = 1025;
+  auto initial_nodes =
+      new index::BWTreeNode<TestKeyType, TestValueType,
+                            TestComparatorType> *[size_to_test];
+  for (int i = 0; i < size_to_test; i++) {
+    initial_nodes[i] = reinterpret_cast<
+        index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *>(
+        new int(52));
+  }
+  auto LPIDs = new index::LPID[size_to_test];
+  index::MappingTable<TestKeyType, TestValueType, TestComparatorType> map;
+  for (int i = 0; i < size_to_test; i++) {
+    LPIDs[i] = map.InstallPage(initial_nodes[i]);
+  }
+  for (int i = 0; i < size_to_test; i++) {
+    EXPECT_EQ(initial_nodes[i], map.GetNode(LPIDs[i]));
+    ;
+  }
+  auto swapped_nodes =
+      new index::BWTreeNode<TestKeyType, TestValueType,
+                            TestComparatorType> *[size_to_test];
+  for (int i = 0; i < size_to_test; i++) {
+    swapped_nodes[i] = reinterpret_cast<
+        index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *>(
+        new int(52));
+    map.SwapNode(LPIDs[i], initial_nodes[i], swapped_nodes[i]);
+  }
+
+  for (int i = 0; i < size_to_test; i++) {
+    EXPECT_EQ(swapped_nodes[i], map.GetNode(LPIDs[i]));
+    ;
+  }
+
+  delete[] initial_nodes;
+  delete[] swapped_nodes;
+}
+
 TEST(IndexTests, BasicTest) {
   for (unsigned int i = 0; i < index_types.size(); i++) {
     BasicTestHelper(index_types[i]);
