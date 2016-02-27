@@ -641,12 +641,14 @@ bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
 
   // This Delta must now be inserted BELOW this delta
   LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
-      new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this->modified_node,
-                                                              key, location);
-  //bool status = this->map->GetMappingTable()->SwapNode(self, this, new_delta);
+      new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
+          this->map, this->modified_node, key, location);
+  // bool status = this->map->GetMappingTable()->SwapNode(self, this,
+  // new_delta);
   BWTreeNode<KeyType, ValueType, KeyComparator> *old_child_node_hard_ptr;
   old_child_node_hard_ptr = this->modified_node;
-  bool status = __sync_bool_compare_and_swap(&(this->modified_node), old_child_node_hard_ptr, new_delta);
+  bool status = __sync_bool_compare_and_swap(
+      &(this->modified_node), old_child_node_hard_ptr, new_delta);
   if (!status) {
     delete new_delta;
   }
@@ -655,7 +657,7 @@ bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::DeleteEntry(
-    KeyType key, ValueType location, LPID self) {
+    KeyType key, ValueType location, __attribute__((unused)) LPID self) {
   if (this->map->CompareKey(key, modified_key_) ==
       1)  // this key is greater than modified_key_
   {
@@ -668,7 +670,12 @@ bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::DeleteEntry(
       new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
                                                               key, location);
   new_delta->SetDeleteFlag();
-  bool status = this->map->GetMappingTable()->SwapNode(self, this, new_delta);
+  // bool status = this->map->GetMappingTable()->SwapNode(self, this,
+  // new_delta);
+  BWTreeNode<KeyType, ValueType, KeyComparator> *old_child_node_hard_ptr;
+  old_child_node_hard_ptr = this->modified_node;
+  bool status = __sync_bool_compare_and_swap(
+      &(this->modified_node), old_child_node_hard_ptr, new_delta);
   if (!status) {
     delete new_delta;
   }
