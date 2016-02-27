@@ -14,10 +14,115 @@
 #include "harness.h"
 #include "backend/common/logger.h"
 #include "backend/index/index_factory.h"
-#include "backend/index/bwtree.h"
 #include "backend/index/index_key.h"
+#include "backend/index/bwtree.h"
 #include "backend/storage/tuple.h"
 
+// namespace peloton{
+// namespace index{
+//
+////===--------------------------------------------------------------------===//
+//// LPageSplitDelta Methods Begin
+////===--------------------------------------------------------------------===//
+// template <typename KeyType, typename ValueType, class KeyComparator>
+// std::vector<ValueType>
+// LPageSplitDelta < KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
+//  std::vector<ValueType> result;
+//  assert(this->modified_node != nullptr);
+//  LOG_INFO("LPageSplitDelta::ScanKey");
+//
+//  bool greater_than_left_key = this->map->CompareKey(key, modified_key_) > 0;
+//
+//  if (greater_than_left_key) {
+//    LOG_INFO(
+//        "LPageSplitDelta::ScanKey Found a matching key for right split page");
+//    result = this->map->GetMappingTable()
+//                 ->GetNode(right_split_page_lpid_)->ScanKey(key);
+//  } else {
+//    // Scan the modified node
+//    result = this->modified_node->ScanKey(key);
+//  }
+//  return result;
+//};
+//
+// template <typename KeyType, typename ValueType, class KeyComparator>
+// NodeStateBuilder < KeyType, ValueType, KeyComparator> *
+// LPageSplitDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
+//  // Children of IPageDelta always return a INodeStateBuilder
+//  LNodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
+//      reinterpret_cast<LNodeStateBuilder<KeyType, ValueType, KeyComparator>
+//      *>(
+//          this->modified_node->BuildNodeState());
+//  assert(builder != nullptr);
+//  builder->SeparateFromKey(modified_key_, modified_key_location_,
+//                           right_split_page_lpid_);
+//
+//  return builder;
+//}
+//
+// template <typename KeyType, typename ValueType, class KeyComparator>
+// bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
+//    KeyType key, ValueType location, LPID self) {
+//  if (this->map->CompareKey(key, modified_key_) ==
+//      1)  // this key is greater than modified_key_
+//  {
+//    return this->map->GetMappingTable()->GetNode(right_split_page_lpid_)
+//        ->InsertEntry(key, location, right_split_page_lpid_);
+//  }
+//
+//  LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
+//      new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
+//                                                              key, location);
+//  bool status = this->map->GetMappingTable()->SwapNode(self, this, new_delta);
+//  if (!status) {
+//    delete new_delta;
+//  }
+//  return status;
+//};
+//
+// template <typename KeyType, typename ValueType, class KeyComparator>
+// bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::DeleteEntry(
+//    KeyType key, ValueType location, LPID self) {
+//  if (this->map->CompareKey(key, modified_key_) ==
+//      1)  // this key is greater than modified_key_
+//  {
+//    return this->map->GetMappingTable()->GetNode(right_split_page_lpid_)
+//        ->InsertEntry(key, location, right_split_page_lpid_);
+//  }
+//
+//  LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
+//      new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
+//                                                              key, location);
+//  new_delta->SetDeleteFlag();
+//  bool status = this->map->GetMappingTable()->SwapNode(self, this, new_delta);
+//  if (!status) {
+//    delete new_delta;
+//  }
+//  return status;
+//};
+////===--------------------------------------------------------------------===//
+//// LPageSplitDelta Methods End
+////===--------------------------------------------------------------------===//
+//
+// template <typename KeyType, typename ValueType, class KeyComparator>
+// void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::SeparateFromKey(
+//    KeyType separator_key, ValueType location, LPID split_new_page_id) {
+//  assert(locations_ != nullptr);
+//
+//  int index = this->map->BinarySearch(separator_key, locations_,
+//      this->size);
+//  assert(index < this->size && index >= 0);
+//  // assume we include the key at the split page
+//  // decrement size
+//  this->size = index + 1;
+//  // update separator info
+//  this->is_separated = true;
+//  this->separator_key = separator_key;
+//  separator_location_ = location;
+//  this->split_new_page_id = split_new_page_id;
+//}
+
+//}}
 namespace peloton {
 namespace test {
 
@@ -584,7 +689,6 @@ void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
   prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
                                      TestComparatorType>(map, prev, index_key4,
                                                          item1);
-  EXPECT_TRUE(map->GetMappingTable()->SwapNode(lpid, baseNode, prev));
 
   locations = prev->ScanKey(index_key0);
   EXPECT_EQ(locations.size(), 1);
@@ -602,8 +706,9 @@ void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
   locations = prev->ScanKey(index_key4);
   EXPECT_EQ(locations.size(), 1);
 
-  map->CompressDeltaChain(lpid, baseNode, prev);
-  EXPECT_EQ(map->GetMappingTable()->GetNode(lpid), prev);
+  EXPECT_TRUE(map->CompressDeltaChain(lpid, baseNode, prev));
+  EXPECT_NE(map->GetMappingTable()->GetNode(lpid), prev);
+  EXPECT_NE(map->GetMappingTable()->GetNode(lpid), baseNode);
   locations = prev->ScanKey(index_key0);
   EXPECT_EQ(locations.size(), 1);
   locations = prev->ScanKey(index_key1);
@@ -621,6 +726,39 @@ void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
   EXPECT_EQ(locations.size(), 1);
   locations = prev->ScanKey(index_nonce);
   EXPECT_EQ(locations.size(), 0);
+
+  // TODO destruct all prev
+  index::LPID right_split_id = 1231921234;
+  index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *
+      new_base_node = map->GetMappingTable()->GetNode(lpid);
+
+  index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *
+      split_delta = new index::LPageSplitDelta<TestKeyType, TestValueType,
+                                               TestComparatorType>(
+          map, new_base_node, index_key1, item1, right_split_id);
+
+  printf("%ld %lu\n", (long)split_delta, right_split_id);
+  EXPECT_TRUE(map->CompressDeltaChain(lpid, new_base_node, split_delta));
+  locations = prev->ScanKey(index_key0);
+  EXPECT_EQ(locations.size(), 1);
+  locations = prev->ScanKey(index_key1);
+  if (index_key_type == UNIQUE_KEY) {
+    EXPECT_EQ(locations.size(), 1);
+  } else {
+    // TODO this is not implemented yet, put back later
+    // EXPECT_EQ(locations.size(), 5);
+  }
+
+  locations = prev->ScanKey(index_key2);
+  EXPECT_EQ(locations.size(), 0);
+  locations = prev->ScanKey(index_key3);
+  EXPECT_EQ(locations.size(), 0);
+  locations = prev->ScanKey(index_key4);
+  EXPECT_EQ(locations.size(), 0);
+  locations = prev->ScanKey(index_nonce);
+  EXPECT_EQ(locations.size(), 0);
+
+  delete map;
 }
 
 TEST(IndexTests, BWTreeLPageDeltaConsilidationTest) {

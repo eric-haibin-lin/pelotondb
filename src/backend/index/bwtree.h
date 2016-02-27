@@ -358,9 +358,9 @@ class BWTree {
 
   // positive index indicates found, negative indicates not found. 0 could be
   // either case
-  inline int BinarySearch(KeyType key,
+  int BinarySearch(KeyType key,
 
-                          std::pair<KeyType, PairSecond> *locations, oid_t len);
+                   std::pair<KeyType, PairSecond> *locations, oid_t len);
 
   bool InsertEntry(KeyType key, ValueType location);
 
@@ -601,6 +601,7 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
 class IPageDelta : public Delta<KeyType, ValueType, KeyComparator> {
+ public:
   IPageDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
              BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node)
       : Delta<KeyType, ValueType, KeyComparator>(map, modified_node){};
@@ -623,9 +624,7 @@ class IPageSplitDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
         modified_key_(key),
         modified_val_(value){};
 
-  bool InsertEntry(KeyType key,
-                  ValueType location,
-                  LPID self);
+  bool InsertEntry(KeyType key, ValueType location, LPID self);
 
   bool DeleteEntry(KeyType key, ValueType location, LPID self);
 
@@ -668,12 +667,12 @@ class LPageSplitDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
         modified_key_location_(splitterVal),
         right_split_page_lpid_(rightSplitPage){};
 
-  //This method will either try to create a delta on top of itself, if the current key is less
-  //than or equal to the modified_key_, or it will simply call InsertEntry on the LPID of the
-  //newly created right_split_page_lpid
-  bool InsertEntry(KeyType key,
-                   ValueType location,
-                   LPID self);
+  // This method will either try to create a delta on top of itself, if the
+  // current key is less
+  // than or equal to the modified_key_, or it will simply call InsertEntry on
+  // the LPID of the
+  // newly created right_split_page_lpid
+  bool InsertEntry(KeyType key, ValueType location, LPID self);
 
   bool DeleteEntry(KeyType key, ValueType location, LPID self);
 
@@ -793,13 +792,9 @@ class IPageUpdateDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
     LOG_INFO("Inside IPageUpdateDelta Constructor");
   };
 
-  bool InsertEntry(KeyType key,
-                   ValueType location,
-                   LPID self);
+  bool InsertEntry(KeyType key, ValueType location, LPID self);
 
-  bool DeleteEntry(KeyType key,
-		  ValueType location,
-		  LPID self);
+  bool DeleteEntry(KeyType key, ValueType location, LPID self);
 
   std::vector<ValueType> ScanKey(KeyType key);
 
@@ -866,6 +861,9 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   bool InsertEntry(__attribute__((unused)) KeyType key,
                    __attribute__((unused)) ValueType location,
                    __attribute__((unused)) LPID self) {
+    if (this->size_ > LPAGE_ARITY) {
+      this->SplitNodes(self, self);
+    }
     LOG_INFO("Inside LPage InsertEntry");
 
     LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
