@@ -432,6 +432,8 @@ class BWTree {
 
     return completed;
   }
+
+  LPID *GetRootLPIDAddress() { return &root_; }
 };
 
 //===--------------------------------------------------------------------===//
@@ -841,11 +843,8 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
  public:
   // get the index of the first occurrence of the given <k, v> pair
   // used when deleting a <k-v> entry from non-unique keys
-  static int BinarySearch(__attribute__((unused))
-                          std::pair<KeyType, ValueType> pair,
-                          __attribute__((unused))
-                          std::pair<KeyType, ValueType> *locations,
-                          __attribute__((unused)) oid_t len);
+  static int BinarySearch(std::pair<KeyType, ValueType> pair,
+                          std::pair<KeyType, ValueType> *locations, oid_t len);
 
   LPage(BWTree<KeyType, ValueType, KeyComparator> *map)
       : BWTreeNode<KeyType, ValueType, KeyComparator>(map, 0) {
@@ -875,37 +874,9 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   ~LPage(){};
 
-  bool InsertEntry(KeyType key, ValueType location, LPID self) {
-    if (this->size_ > LPAGE_ARITY) {
-      this->SplitNodes(self, self);
-    }
-    LOG_INFO("Inside LPage InsertEntry");
+  bool InsertEntry(KeyType key, ValueType location, LPID self);
 
-    LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
-        new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
-                                                                key, location);
-
-    bool status = this->map->GetMappingTable()->SwapNode(self, this, new_delta);
-    if (!status) {
-      delete new_delta;
-    }
-    return status;
-  };
-
-  bool DeleteEntry(KeyType key, ValueType location, LPID self) {
-    // TODO implement this
-
-    LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
-        new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
-                                                                key, location);
-
-    new_delta->SetDeleteFlag();
-    bool status = this->map->GetMappingTable()->SwapNode(self, this, new_delta);
-    if (!status) {
-      delete new_delta;
-    }
-    return status;
-  };
+  bool DeleteEntry(KeyType key, ValueType location, LPID self);
 
   void Scan(const std::vector<Value> &values,
             const std::vector<oid_t> &key_column_ids,
