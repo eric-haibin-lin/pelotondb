@@ -318,12 +318,8 @@ class BWTree {
    */
   BWTree(bool unique_keys, KeyComparator comparator)
       : comparator(comparator), unique_keys(unique_keys) {
-    // this->unique_keys = unique_keys;
-    // BWTreeNode<KeyType, ValueType, KeyComparator>::comparator = comparator;
     LOG_INFO("Inside BWTree Constructor");
     mapping_table_ = new MappingTable<KeyType, ValueType, KeyComparator>();
-
-    // TODO @abj initialize the root IPage (and maybe a LPage?)
 
     IPage<KeyType, ValueType, KeyComparator> *root =
         new IPage<KeyType, ValueType, KeyComparator>(this);
@@ -453,9 +449,9 @@ class BWTreeNode {
       const std::vector<Value> &values,
       const std::vector<oid_t> &key_column_ids,
       const std::vector<ExpressionType> &expr_types,
-      const ScanDirectionType &scan_direction) = 0;
+      const ScanDirectionType &scan_direction, std::vector<ValueType>*) = 0;
 
-  virtual std::vector<ValueType> ScanAllKeys() = 0;
+  virtual void ScanAllKeys(std::vector<ValueType>*) = 0;
 
   virtual std::vector<ValueType> ScanKey(KeyType key) = 0;
 
@@ -534,7 +530,7 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
                               const std::vector<ExpressionType> &expr_types,
                               const ScanDirectionType &scan_direction);
 
-  std::vector<ValueType> ScanAllKeys();
+  void ScanAllKeys(std::vector<ValueType>*);
 
   std::vector<ValueType> ScanKey(KeyType key);
 
@@ -574,7 +570,7 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
                               const std::vector<ExpressionType> &expr_types,
                               const ScanDirectionType &scan_direction);
 
-  std::vector<ValueType> ScanAllKeys();
+  void ScanAllKeys(std::vector<ValueType>*);
 
   std::vector<ValueType> ScanKey(KeyType key);
 
@@ -878,9 +874,9 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   ~LPage(){};
 
-  bool InsertEntry(__attribute__((unused)) KeyType key,
-                   __attribute__((unused)) ValueType location,
-                   __attribute__((unused)) LPID self) {
+  bool InsertEntry( KeyType key,
+                   ValueType location,
+                   LPID self) {
     LOG_INFO("Inside LPage InsertEntry");
 
     LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
@@ -894,9 +890,9 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     return status;
   };
 
-  bool DeleteEntry(__attribute__((unused)) KeyType key,
-                   __attribute__((unused)) ValueType location,
-                   __attribute__((unused)) LPID self) {
+  bool DeleteEntry(KeyType key,
+                   ValueType location,
+                   LPID self) {
     // TODO implement this
 
     LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
@@ -916,7 +912,7 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
                               const std::vector<ExpressionType> &expr_types,
                               const ScanDirectionType &scan_direction);
 
-  std::vector<ValueType> ScanAllKeys();
+  void ScanAllKeys(std::vector<ValueType>*);
 
   std::vector<ValueType> ScanKey(KeyType key);
 
