@@ -735,27 +735,29 @@ void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
   index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *
       split_delta = new index::LPageSplitDelta<TestKeyType, TestValueType,
                                                TestComparatorType>(
-          map, new_base_node, index_key1, item1, right_split_id);
+          map, new_base_node, index_key2, item1, right_split_id);
 
-  printf("%ld %lu\n", (long)split_delta, right_split_id);
   EXPECT_TRUE(map->CompressDeltaChain(lpid, new_base_node, split_delta));
+  auto compressed_node = map->GetMappingTable()->GetNode(lpid);
+  EXPECT_NE(compressed_node, split_delta);
   locations = prev->ScanKey(index_key0);
   EXPECT_EQ(locations.size(), 1);
-  locations = prev->ScanKey(index_key1);
+  // TODO test for duplicate key case (key1)
+  locations = compressed_node->ScanKey(index_key1);
   if (index_key_type == UNIQUE_KEY) {
     EXPECT_EQ(locations.size(), 1);
   } else {
     // TODO this is not implemented yet, put back later
-    // EXPECT_EQ(locations.size(), 5);
+    EXPECT_EQ(locations.size(), 5);
   }
 
-  locations = prev->ScanKey(index_key2);
+  locations = compressed_node->ScanKey(index_key2);
+  EXPECT_EQ(locations.size(), 1);
+  locations = compressed_node->ScanKey(index_key3);
   EXPECT_EQ(locations.size(), 0);
-  locations = prev->ScanKey(index_key3);
+  locations = compressed_node->ScanKey(index_key4);
   EXPECT_EQ(locations.size(), 0);
-  locations = prev->ScanKey(index_key4);
-  EXPECT_EQ(locations.size(), 0);
-  locations = prev->ScanKey(index_nonce);
+  locations = compressed_node->ScanKey(index_nonce);
   EXPECT_EQ(locations.size(), 0);
 
   delete map;
