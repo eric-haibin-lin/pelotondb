@@ -14,10 +14,115 @@
 #include "harness.h"
 #include "backend/common/logger.h"
 #include "backend/index/index_factory.h"
-#include "backend/index/bwtree.h"
 #include "backend/index/index_key.h"
+#include "backend/index/bwtree.h"
 #include "backend/storage/tuple.h"
 
+// namespace peloton{
+// namespace index{
+//
+////===--------------------------------------------------------------------===//
+//// LPageSplitDelta Methods Begin
+////===--------------------------------------------------------------------===//
+// template <typename KeyType, typename ValueType, class KeyComparator>
+// std::vector<ValueType>
+// LPageSplitDelta < KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
+//  std::vector<ValueType> result;
+//  assert(this->modified_node != nullptr);
+//  LOG_INFO("LPageSplitDelta::ScanKey");
+//
+//  bool greater_than_left_key = this->map->CompareKey(key, modified_key_) > 0;
+//
+//  if (greater_than_left_key) {
+//    LOG_INFO(
+//        "LPageSplitDelta::ScanKey Found a matching key for right split page");
+//    result = this->map->GetMappingTable()
+//                 ->GetNode(right_split_page_lpid_)->ScanKey(key);
+//  } else {
+//    // Scan the modified node
+//    result = this->modified_node->ScanKey(key);
+//  }
+//  return result;
+//};
+//
+// template <typename KeyType, typename ValueType, class KeyComparator>
+// NodeStateBuilder < KeyType, ValueType, KeyComparator> *
+// LPageSplitDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
+//  // Children of IPageDelta always return a INodeStateBuilder
+//  LNodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
+//      reinterpret_cast<LNodeStateBuilder<KeyType, ValueType, KeyComparator>
+//      *>(
+//          this->modified_node->BuildNodeState());
+//  assert(builder != nullptr);
+//  builder->SeparateFromKey(modified_key_, modified_key_location_,
+//                           right_split_page_lpid_);
+//
+//  return builder;
+//}
+//
+// template <typename KeyType, typename ValueType, class KeyComparator>
+// bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
+//    KeyType key, ValueType location, LPID self) {
+//  if (this->map->CompareKey(key, modified_key_) ==
+//      1)  // this key is greater than modified_key_
+//  {
+//    return this->map->GetMappingTable()->GetNode(right_split_page_lpid_)
+//        ->InsertEntry(key, location, right_split_page_lpid_);
+//  }
+//
+//  LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
+//      new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
+//                                                              key, location);
+//  bool status = this->map->GetMappingTable()->SwapNode(self, this, new_delta);
+//  if (!status) {
+//    delete new_delta;
+//  }
+//  return status;
+//};
+//
+// template <typename KeyType, typename ValueType, class KeyComparator>
+// bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::DeleteEntry(
+//    KeyType key, ValueType location, LPID self) {
+//  if (this->map->CompareKey(key, modified_key_) ==
+//      1)  // this key is greater than modified_key_
+//  {
+//    return this->map->GetMappingTable()->GetNode(right_split_page_lpid_)
+//        ->InsertEntry(key, location, right_split_page_lpid_);
+//  }
+//
+//  LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
+//      new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
+//                                                              key, location);
+//  new_delta->SetDeleteFlag();
+//  bool status = this->map->GetMappingTable()->SwapNode(self, this, new_delta);
+//  if (!status) {
+//    delete new_delta;
+//  }
+//  return status;
+//};
+////===--------------------------------------------------------------------===//
+//// LPageSplitDelta Methods End
+////===--------------------------------------------------------------------===//
+//
+// template <typename KeyType, typename ValueType, class KeyComparator>
+// void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::SeparateFromKey(
+//    KeyType separator_key, ValueType location, LPID split_new_page_id) {
+//  assert(locations_ != nullptr);
+//
+//  int index = this->map->BinarySearch(separator_key, locations_,
+//      this->size);
+//  assert(index < this->size && index >= 0);
+//  // assume we include the key at the split page
+//  // decrement size
+//  this->size = index + 1;
+//  // update separator info
+//  this->is_separated = true;
+//  this->separator_key = separator_key;
+//  separator_location_ = location;
+//  this->split_new_page_id = split_new_page_id;
+//}
+
+//}}
 namespace peloton {
 namespace test {
 
@@ -373,8 +478,8 @@ TEST(IndexTests, MultiThreadedInsertTest) {
   std::unique_ptr<index::Index> index(BuildIndex(NON_UNIQUE_KEY));
 
   // Parallel Test
-  size_t num_threads = 4;
-  size_t scale_factor = 6;
+  size_t num_threads = 24;
+  size_t scale_factor = 1;
   LaunchParallelTest(num_threads, InsertTest, index.get(), pool, scale_factor);
 
   //  locations = index->ScanAllKeys();
@@ -474,6 +579,193 @@ void LPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
 TEST(IndexTests, LPageScanTest) {
   for (unsigned int i = 0; i < index_types.size(); i++) {
     LPageScanTestHelper(index_types[1]);
+  }
+}
+
+void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
+  auto pool = TestingHarness::GetInstance().GetTestingPool();
+  auto map = BuildBWTree(index_key_type);
+  auto baseNode =
+      new index::LPage<TestKeyType, TestValueType, TestComparatorType>(map);
+  index::LPID lpid = map->GetMappingTable()->InstallPage(baseNode);
+  std::vector<ItemPointer> locations;
+  // Insert a bunch of keys based on scale itr
+
+  std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
+  std::unique_ptr<storage::Tuple> key1(new storage::Tuple(key_schema, true));
+  std::unique_ptr<storage::Tuple> key2(new storage::Tuple(key_schema, true));
+  std::unique_ptr<storage::Tuple> key3(new storage::Tuple(key_schema, true));
+  std::unique_ptr<storage::Tuple> key4(new storage::Tuple(key_schema, true));
+  std::unique_ptr<storage::Tuple> keynonce(
+      new storage::Tuple(key_schema, true));
+
+  key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+  key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
+  key1->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+  key1->SetValue(1, ValueFactory::GetStringValue("b"), pool);
+  key2->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+  key2->SetValue(1, ValueFactory::GetStringValue("c"), pool);
+  key3->SetValue(0, ValueFactory::GetIntegerValue(400), pool);
+  key3->SetValue(1, ValueFactory::GetStringValue("d"), pool);
+  key4->SetValue(0, ValueFactory::GetIntegerValue(500), pool);
+  key4->SetValue(1, ValueFactory::GetStringValue(
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"),
+                 pool);
+  keynonce->SetValue(0, ValueFactory::GetIntegerValue(1000), pool);
+  keynonce->SetValue(1, ValueFactory::GetStringValue("f"), pool);
+
+  TestKeyType index_key0;
+  TestKeyType index_key1;
+  TestKeyType index_key2;
+  TestKeyType index_key3;
+  TestKeyType index_key4;
+  TestKeyType index_nonce;
+
+  index_key0.SetFromKey(key0.get());
+  index_key1.SetFromKey(key1.get());
+  index_key2.SetFromKey(key2.get());
+  index_key3.SetFromKey(key3.get());
+  index_key4.SetFromKey(key4.get());
+  index_nonce.SetFromKey(keynonce.get());
+
+  locations = baseNode->ScanKey(index_key0);
+  EXPECT_EQ(locations.size(), 0);
+  locations = baseNode->ScanKey(index_key1);
+  EXPECT_EQ(locations.size(), 0);
+  locations = baseNode->ScanKey(index_key2);
+  EXPECT_EQ(locations.size(), 0);
+  locations = baseNode->ScanKey(index_key3);
+  EXPECT_EQ(locations.size(), 0);
+  locations = baseNode->ScanKey(index_key4);
+  EXPECT_EQ(locations.size(), 0);
+  locations = baseNode->ScanKey(index_nonce);
+  EXPECT_EQ(locations.size(), 0);
+  // perform many inserts
+  index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *prev =
+      baseNode;
+  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                     TestComparatorType>(map, prev, index_key0,
+                                                         item0);
+  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                     TestComparatorType>(map, prev, index_key1,
+                                                         item1);
+  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                     TestComparatorType>(map, prev, index_key1,
+                                                         item2);
+  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                     TestComparatorType>(map, prev, index_key1,
+                                                         item1);
+  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                     TestComparatorType>(map, prev, index_key1,
+                                                         item1);
+  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                     TestComparatorType>(map, prev, index_key1,
+                                                         item0);
+  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                     TestComparatorType>(map, prev, index_key2,
+                                                         item1);
+  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                     TestComparatorType>(map, prev, index_key3,
+                                                         item1);
+  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                     TestComparatorType>(map, prev, index_key4,
+                                                         item1);
+
+  locations = prev->ScanKey(index_key0);
+  EXPECT_EQ(locations.size(), 1);
+  locations = prev->ScanKey(index_key1);
+  if (index_key_type == UNIQUE_KEY) {
+    EXPECT_EQ(locations.size(), 1);
+  } else {
+    EXPECT_EQ(locations.size(), 5);
+  }
+
+  locations = prev->ScanKey(index_key2);
+  EXPECT_EQ(locations.size(), 1);
+  locations = prev->ScanKey(index_key3);
+  EXPECT_EQ(locations.size(), 1);
+  locations = prev->ScanKey(index_key4);
+  EXPECT_EQ(locations.size(), 1);
+
+  EXPECT_TRUE(map->CompressDeltaChain(lpid, baseNode, prev));
+  EXPECT_NE(map->GetMappingTable()->GetNode(lpid), prev);
+  EXPECT_NE(map->GetMappingTable()->GetNode(lpid), baseNode);
+  locations = prev->ScanKey(index_key0);
+  EXPECT_EQ(locations.size(), 1);
+  locations = prev->ScanKey(index_key1);
+  if (index_key_type == UNIQUE_KEY) {
+    EXPECT_EQ(locations.size(), 1);
+  } else {
+    EXPECT_EQ(locations.size(), 5);
+  }
+
+  locations = prev->ScanKey(index_key2);
+  EXPECT_EQ(locations.size(), 1);
+  locations = prev->ScanKey(index_key3);
+  EXPECT_EQ(locations.size(), 1);
+  locations = prev->ScanKey(index_key4);
+  EXPECT_EQ(locations.size(), 1);
+  locations = prev->ScanKey(index_nonce);
+  EXPECT_EQ(locations.size(), 0);
+
+  // TODO destruct all prev
+  index::LPID right_split_id = 1231921234;
+  index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *
+      new_base_node = map->GetMappingTable()->GetNode(lpid);
+
+  index::LPageSplitDelta<TestKeyType, TestValueType, TestComparatorType> *
+      split_delta = new index::LPageSplitDelta<TestKeyType, TestValueType,
+                                               TestComparatorType>(
+          map, new_base_node, index_key2, 3, right_split_id);
+
+  EXPECT_TRUE(map->CompressDeltaChain(lpid, new_base_node, split_delta));
+  auto compressed_node = map->GetMappingTable()->GetNode(lpid);
+  EXPECT_NE(compressed_node, split_delta);
+  locations = prev->ScanKey(index_key0);
+  EXPECT_EQ(locations.size(), 1);
+  // TODO test for duplicate key case (key1)
+  locations = compressed_node->ScanKey(index_key1);
+  if (index_key_type == UNIQUE_KEY) {
+    EXPECT_EQ(locations.size(), 1);
+  } else {
+    // TODO this is not implemented yet, put back later
+    EXPECT_EQ(locations.size(), 3);
+  }
+
+  locations = compressed_node->ScanKey(index_key2);
+  EXPECT_EQ(locations.size(), 0);
+  locations = compressed_node->ScanKey(index_key3);
+  EXPECT_EQ(locations.size(), 0);
+  locations = compressed_node->ScanKey(index_key4);
+  EXPECT_EQ(locations.size(), 0);
+  locations = compressed_node->ScanKey(index_nonce);
+  EXPECT_EQ(locations.size(), 0);
+
+  delete map;
+}
+
+TEST(IndexTests, BWTreeLPageDeltaConsilidationTest) {
+  for (unsigned int i = 0; i < index_types.size(); i++) {
+    BWTreeLPageDeltaConsilidationTestHelper(index_types[1]);
   }
 }
 
