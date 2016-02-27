@@ -732,10 +732,10 @@ void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
   index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *
       new_base_node = map->GetMappingTable()->GetNode(lpid);
 
-  index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *
+  index::LPageSplitDelta<TestKeyType, TestValueType, TestComparatorType> *
       split_delta = new index::LPageSplitDelta<TestKeyType, TestValueType,
                                                TestComparatorType>(
-          map, new_base_node, index_key2, item1, right_split_id);
+          map, new_base_node, index_key2, 3, right_split_id);
 
   EXPECT_TRUE(map->CompressDeltaChain(lpid, new_base_node, split_delta));
   auto compressed_node = map->GetMappingTable()->GetNode(lpid);
@@ -748,11 +748,11 @@ void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
     EXPECT_EQ(locations.size(), 1);
   } else {
     // TODO this is not implemented yet, put back later
-    EXPECT_EQ(locations.size(), 5);
+    EXPECT_EQ(locations.size(), 3);
   }
 
   locations = compressed_node->ScanKey(index_key2);
-  EXPECT_EQ(locations.size(), 1);
+  EXPECT_EQ(locations.size(), 0);
   locations = compressed_node->ScanKey(index_key3);
   EXPECT_EQ(locations.size(), 0);
   locations = compressed_node->ScanKey(index_key4);

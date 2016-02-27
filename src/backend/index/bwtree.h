@@ -141,7 +141,7 @@ class LNodeStateBuilder
   LPID left_sibling_ = INVALID_LPID;
   LPID right_sibling_ = INVALID_LPID;
   LPage<KeyType, ValueType, KeyComparator> *new_page_ = nullptr;
-  ValueType separator_location_;
+  int separator_index_;
 
   // LPage members
   std::pair<KeyType, ValueType>
@@ -178,7 +178,7 @@ class LNodeStateBuilder
 
   void RemoveLeafData(std::pair<KeyType, ValueType> &entry_to_remove);
 
-  void SeparateFromKey(KeyType separator_key, ValueType location,
+  void SeparateFromKey(KeyType separator_key, int index,
                        LPID split_new_page_id);
 
  private:
@@ -459,8 +459,12 @@ class BWTreeNode {
 
   virtual std::vector<ValueType> ScanKey(KeyType key) = 0;
 
-  virtual NodeStateBuilder<KeyType, ValueType, KeyComparator> *
-  BuildNodeState() = 0;
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState() {
+    return this->BuildNodeState(-1);
+  }
+
+  virtual NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
+      int max_index) = 0;
   // for scanKey, we have to build the node state as well. But we only care
   // about
   // the keys we want to scan
@@ -538,7 +542,8 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   std::vector<ValueType> ScanKey(KeyType key);
 
-  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState();
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
+      int max_index);
 
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_IPAGE; };
 
@@ -628,7 +633,8 @@ class IPageSplitDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
 
   bool DeleteEntry(KeyType key, ValueType location, LPID self);
 
-  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState();
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
+      int max_index);
 
  private:
   // This key excluded in left child, included in the right child
@@ -660,11 +666,10 @@ class LPageSplitDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
  public:
   LPageSplitDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
                   BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
-                  KeyType splitterKey, ValueType splitterVal,
-                  LPID rightSplitPage)
+                  KeyType splitterKey, int modified_index, LPID rightSplitPage)
       : LPageDelta<KeyType, ValueType, KeyComparator>(map, modified_node),
         modified_key_(splitterKey),
-        modified_key_location_(splitterVal),
+        modified_key_index_(modified_index),
         right_split_page_lpid_(rightSplitPage){};
 
   // This method will either try to create a delta on top of itself, if the
@@ -678,12 +683,13 @@ class LPageSplitDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
 
   std::vector<ValueType> ScanKey(KeyType key);
 
-  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState();
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
+      int max_index);
 
  private:
   // This key included in left child, excluded in the right child
   KeyType modified_key_;
-  ValueType modified_key_location_;
+  int modified_key_index_;
 
   // The LPID of the new LPage
   LPID right_split_page_lpid_;
@@ -735,7 +741,8 @@ class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
 
   std::vector<ValueType> ScanKey(KeyType key);
 
-  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState();
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
+      int max_index);
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildScanState(
       __attribute__((unused)) KeyType key) {
@@ -798,7 +805,8 @@ class IPageUpdateDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
 
   std::vector<ValueType> ScanKey(KeyType key);
 
-  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState();
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
+      int max_index);
 
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_IPAGE; };
 
@@ -903,7 +911,8 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   std::vector<ValueType> ScanKey(KeyType key);
 
-  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState();
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
+      int max_index);
 
   void SplitNodes(LPID self, LPID parent);
 

@@ -181,7 +181,7 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::RemoveLeafData(
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::SeparateFromKey(
-    KeyType separator_key, ValueType location, LPID split_new_page_id) {
+    KeyType separator_key, int sep_index, LPID split_new_page_id) {
   assert(locations_ != nullptr);
 
   int index = this->map->BinarySearch(separator_key, locations_, this->size);
@@ -192,7 +192,7 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::SeparateFromKey(
   // update separator info
   this->is_separated = true;
   this->separator_key = separator_key;
-  separator_location_ = location;
+  separator_index_ = sep_index;
   this->split_new_page_id = split_new_page_id;
 }
 
@@ -348,11 +348,11 @@ std::vector<ValueType> IPage<KeyType, ValueType, KeyComparator>::ScanKey(
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 NodeStateBuilder<KeyType, ValueType, KeyComparator> *
-IPage<KeyType, ValueType, KeyComparator>::BuildNodeState() {
+IPage<KeyType, ValueType, KeyComparator>::BuildNodeState(int max_index) {
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder;
   // build node state for IPage
   builder = new INodeStateBuilder<KeyType, ValueType, KeyComparator>(
-      children_, size_, this->map);
+      children_, max_index == -1 ? size_ : max_index, this->map);
   return builder;
 };
 
@@ -473,7 +473,7 @@ std::vector<ValueType> Delta<KeyType, ValueType, KeyComparator>::ScanKey(
   LOG_INFO(" ");
   std::vector<ValueType> result;
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
-      this->BuildNodeState();
+      this->BuildNodeState(-1);
   BWTreeNode<KeyType, ValueType, KeyComparator> *page = builder->GetPage();
   assert(page != nullptr);
   if (!builder->IsSeparated()) {
@@ -507,12 +507,12 @@ std::vector<ValueType> Delta<KeyType, ValueType, KeyComparator>::ScanKey(
 // IPageSplitDelta Methods Begin
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
-NodeStateBuilder<KeyType, ValueType, KeyComparator> *
-IPageSplitDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
+NodeStateBuilder<KeyType, ValueType, KeyComparator> *IPageSplitDelta<
+    KeyType, ValueType, KeyComparator>::BuildNodeState(int max_index) {
   // Children of IPageDelta always return a INodeStateBuilder
   INodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
       reinterpret_cast<INodeStateBuilder<KeyType, ValueType, KeyComparator> *>(
-          this->modified_node->BuildNodeState());
+          this->modified_node->BuildNodeState(max_index));
   assert(builder != nullptr);
   std::pair<KeyType, LPID> splitter(modified_key_, modified_val_);
   builder->SeparateFromKey(splitter);
@@ -579,14 +579,14 @@ LPageSplitDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 NodeStateBuilder<KeyType, ValueType, KeyComparator> *
-LPageSplitDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
+LPageSplitDelta<KeyType, ValueType, KeyComparator>::BuildNodeState(int) {
   // Children of IPageDelta always return a INodeStateBuilder
   LNodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
       reinterpret_cast<LNodeStateBuilder<KeyType, ValueType, KeyComparator> *>(
-          this->modified_node->BuildNodeState());
+          this->modified_node->BuildNodeState(modified_key_index_));
   assert(builder != nullptr);
-  builder->SeparateFromKey(modified_key_, modified_key_location_,
-                           right_split_page_lpid_);
+  //  builder->SeparateFromKey(modified_key_, modified_key_index_,
+  //                           right_split_page_lpid_);
 
   return builder;
 }
@@ -671,12 +671,12 @@ IPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
-NodeStateBuilder<KeyType, ValueType, KeyComparator> *
-IPageUpdateDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
+NodeStateBuilder<KeyType, ValueType, KeyComparator> *IPageUpdateDelta<
+    KeyType, ValueType, KeyComparator>::BuildNodeState(int max_index) {
   // Children of IPageDelta always return a INodeStateBuilder
   INodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
       reinterpret_cast<INodeStateBuilder<KeyType, ValueType, KeyComparator> *>(
-          this->modified_node->BuildNodeState());
+          this->modified_node->BuildNodeState(max_index));
   assert(builder != nullptr);
   // delete delta
   if (is_delete_) {
@@ -766,9 +766,9 @@ LPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder;
 
   if (this->map->unique_keys) {
-    builder = this->modified_node->BuildNodeState();
+    builder = this->modified_node->BuildNodeState(-1);
   } else {
-    builder = this->BuildNodeState();
+    builder = this->BuildNodeState(-1);
   }
 
   assert(builder != nullptr);
@@ -785,13 +785,13 @@ LPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
-NodeStateBuilder<KeyType, ValueType, KeyComparator> *
-LPageUpdateDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
+NodeStateBuilder<KeyType, ValueType, KeyComparator> *LPageUpdateDelta<
+    KeyType, ValueType, KeyComparator>::BuildNodeState(int max_index) {
   LOG_INFO("LPageUpdateDelta::BuildNodeState");
   // Children of LPageDelta always return a LNodeStateBuilder
   LNodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
       reinterpret_cast<LNodeStateBuilder<KeyType, ValueType, KeyComparator> *>(
-          this->modified_node->BuildNodeState());
+          this->modified_node->BuildNodeState(max_index));
   assert(builder != nullptr);
   // delete delta
   if (is_delete_) {
@@ -885,11 +885,12 @@ std::vector<oid_t> LPage<KeyType, ValueType, KeyComparator>::ScanKeyInternal(
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 NodeStateBuilder<KeyType, ValueType, KeyComparator> *
-LPage<KeyType, ValueType, KeyComparator>::BuildNodeState() {
+LPage<KeyType, ValueType, KeyComparator>::BuildNodeState(int max_index) {
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder;
   // build node state for LPage
   builder = new LNodeStateBuilder<KeyType, ValueType, KeyComparator>(
-      left_sib_, right_sib_, locations_, size_, this->map);
+      left_sib_, right_sib_, locations_,
+      max_index == -1 ? size_ : max_index + 1, this->map);
   return builder;
 };
 
@@ -899,7 +900,7 @@ void LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
   LPID newLpageLPID, left_page_lpid = self;
   int newPageIndex = 0;
   KeyType maxLeftSplitNodeKey, maxRightSplitNodeKey;
-  ValueType leftSplitNodeVal;
+  int leftSplitNodeIndex;
   bool swapSuccess;
 
   LOG_INFO("Splitting Node with LPID: %lu, whose parent is %lu", self, parent);
@@ -920,7 +921,8 @@ void LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
 
   // Assuming we have ( .. ] ranges
   maxLeftSplitNodeKey = locations_[size_ / 2].first;
-  leftSplitNodeVal = locations_[size_ / 2].second;
+  // this ensures that the split is inclusive
+  leftSplitNodeIndex = size_ / 2;
 
   maxRightSplitNodeKey = locations_[size_ - 1].first;
 
@@ -930,7 +932,8 @@ void LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
 
   LPageSplitDelta<KeyType, ValueType, KeyComparator> *splitDelta =
       new LPageSplitDelta<KeyType, ValueType, KeyComparator>(
-          this->map, this, maxLeftSplitNodeKey, leftSplitNodeVal, newLpageLPID);
+          this->map, this, maxLeftSplitNodeKey, leftSplitNodeIndex,
+          newLpageLPID);
 
   swapSuccess = this->map->GetMappingTable()->SwapNode(self, this, splitDelta);
 
