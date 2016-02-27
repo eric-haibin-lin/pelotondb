@@ -310,15 +310,12 @@ bool IPage<KeyType, ValueType, KeyComparator>::InsertEntry(
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
-std::vector<ValueType> IPage<KeyType, ValueType, KeyComparator>::Scan(
+void IPage<KeyType, ValueType, KeyComparator>::Scan(
     __attribute__((unused)) const std::vector<Value> &values,
     __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
     __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
-    __attribute__((unused)) const ScanDirectionType &scan_direction) {
-  std::vector<ValueType> result;
-  // TODO implement this
-  return result;
-};
+    __attribute__((unused)) const ScanDirectionType &scan_direction,
+    __attribute__((unused)) std::vector<ValueType> *result){};
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 void IPage<KeyType, ValueType, KeyComparator>::ScanAllKeys(
@@ -451,19 +448,16 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
 // Delta Methods Begin
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
-std::vector<ValueType> Delta<KeyType, ValueType, KeyComparator>::Scan(
+void Delta<KeyType, ValueType, KeyComparator>::Scan(
     __attribute__((unused)) const std::vector<Value> &values,
     __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
     __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
-    __attribute__((unused)) const ScanDirectionType &scan_direction) {
-  std::vector<ValueType> result;
-  // TODO implement this
-  return result;
-};
+    __attribute__((unused)) const ScanDirectionType &scan_direction,
+    __attribute__((unused)) std::vector<ValueType> *result){};
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 void Delta<KeyType, ValueType, KeyComparator>::ScanAllKeys(
-    std::vector<ValueType> *result){
+    __attribute__((unused)) std::vector<ValueType> *result){
 
 };
 
@@ -813,15 +807,12 @@ NodeStateBuilder<KeyType, ValueType, KeyComparator> *LPageUpdateDelta<
 //===--------------------------------------------------------------------===//
 
 template <typename KeyType, typename ValueType, class KeyComparator>
-std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::Scan(
+void LPage<KeyType, ValueType, KeyComparator>::Scan(
     __attribute__((unused)) const std::vector<Value> &values,
     __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
     __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
-    __attribute__((unused)) const ScanDirectionType &scan_direction) {
-  std::vector<ValueType> result;
-  // TODO implement this
-  return result;
-};
+    __attribute__((unused)) const ScanDirectionType &scan_direction,
+    __attribute__((unused)) std::vector<ValueType> *result){};
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 void LPage<KeyType, ValueType, KeyComparator>::ScanAllKeys(

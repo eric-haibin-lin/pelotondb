@@ -192,17 +192,9 @@ index::IndexMetadata *BuildIndexMetadata(INDEX_KEY_TYPE index_key_type) {
 
 index::BWTree<TestKeyType, TestValueType, TestComparatorType> *BuildBWTree(
     INDEX_KEY_TYPE index_key_type) {
-  bool unique_keys;
-  if (index_key_type == NON_UNIQUE_KEY) {
-    unique_keys = false;
-  } else {
-    unique_keys = true;
-  }
-
   auto metadata = BuildIndexMetadata(index_key_type);
-  TestComparatorType comparator(metadata);
   auto *map = new index::BWTree<TestKeyType, TestValueType, TestComparatorType>(
-      unique_keys, comparator);
+      metadata);
 
   return map;
 }
@@ -739,6 +731,12 @@ void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
 
   EXPECT_TRUE(map->CompressDeltaChain(lpid, new_base_node, split_delta));
   auto compressed_node = map->GetMappingTable()->GetNode(lpid);
+  /*
+    auto compressed_lnode = reinterpret_cast<index::LPage<TestKeyType,
+    TestValueType, TestComparatorType> *> (compressed_node);
+
+    EXPECT_EQ(compressed_lnode->GetRightSiblingLPID(), right_split_id);
+  */
   EXPECT_NE(compressed_node, split_delta);
   locations = prev->ScanKey(index_key0);
   EXPECT_EQ(locations.size(), 1);
