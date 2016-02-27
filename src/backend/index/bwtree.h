@@ -377,7 +377,8 @@ class BWTree {
   std::vector<ValueType> Scan(const std::vector<Value> &values,
                               const std::vector<oid_t> &key_column_ids,
                               const std::vector<ExpressionType> &expr_types,
-                              const ScanDirectionType &scan_direction);
+                              const ScanDirectionType &scan_direction,
+                              const bool special_case);
   std::vector<ValueType> ScanAllKeys();
   std::vector<ValueType> ScanKey(KeyType key);
 
@@ -389,6 +390,10 @@ class BWTree {
 
   inline MappingTable<KeyType, ValueType, KeyComparator> *GetMappingTable() {
     return mapping_table_;
+  }
+
+  inline const catalog::Schema *GetKeySchema() {
+    return metadata_->GetKeySchema();
   }
 
   // return 0 if equal, -1 if left < right, 1 otherwise
@@ -451,9 +456,10 @@ class BWTreeNode {
                     const std::vector<oid_t> &key_column_ids,
                     const std::vector<ExpressionType> &expr_types,
                     const ScanDirectionType &scan_direction,
-                    std::vector<ValueType> *result) = 0;
+                    std::vector<ValueType> &result,
+                    const bool special_case) = 0;
 
-  virtual void ScanAllKeys(std::vector<ValueType> *) = 0;
+  virtual void ScanAllKeys(std::vector<ValueType> &result) = 0;
 
   virtual std::vector<ValueType> ScanKey(KeyType key) = 0;
 
@@ -463,9 +469,9 @@ class BWTreeNode {
 
   virtual NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
       int max_index) = 0;
+
   // for scanKey, we have to build the node state as well. But we only care
-  // about
-  // the keys we want to scan
+  // about the keys we want to scan
   virtual NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildScanState(
       __attribute__((unused)) KeyType key) {
     return nullptr;
@@ -535,9 +541,9 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
             const std::vector<oid_t> &key_column_ids,
             const std::vector<ExpressionType> &expr_types,
             const ScanDirectionType &scan_direction,
-            std::vector<ValueType> *result);
+            std::vector<ValueType> &result, const bool special_case);
 
-  void ScanAllKeys(std::vector<ValueType> *);
+  void ScanAllKeys(std::vector<ValueType> &result);
 
   std::vector<ValueType> ScanKey(KeyType key);
 
@@ -577,9 +583,10 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
             const std::vector<oid_t> &key_column_ids,
             const std::vector<ExpressionType> &expr_types,
             const ScanDirectionType &scan_direction,
-            __attribute__((unused)) std::vector<ValueType> *result);
+            __attribute__((unused)) std::vector<ValueType> &result,
+            const bool special_case);
 
-  void ScanAllKeys(std::vector<ValueType> *);
+  void ScanAllKeys(std::vector<ValueType> &result);
 
   std::vector<ValueType> ScanKey(KeyType key);
 
@@ -904,9 +911,10 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
             const std::vector<oid_t> &key_column_ids,
             const std::vector<ExpressionType> &expr_types,
             const ScanDirectionType &scan_direction,
-            __attribute__((unused)) std::vector<ValueType> *result);
+            __attribute__((unused)) std::vector<ValueType> &result,
+            const bool special_case);
 
-  void ScanAllKeys(std::vector<ValueType> *);
+  void ScanAllKeys(std::vector<ValueType> &result);
 
   std::vector<ValueType> ScanKey(KeyType key);
 

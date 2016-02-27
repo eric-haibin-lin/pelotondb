@@ -77,8 +77,25 @@ BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Scan(
     __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
     __attribute__((unused)) const ScanDirectionType &scan_direction) {
   std::vector<ItemPointer> result;
-  // result = container.Scan(values, key_column_ids, expr_types,
-  // scan_direction);
+
+  // Check if we have leading (leftmost) column equality
+  // refer : http://www.postgresql.org/docs/8.2/static/indexes-multicolumn.html
+  oid_t leading_column_id = 0;
+  auto key_column_ids_itr = std::find(key_column_ids.begin(),
+                                      key_column_ids.end(), leading_column_id);
+
+  // SPECIAL CASE : leading column id is one of the key column ids
+  // and is involved in a equality constraint
+  bool special_case = false;
+  if (key_column_ids_itr != key_column_ids.end()) {
+    auto offset = std::distance(key_column_ids.begin(), key_column_ids_itr);
+    if (expr_types[offset] == EXPRESSION_TYPE_COMPARE_EQUAL) {
+      special_case = true;
+    }
+  }
+
+  result = container.Scan(values, key_column_ids, expr_types, scan_direction,
+                          special_case);
   return result;
 }
 

@@ -541,7 +541,6 @@ void LPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
         std::pair<TestKeyType, TestValueType>(index_key1, item2);
     item_locations[5] =
         std::pair<TestKeyType, TestValueType>(index_key1, item1);
-
     size = 6;
   } else {
     item_locations[0] =
@@ -559,8 +558,49 @@ void LPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
       index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
       builder.GetPage());
 
+  // TEST SCAN KEY
   std::vector<TestValueType> locations;
   locations = lpage->ScanKey(index_key0);
+  if (index_key_type == NON_UNIQUE_KEY) {
+    EXPECT_EQ(locations.size(), 3);
+  } else {
+    EXPECT_EQ(locations.size(), 1);
+  }
+
+  // TEST SCAN ALL KEYS
+  locations.clear();
+  lpage->ScanAllKeys(locations);
+  if (index_key_type == NON_UNIQUE_KEY) {
+    EXPECT_EQ(locations.size(), 6);
+  } else {
+    EXPECT_EQ(locations.size(), 3);
+  }
+
+  // TEST SCAN
+  std::vector<peloton::Value> values;
+  std::vector<oid_t> key_column_ids;
+  std::vector<ExpressionType> expr_types;
+
+  ScanDirectionType direction = SCAN_DIRECTION_TYPE_FORWARD;
+  //TODO  SCAN_DIRECTION_TYPE_BACKWARD
+  // setup values
+  peloton::Value value1 = ValueFactory::GetIntegerValue(100);
+  peloton::Value value2 = ValueFactory::GetStringValue("a");
+  values.push_back(value1);
+  values.push_back(value2);
+  // setup column id's
+  oid_t key_column_id1 = 0;
+  oid_t key_column_id2 = 1;
+  key_column_ids.push_back(key_column_id1);
+  key_column_ids.push_back(key_column_id2);
+  // setup expr's
+  ExpressionType expr_type1 = EXPRESSION_TYPE_COMPARE_EQUAL;
+  ExpressionType expr_type2 = EXPRESSION_TYPE_COMPARE_EQUAL;
+  expr_types.push_back(expr_type1);
+  expr_types.push_back(expr_type2);
+
+  locations.clear();
+  lpage->Scan(values, key_column_ids, expr_types, direction, locations, false);
   if (index_key_type == NON_UNIQUE_KEY) {
     EXPECT_EQ(locations.size(), 3);
   } else {
@@ -570,7 +610,7 @@ void LPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
 
 TEST(IndexTests, LPageScanTest) {
   for (unsigned int i = 0; i < index_types.size(); i++) {
-    LPageScanTestHelper(index_types[1]);
+    LPageScanTestHelper(index_types[i]);
   }
 }
 
@@ -731,12 +771,16 @@ void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
 
   EXPECT_TRUE(map->CompressDeltaChain(lpid, new_base_node, split_delta));
   auto compressed_node = map->GetMappingTable()->GetNode(lpid);
+
+  // TEST RIGHT SIBLING
+  // TODO did not pass, need fix
   /*
     auto compressed_lnode = reinterpret_cast<index::LPage<TestKeyType,
     TestValueType, TestComparatorType> *> (compressed_node);
 
     EXPECT_EQ(compressed_lnode->GetRightSiblingLPID(), right_split_id);
   */
+
   EXPECT_NE(compressed_node, split_delta);
   locations = prev->ScanKey(index_key0);
   EXPECT_EQ(locations.size(), 1);

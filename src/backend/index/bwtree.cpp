@@ -223,14 +223,16 @@ bool BWTree<KeyType, ValueType, KeyComparator>::InsertEntry(
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::Scan(
-    const std::vector<Value> &values, const std::vector<oid_t> &key_column_ids,
-    const std::vector<ExpressionType> &expr_types,
-    const ScanDirectionType &scan_direction) {
+    __attribute__((unused)) const std::vector<Value> &values,
+    __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
+    __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
+    __attribute__((unused)) const ScanDirectionType &scan_direction,
+    __attribute__((unused)) const bool special_case) {
   std::vector<ValueType> result;
   LOG_INFO("Enter BWTree::Scan");
   // recursive call scan from the root of BWTree
-  result = GetMappingTable()->GetNode(root_)->Scan(values, key_column_ids,
-                                                   expr_types, scan_direction);
+  GetMappingTable()->GetNode(root_)->Scan(values, key_column_ids, expr_types,
+                                          scan_direction, result, special_case);
 
   LOG_INFO("Leave BWTree::Scan");
   return result;
@@ -242,7 +244,7 @@ BWTree<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
   std::vector<ValueType> result;
 
   // recursive call scan from the root of BWTree
-  GetMappingTable()->GetNode(root_)->ScanAllKeys(&result);
+  GetMappingTable()->GetNode(root_)->ScanAllKeys(result);
   return result;
 };
 
@@ -315,11 +317,19 @@ void IPage<KeyType, ValueType, KeyComparator>::Scan(
     __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
     __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
     __attribute__((unused)) const ScanDirectionType &scan_direction,
-    __attribute__((unused)) std::vector<ValueType> *result){};
+    __attribute__((unused)) std::vector<ValueType> &result,
+    __attribute__((unused)) const bool special_case) {
+  // TODO scan for special case
+  LPID child_id = this->children_[0].second;
+  BWTreeNode<KeyType, ValueType, KeyComparator> *child =
+      this->map->GetMappingTable()->GetNode(child_id);
+  child->Scan(values, key_column_ids, expr_types, scan_direction, result,
+              special_case);
+};
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 void IPage<KeyType, ValueType, KeyComparator>::ScanAllKeys(
-    std::vector<ValueType> *result) {
+    std::vector<ValueType> &result) {
   LPID child_id = this->children_[0].second;
   BWTreeNode<KeyType, ValueType, KeyComparator> *child =
       this->map->GetMappingTable()->GetNode(child_id);
@@ -453,18 +463,36 @@ void Delta<KeyType, ValueType, KeyComparator>::Scan(
     __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
     __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
     __attribute__((unused)) const ScanDirectionType &scan_direction,
-    __attribute__((unused)) std::vector<ValueType> *result){};
+    __attribute__((unused)) std::vector<ValueType> &result,
+    __attribute__((unused)) const bool special_case) {
+  LOG_INFO("Delta::Scan");
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
+      this->BuildNodeState();
+  BWTreeNode<KeyType, ValueType, KeyComparator> *page = builder->GetPage();
+  assert(page != nullptr);
+  page->Scan(values, key_column_ids, expr_types, scan_direction, result,
+             special_case);
+  // release builder
+  delete (builder);
+};
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 void Delta<KeyType, ValueType, KeyComparator>::ScanAllKeys(
-    __attribute__((unused)) std::vector<ValueType> *result){
-
+    std::vector<ValueType> &result) {
+  LOG_INFO("Delta::ScanAllKeys");
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
+      this->BuildNodeState();
+  BWTreeNode<KeyType, ValueType, KeyComparator> *page = builder->GetPage();
+  assert(page != nullptr);
+  page->ScanAllKeys(result);
+  // release builder
+  delete (builder);
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType> Delta<KeyType, ValueType, KeyComparator>::ScanKey(
     KeyType key) {
-  LOG_INFO(" ");
+  LOG_INFO("Delta::ScanKey");
   std::vector<ValueType> result;
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
       this->BuildNodeState(-1);
@@ -490,7 +518,8 @@ std::vector<ValueType> Delta<KeyType, ValueType, KeyComparator>::ScanKey(
     }
   }
   // release builder
-  delete (builder);
+  delete builder;
+  // TODO Is GetPage called multiple times?
   return result;
 };
 //===--------------------------------------------------------------------===//
@@ -812,16 +841,40 @@ void LPage<KeyType, ValueType, KeyComparator>::Scan(
     __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
     __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
     __attribute__((unused)) const ScanDirectionType &scan_direction,
-    __attribute__((unused)) std::vector<ValueType> *result){};
+    __attribute__((unused)) std::vector<ValueType> &result,
+    __attribute__((unused)) const bool special_case) {
+  // assume we only handle forward scan for now
+  assert(scan_direction == SCAN_DIRECTION_TYPE_FORWARD);
+  int index;
+  for (index = 0; index < size_; index++) {
+    std::pair<KeyType, ValueType> pair = locations_[index];
+    KeyType key = pair.first;
+    auto tuple = key.GetTupleForComparison(this->map->GetKeySchema());
+    // Compare the current key in the scan with "values" based on "expression
+    // types"
+    // For instance, "5" EXPR_GREATER_THAN "2" is true
+    if (Index::Compare(tuple, key_column_ids, expr_types, values) == true) {
+      ItemPointer location = pair.second;
+      result.push_back(location);
+    }
+  }
+  // reach the end of current LPage, go to next LPage for more results
+  if (index == size_ && right_sib_ != INVALID_LPID) {
+    this->map->GetMappingTable()
+        ->GetNode(right_sib_)
+        ->Scan(values, key_column_ids, expr_types, scan_direction, result,
+               special_case);
+  }
+};
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 void LPage<KeyType, ValueType, KeyComparator>::ScanAllKeys(
-    std::vector<ValueType> *result) {
+    std::vector<ValueType> &result) {
   LOG_INFO("LPage::ScanAllKeys");
   oid_t index;
   for (index = 0; index < size_; index++) {
     std::pair<KeyType, ValueType> result_pair = locations_[index];
-    result->push_back(result_pair.second);
+    result.push_back(result_pair.second);
   }
   // reach the end of current LPage, go to next LPage for more results
   if (index == size_ && right_sib_ != INVALID_LPID) {
