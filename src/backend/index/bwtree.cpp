@@ -652,6 +652,7 @@ LPageSplitDelta<KeyType, ValueType, KeyComparator>::BuildNodeState(int) {
       reinterpret_cast<LNodeStateBuilder<KeyType, ValueType, KeyComparator> *>(
           this->modified_node->BuildNodeState(modified_key_index_));
   assert(builder != nullptr);
+  builder->UpdateRightSib(right_split_page_lpid_);
   //  builder->SeparateFromKey(modified_key_, modified_key_index_,
   //                           right_split_page_lpid_);
 
