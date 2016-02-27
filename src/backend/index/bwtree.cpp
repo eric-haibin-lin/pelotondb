@@ -375,7 +375,7 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
 
   LOG_INFO("Splitting Node with LPID: %lu, whose parent is %lu", self, parent);
 
-  LOG_INFO("The size of this node (LPID %lu) is %d", self, size_);
+  LOG_INFO("The size of this node (LPID %lu) is %d", self, (int)size_);
   IPage<KeyType, ValueType, KeyComparator> *newIpage =
       new IPage<KeyType, ValueType, KeyComparator>(this->map);
 
@@ -384,7 +384,7 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
   }
 
   newIpage->size_ = newPageIndex;
-  LOG_INFO("The size of the new right split node is %d", newIpage->size_);
+  LOG_INFO("The size of the new right split node is %d", (int)newIpage->size_);
 
   // Assuming we have ( .. ] ranges
   maxLeftSplitNodeKey = children_[size_ / 2].first;
@@ -392,7 +392,8 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
 
   newIpageLPID = this->map->GetMappingTable()->InstallPage(newIpage);
 
-  LOG_INFO("This newly created right split node got LPID: %d", newIpageLPID);
+  LOG_INFO("This newly created right split node got LPID: %d",
+           (int)newIpageLPID);
 
   IPageSplitDelta<KeyType, ValueType, KeyComparator> *splitDelta =
       new IPageSplitDelta<KeyType, ValueType, KeyComparator>(
@@ -431,10 +432,11 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
 
     parentHardPtr = this->map->GetMappingTable()->GetNode(parent);
 
+    // TODO Replace INVALID_LPID by the appropriate data
     IPageUpdateDelta<KeyType, ValueType, KeyComparator> *parentUpdateDelta =
         new IPageUpdateDelta<KeyType, ValueType, KeyComparator>(
             this->map, parentHardPtr, maxLeftSplitNodeKey, maxRightSplitNodeKey,
-            newIpageLPID);
+            INVALID_LPID, newIpageLPID, false);
 
     LOG_INFO("Now Doing a SwapNode to install this IPageUpdateDelta");
 
@@ -443,7 +445,46 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
     // change
     swapSuccess = this->map->GetMappingTable()->SwapNode(parent, parentHardPtr,
                                                          parentUpdateDelta);
+    LOG_INFO("Returning from the split.");
+
+    return;
   }
+
+  LOG_INFO("This is a split on the root node. Must handle it separately");
+
+  IPage<KeyType, ValueType, KeyComparator> *new_root =
+      new IPage<KeyType, ValueType, KeyComparator>(this->map);
+
+  LPID new_root_LPID;
+
+  new_root_LPID = this->map->GetMappingTable()->InstallPage(new_root);
+  LOG_INFO("The new root's LPID is %d", (int)new_root_LPID);
+
+  new_root->size_ = 2;
+
+  new_root->children_[0].first = maxLeftSplitNodeKey;  // key
+  new_root->children_[0].second = self;  // LPID
+
+  new_root->children_[1].first = maxRightSplitNodeKey;  // key
+  new_root->children_[1].second = newIpageLPID;  // LPID
+
+  // First, we must install this new IPage as the new root in this->map
+  bool successFlag;
+  LPID *rootLPIDAddress = this->map->GetRootLPIDAddress();
+  LPID oldRootLPID = *rootLPIDAddress;
+
+  successFlag =
+      __sync_bool_compare_and_swap(rootLPIDAddress, oldRootLPID, new_root_LPID);
+  if (!successFlag)  // someone else succeeded
+  {
+    LOG_INFO("The CAS to change root LPID in the BWTree failed. Return");
+    return;
+  }
+
+  LOG_INFO(
+      "The CAS to change root LPID in the BWTree succeeded. We now have a new "
+      "root.");
+  return;
 };
 
 //===--------------------------------------------------------------------===//
@@ -527,7 +568,8 @@ bool IPageSplitDelta<KeyType, ValueType, KeyComparator>::DeleteEntry(
   if (this->map->CompareKey(key, modified_key_) >
       1)  // this key is greater than split key
   {
-    return this->map->GetNode(modified_val_)
+    return this->map->GetMappingTable()
+        ->GetNode(modified_val_)
         ->DeleteEntry(key, location, modified_val_);
   }
 
@@ -541,7 +583,8 @@ bool IPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
   if (this->map->CompareKey(key, modified_key_) >
       1)  // this key is greater than split key
   {
-    return this->map->GetNode(modified_val_)
+    return this->map->GetMappingTable()
+        ->GetNode(modified_val_)
         ->InsertEntry(key, location, modified_val_);
   }
 

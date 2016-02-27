@@ -323,8 +323,6 @@ class BWTree {
     LOG_INFO("Inside BWTree Constructor");
     mapping_table_ = new MappingTable<KeyType, ValueType, KeyComparator>();
 
-    // TODO @abj initialize the root IPage (and maybe a LPage?)
-
     IPage<KeyType, ValueType, KeyComparator> *root =
         new IPage<KeyType, ValueType, KeyComparator>(this);
 
@@ -429,6 +427,8 @@ class BWTree {
 
     return completed;
   }
+
+  LPID *GetRootLPIDAddress() { return &root_; }
 };
 
 //===--------------------------------------------------------------------===//
