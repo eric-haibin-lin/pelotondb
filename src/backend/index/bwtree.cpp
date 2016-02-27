@@ -461,10 +461,10 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
   new_root->size_ = 2;
 
   new_root->children_[0].first = maxLeftSplitNodeKey;  // key
-  new_root->children_[0].second = self;  // LPID
+  new_root->children_[0].second = self;                // LPID
 
   new_root->children_[1].first = maxRightSplitNodeKey;  // key
-  new_root->children_[1].second = newIpageLPID;  // LPID
+  new_root->children_[1].second = newIpageLPID;         // LPID
 
   // First, we must install this new IPage as the new root in this->map
   bool successFlag;
@@ -935,6 +935,42 @@ LPage<KeyType, ValueType, KeyComparator>::BuildNodeState(int max_index) {
       max_index == -1 ? size_ : max_index + 1, this->map);
   return builder;
 };
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+bool LPage<KeyType, ValueType, KeyComparator>::InsertEntry(KeyType key,
+                                                           ValueType location,
+                                                           LPID self) {
+  if (this->size_ > LPAGE_ARITY) {
+    this->SplitNodes(self, self);
+  }
+  LOG_INFO("Inside LPage InsertEntry");
+
+  LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
+      new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
+                                                              key, location);
+
+  bool status = this->map->GetMappingTable()->SwapNode(self, this, new_delta);
+  if (!status) {
+    delete new_delta;
+  }
+  return status;
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+bool LPage<KeyType, ValueType, KeyComparator>::DeleteEntry(KeyType key,
+                                                           ValueType location,
+                                                           LPID self) {
+  LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
+      new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
+                                                              key, location);
+
+  new_delta->SetDeleteFlag();
+  bool status = this->map->GetMappingTable()->SwapNode(self, this, new_delta);
+  if (!status) {
+    delete new_delta;
+  }
+  return status;
+}
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 void LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
