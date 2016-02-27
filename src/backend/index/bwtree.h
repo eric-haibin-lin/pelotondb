@@ -635,10 +635,11 @@ class IPageSplitDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
  public:
   IPageSplitDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
                   BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
-                  KeyType key, LPID value)
+                  KeyType key, LPID value, int modified_index)
       : IPageDelta<KeyType, ValueType, KeyComparator>(map, modified_node),
         modified_key_(key),
-        modified_val_(value){};
+        modified_val_(value),
+        modified_index_(modified_index){};
 
   bool InsertEntry(KeyType key, ValueType location, LPID self);
 
@@ -650,6 +651,8 @@ class IPageSplitDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
  private:
   // This key excluded in left child, included in the right child
   KeyType modified_key_;
+  // index of last key in the left child;
+  int modified_index_;
 
   // The LPID of the new LPage
   LPID modified_val_;

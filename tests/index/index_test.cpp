@@ -18,111 +18,6 @@
 #include "backend/index/bwtree.h"
 #include "backend/storage/tuple.h"
 
-// namespace peloton{
-// namespace index{
-//
-////===--------------------------------------------------------------------===//
-//// LPageSplitDelta Methods Begin
-////===--------------------------------------------------------------------===//
-// template <typename KeyType, typename ValueType, class KeyComparator>
-// std::vector<ValueType>
-// LPageSplitDelta < KeyType, ValueType, KeyComparator>::ScanKey(KeyType key) {
-//  std::vector<ValueType> result;
-//  assert(this->modified_node != nullptr);
-//  LOG_INFO("LPageSplitDelta::ScanKey");
-//
-//  bool greater_than_left_key = this->map->CompareKey(key, modified_key_) > 0;
-//
-//  if (greater_than_left_key) {
-//    LOG_INFO(
-//        "LPageSplitDelta::ScanKey Found a matching key for right split page");
-//    result = this->map->GetMappingTable()
-//                 ->GetNode(right_split_page_lpid_)->ScanKey(key);
-//  } else {
-//    // Scan the modified node
-//    result = this->modified_node->ScanKey(key);
-//  }
-//  return result;
-//};
-//
-// template <typename KeyType, typename ValueType, class KeyComparator>
-// NodeStateBuilder < KeyType, ValueType, KeyComparator> *
-// LPageSplitDelta<KeyType, ValueType, KeyComparator>::BuildNodeState() {
-//  // Children of IPageDelta always return a INodeStateBuilder
-//  LNodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
-//      reinterpret_cast<LNodeStateBuilder<KeyType, ValueType, KeyComparator>
-//      *>(
-//          this->modified_node->BuildNodeState());
-//  assert(builder != nullptr);
-//  builder->SeparateFromKey(modified_key_, modified_key_location_,
-//                           right_split_page_lpid_);
-//
-//  return builder;
-//}
-//
-// template <typename KeyType, typename ValueType, class KeyComparator>
-// bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
-//    KeyType key, ValueType location, LPID self) {
-//  if (this->map->CompareKey(key, modified_key_) ==
-//      1)  // this key is greater than modified_key_
-//  {
-//    return this->map->GetMappingTable()->GetNode(right_split_page_lpid_)
-//        ->InsertEntry(key, location, right_split_page_lpid_);
-//  }
-//
-//  LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
-//      new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
-//                                                              key, location);
-//  bool status = this->map->GetMappingTable()->SwapNode(self, this, new_delta);
-//  if (!status) {
-//    delete new_delta;
-//  }
-//  return status;
-//};
-//
-// template <typename KeyType, typename ValueType, class KeyComparator>
-// bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::DeleteEntry(
-//    KeyType key, ValueType location, LPID self) {
-//  if (this->map->CompareKey(key, modified_key_) ==
-//      1)  // this key is greater than modified_key_
-//  {
-//    return this->map->GetMappingTable()->GetNode(right_split_page_lpid_)
-//        ->InsertEntry(key, location, right_split_page_lpid_);
-//  }
-//
-//  LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
-//      new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
-//                                                              key, location);
-//  new_delta->SetDeleteFlag();
-//  bool status = this->map->GetMappingTable()->SwapNode(self, this, new_delta);
-//  if (!status) {
-//    delete new_delta;
-//  }
-//  return status;
-//};
-////===--------------------------------------------------------------------===//
-//// LPageSplitDelta Methods End
-////===--------------------------------------------------------------------===//
-//
-// template <typename KeyType, typename ValueType, class KeyComparator>
-// void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::SeparateFromKey(
-//    KeyType separator_key, ValueType location, LPID split_new_page_id) {
-//  assert(locations_ != nullptr);
-//
-//  int index = this->map->BinarySearch(separator_key, locations_,
-//      this->size);
-//  assert(index < this->size && index >= 0);
-//  // assume we include the key at the split page
-//  // decrement size
-//  this->size = index + 1;
-//  // update separator info
-//  this->is_separated = true;
-//  this->separator_key = separator_key;
-//  separator_location_ = location;
-//  this->split_new_page_id = split_new_page_id;
-//}
-
-//}}
 namespace peloton {
 namespace test {
 
@@ -582,7 +477,7 @@ void LPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
   std::vector<ExpressionType> expr_types;
 
   ScanDirectionType direction = SCAN_DIRECTION_TYPE_FORWARD;
-  //TODO  SCAN_DIRECTION_TYPE_BACKWARD
+  // TODO  SCAN_DIRECTION_TYPE_BACKWARD
   // setup values
   peloton::Value value1 = ValueFactory::GetIntegerValue(100);
   peloton::Value value2 = ValueFactory::GetStringValue("a");

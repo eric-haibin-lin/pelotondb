@@ -397,6 +397,7 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
   // Assuming we have ( .. ] ranges
   maxLeftSplitNodeKey = children_[size_ / 2].first;
   maxRightSplitNodeKey = children_[size_ - 1].first;
+  int modifiedIndex = size_ / 2;
 
   newIpageLPID = this->map->GetMappingTable()->InstallPage(newIpage);
 
@@ -405,7 +406,7 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
 
   IPageSplitDelta<KeyType, ValueType, KeyComparator> *splitDelta =
       new IPageSplitDelta<KeyType, ValueType, KeyComparator>(
-          this->map, this, maxLeftSplitNodeKey, newIpageLPID);
+          this->map, this, maxLeftSplitNodeKey, newIpageLPID, modifiedIndex);
 
   swapSuccess = this->map->GetMappingTable()->SwapNode(self, this, splitDelta);
 
