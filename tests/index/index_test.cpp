@@ -706,5 +706,59 @@ TEST(IndexTests, BWTreeLPageDeltaConsilidationTest) {
   }
 }
 
+TEST(IndexTests, BWTreeLPageSplitTest) {
+  auto pool = TestingHarness::GetInstance().GetTestingPool();
+  auto map = BuildBWTree(UNIQUE_KEY);
+  index::LPage<TestKeyType, TestValueType, TestComparatorType> *baseNode =
+      reinterpret_cast<
+          index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
+          map->GetMappingTable()->GetNode(1));
+  // Insert a bunch of keys based on scale itr
+
+  std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
+  std::unique_ptr<storage::Tuple> key1(new storage::Tuple(key_schema, true));
+  std::unique_ptr<storage::Tuple> key2(new storage::Tuple(key_schema, true));
+
+  key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+  key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
+  key1->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+  key1->SetValue(1, ValueFactory::GetStringValue("b"), pool);
+  key2->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+  key2->SetValue(1, ValueFactory::GetStringValue("c"), pool);
+
+  TestKeyType index_key0;
+  TestKeyType index_key1;
+  TestKeyType index_key2;
+
+  index_key0.SetFromKey(key0.get());
+  index_key1.SetFromKey(key1.get());
+  index_key2.SetFromKey(key2.get());
+
+  for (int i = 0; i < LPAGE_ARITY; i++) {
+    switch (i % 3) {
+      case 0:
+        baseNode->GetLocationsArray()[i].first = index_key0;
+        baseNode->GetLocationsArray()[i].second = item0;
+        break;
+      case 1:
+        baseNode->GetLocationsArray()[i].first = index_key1;
+        baseNode->GetLocationsArray()[i].second = item1;
+        break;
+      case 2:
+        baseNode->GetLocationsArray()[i].first = index_key2;
+        baseNode->GetLocationsArray()[i].second = item2;
+        break;
+    }
+  }
+
+  baseNode->SetSize(LPAGE_ARITY);
+
+  baseNode->SplitNodes(1, 0);
+
+  // TODO destruct all prev
+  //}
+  delete map;
+}
+
 }  // End test namespace
 }  // End peloton namespace

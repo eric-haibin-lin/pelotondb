@@ -36,6 +36,8 @@ enum BWTreeNodeType {
 #define IPAGE_ARITY 256
 #define LPAGE_ARITY 256
 
+#define LPAGE_SPLIT_THRESHOLD 64
+
 #define INVALID_LPID ULLONG_MAX
 
 #define LPAGE_DELTA_CHAIN_LIMIT 5
@@ -450,7 +452,8 @@ class BWTreeNode {
 
   // These are virtual methods which child classes have to implement.
   // They also have to be redeclared in the child classes
-  virtual bool InsertEntry(KeyType key, ValueType location, LPID self) = 0;
+  virtual bool InsertEntry(KeyType key, ValueType location, LPID self,
+                           LPID parent) = 0;
 
   virtual bool DeleteEntry(KeyType key, ValueType location, LPID self) = 0;
 
@@ -527,7 +530,7 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   ~IPage(){};
 
-  bool InsertEntry(KeyType key, ValueType location, LPID self);
+  bool InsertEntry(KeyType key, ValueType location, LPID self, LPID parent);
 
   bool DeleteEntry(__attribute__((unused)) KeyType key,
                    __attribute__((unused)) ValueType location,
@@ -641,7 +644,7 @@ class IPageSplitDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
         modified_val_(value),
         modified_index_(modified_index){};
 
-  bool InsertEntry(KeyType key, ValueType location, LPID self);
+  bool InsertEntry(KeyType key, ValueType location, LPID self, LPID parent);
 
   bool DeleteEntry(KeyType key, ValueType location, LPID self);
 
@@ -651,11 +654,11 @@ class IPageSplitDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
  private:
   // This key excluded in left child, included in the right child
   KeyType modified_key_;
-  // index of last key in the left child;
-  int modified_index_;
 
   // The LPID of the new LPage
   LPID modified_val_;
+  // index of last key in the left child;
+  int modified_index_;
 };
 
 //===--------------------------------------------------------------------===//
@@ -691,7 +694,7 @@ class LPageSplitDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
   // than or equal to the modified_key_, or it will simply call InsertEntry on
   // the LPID of the
   // newly created right_split_page_lpid
-  bool InsertEntry(KeyType key, ValueType location, LPID self);
+  bool InsertEntry(KeyType key, ValueType location, LPID self, LPID parent);
 
   bool DeleteEntry(KeyType key, ValueType location, LPID self);
 
@@ -728,7 +731,8 @@ class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
 
   bool InsertEntry(__attribute__((unused)) KeyType key,
                    __attribute__((unused)) ValueType location,
-                   __attribute__((unused)) LPID my_lpid) {
+                   __attribute__((unused)) LPID my_lpid,
+                   __attribute__((unused)) LPID parent) {
     LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
         new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
                                                                 key, location);
@@ -813,7 +817,7 @@ class IPageUpdateDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
     LOG_INFO("Inside IPageUpdateDelta Constructor");
   };
 
-  bool InsertEntry(KeyType key, ValueType location, LPID self);
+  bool InsertEntry(KeyType key, ValueType location, LPID self, LPID parent);
 
   bool DeleteEntry(KeyType key, ValueType location, LPID self);
 
@@ -877,7 +881,7 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   ~LPage(){};
 
-  bool InsertEntry(KeyType key, ValueType location, LPID self);
+  bool InsertEntry(KeyType key, ValueType location, LPID self, LPID parent);
 
   bool DeleteEntry(KeyType key, ValueType location, LPID self);
 
@@ -895,7 +899,7 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
       int max_index);
 
-  void SplitNodes(LPID self, LPID parent);
+  bool SplitNodes(LPID self, LPID parent);
 
   void MergeNodes(LPID self, LPID right_sibling_lpid);
 
@@ -904,6 +908,10 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   inline LPID GetLeftSiblingLPID() { return left_sib_; }
 
   inline LPID GetRightSiblingLPID() { return right_sib_; }
+
+  std::pair<KeyType, ValueType> *GetLocationsArray() { return locations_; }
+
+  void SetSize(int size) { size_ = size; }
 
  private:
   // return a vector of indices of the matched slots
