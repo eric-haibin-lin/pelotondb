@@ -836,5 +836,128 @@ TEST(IndexTests, BWTreeLPageDeltaConsilidationTest) {
   }
 }
 
+TEST(IndexTests, BWTreeLPageSplitTest) {
+  auto pool = TestingHarness::GetInstance().GetTestingPool();
+  auto map = BuildBWTree(UNIQUE_KEY);
+
+  index::IPage<TestKeyType, TestValueType, TestComparatorType> *originalRoot =
+      reinterpret_cast<
+          index::IPage<TestKeyType, TestValueType, TestComparatorType> *>(
+          map->GetMappingTable()->GetNode(0));
+  index::LPage<TestKeyType, TestValueType, TestComparatorType> *baseNode =
+      reinterpret_cast<
+          index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
+          map->GetMappingTable()->GetNode(1));
+  // Insert a bunch of keys based on scale itr
+
+  std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
+  std::unique_ptr<storage::Tuple> key1(new storage::Tuple(key_schema, true));
+  std::unique_ptr<storage::Tuple> key2(new storage::Tuple(key_schema, true));
+
+  key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+  key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
+  key1->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+  key1->SetValue(1, ValueFactory::GetStringValue("b"), pool);
+  key2->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+  key2->SetValue(1, ValueFactory::GetStringValue("c"), pool);
+
+  TestKeyType index_key0;
+  TestKeyType index_key1;
+  TestKeyType index_key2;
+
+  index_key0.SetFromKey(key0.get());
+  index_key1.SetFromKey(key1.get());
+  index_key2.SetFromKey(key2.get());
+
+  for (int i = 0; i < LPAGE_ARITY; i++) {
+    switch (i % 3) {
+      case 0:
+        baseNode->GetLocationsArray()[i].first = index_key0;
+        baseNode->GetLocationsArray()[i].second = item0;
+        break;
+      case 1:
+        baseNode->GetLocationsArray()[i].first = index_key1;
+        baseNode->GetLocationsArray()[i].second = item1;
+        break;
+      case 2:
+        baseNode->GetLocationsArray()[i].first = index_key2;
+        baseNode->GetLocationsArray()[i].second = item2;
+        break;
+    }
+  }
+
+  baseNode->SetSize(LPAGE_ARITY);
+
+  baseNode->SplitNodes(1, 0);
+
+  // If this passes, it means that the IPageUpdateDelta has been successfully
+  // posted
+  EXPECT_NE(originalRoot, map->GetMappingTable()->GetNode(0));
+
+  // If this passes, it means that the LPageSplitDelta has been successfully
+  // posted
+  EXPECT_NE(baseNode, map->GetMappingTable()->GetNode(1));
+
+  index::IPageUpdateDelta<TestKeyType, TestValueType, TestComparatorType> *
+      ipage_update_delta =
+          reinterpret_cast<index::IPageUpdateDelta<TestKeyType, TestValueType,
+                                                   TestComparatorType> *>(
+              map->GetMappingTable()->GetNode(0));
+
+  EXPECT_EQ(originalRoot, ipage_update_delta->GetModifiedNode());
+
+  index::LPageSplitDelta<TestKeyType, TestValueType, TestComparatorType> *
+      split_delta =
+          reinterpret_cast<index::LPageSplitDelta<TestKeyType, TestValueType,
+                                                  TestComparatorType> *>(
+              map->GetMappingTable()->GetNode(1));
+
+  EXPECT_EQ(baseNode, split_delta->GetModifiedNode());
+
+  EXPECT_EQ(split_delta->GetRightSplitPageLPID(), 2);
+
+  index::LPage<TestKeyType, TestValueType, TestComparatorType> *
+      right_split_node = reinterpret_cast<
+          index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
+          map->GetMappingTable()->GetNode(2));
+
+  int expected_size_right_child;
+
+  expected_size_right_child = LPAGE_ARITY - (LPAGE_ARITY / 2) - 1;
+
+  EXPECT_EQ(right_split_node->GetSize(), expected_size_right_child);
+
+  for (int i = 0; i < expected_size_right_child; i++) {
+    switch ((i + (LPAGE_ARITY - expected_size_right_child)) % 3) {
+      case 0:
+        // EXPECT_EQ(right_split_node->GetLocationsArray()[i].first,
+        // index_key0);
+        EXPECT_EQ(right_split_node->GetLocationsArray()[i].second.block,
+                  item0.block);
+        EXPECT_EQ(right_split_node->GetLocationsArray()[i].second.offset,
+                  item0.offset);
+        break;
+      case 1:
+        // EXPECT_EQ(right_split_node->GetLocationsArray()[i].first,
+        // index_key1);
+        EXPECT_EQ(right_split_node->GetLocationsArray()[i].second.block,
+                  item1.block);
+        EXPECT_EQ(right_split_node->GetLocationsArray()[i].second.offset,
+                  item1.offset);
+        break;
+      case 2:
+        // EXPECT_EQ(right_split_node->GetLocationsArray()[i].first,
+        // index_key2);
+        EXPECT_EQ(right_split_node->GetLocationsArray()[i].second.block,
+                  item2.block);
+        EXPECT_EQ(right_split_node->GetLocationsArray()[i].second.offset,
+                  item2.offset);
+        break;
+    }
+  }
+
+  delete map;
+}
+
 }  // End test namespace
 }  // End peloton namespace
