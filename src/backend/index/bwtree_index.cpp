@@ -77,7 +77,7 @@ BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Scan(
     __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
     __attribute__((unused)) const ScanDirectionType &scan_direction) {
   std::vector<ItemPointer> result;
-
+  KeyType index_key;
   // Check if we have leading (leftmost) column equality
   // refer : http://www.postgresql.org/docs/8.2/static/indexes-multicolumn.html
   oid_t leading_column_id = 0;
@@ -93,9 +93,24 @@ BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Scan(
       special_case = true;
     }
   }
+  std::unique_ptr<storage::Tuple> start_key;
+  bool all_constraints_are_equal = false;
 
-  result = container.Scan(values, key_column_ids, expr_types, scan_direction,
-                          special_case);
+  // If it is a special case, we can figure out the range to scan in the index
+  if (special_case == true) {
+    start_key.reset(new storage::Tuple(metadata->GetKeySchema(), true));
+    index_key.SetFromKey(start_key.get());
+
+    // Construct the lower bound key tuple
+    all_constraints_are_equal = ConstructLowerBoundTuple(
+        start_key.get(), values, key_column_ids, expr_types);
+    LOG_TRACE("All constraints are equal : %d ", all_constraints_are_equal);
+    result = container.Scan(values, key_column_ids, expr_types, scan_direction,
+                            &index_key, all_constraints_are_equal);
+  } else {
+    result = container.Scan(values, key_column_ids, expr_types, scan_direction,
+                            nullptr, all_constraints_are_equal);
+  }
   return result;
 }
 

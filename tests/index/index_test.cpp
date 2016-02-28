@@ -406,6 +406,7 @@ void LPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
   std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
   std::unique_ptr<storage::Tuple> key1(new storage::Tuple(key_schema, true));
   std::unique_ptr<storage::Tuple> key2(new storage::Tuple(key_schema, true));
+  std::unique_ptr<storage::Tuple> key3(new storage::Tuple(key_schema, true));
 
   key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
   key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
@@ -413,14 +414,18 @@ void LPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
   key1->SetValue(1, ValueFactory::GetStringValue("b"), pool);
   key2->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
   key2->SetValue(1, ValueFactory::GetStringValue("c"), pool);
+  key3->SetValue(0, ValueFactory::GetIntegerValue(400), pool);
+  key3->SetValue(1, ValueFactory::GetStringValue("d"), pool);
 
   TestKeyType index_key0;
   TestKeyType index_key1;
   TestKeyType index_key2;
+  TestKeyType index_key3;
 
   index_key0.SetFromKey(key0.get());
   index_key1.SetFromKey(key1.get());
   index_key2.SetFromKey(key2.get());
+  index_key3.SetFromKey(key3.get());
 
   oid_t size;
   if (index_key_type == NON_UNIQUE_KEY) {
@@ -436,7 +441,12 @@ void LPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
         std::pair<TestKeyType, TestValueType>(index_key1, item2);
     item_locations[5] =
         std::pair<TestKeyType, TestValueType>(index_key1, item1);
-    size = 6;
+    item_locations[6] =
+        std::pair<TestKeyType, TestValueType>(index_key2, item2);
+    item_locations[7] =
+        std::pair<TestKeyType, TestValueType>(index_key3, item2);
+
+    size = 8;
   } else {
     item_locations[0] =
         std::pair<TestKeyType, TestValueType>(index_key0, item0);
@@ -444,7 +454,9 @@ void LPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
         std::pair<TestKeyType, TestValueType>(index_key1, item1);
     item_locations[2] =
         std::pair<TestKeyType, TestValueType>(index_key2, item2);
-    size = 3;
+    item_locations[3] =
+        std::pair<TestKeyType, TestValueType>(index_key3, item2);
+    size = 4;
   }
 
   index::LNodeStateBuilder<TestKeyType, TestValueType, TestComparatorType>
@@ -466,18 +478,19 @@ void LPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
   locations.clear();
   lpage->ScanAllKeys(locations);
   if (index_key_type == NON_UNIQUE_KEY) {
-    EXPECT_EQ(locations.size(), 6);
+    EXPECT_EQ(locations.size(), 8);
   } else {
-    EXPECT_EQ(locations.size(), 3);
+    EXPECT_EQ(locations.size(), 4);
   }
 
   // TEST SCAN
   std::vector<peloton::Value> values;
   std::vector<oid_t> key_column_ids;
   std::vector<ExpressionType> expr_types;
+  // TestValueType last_val_non_unique, last_val_unique;
 
   ScanDirectionType direction = SCAN_DIRECTION_TYPE_FORWARD;
-  // TODO  SCAN_DIRECTION_TYPE_BACKWARD
+
   // setup values
   peloton::Value value1 = ValueFactory::GetIntegerValue(100);
   peloton::Value value2 = ValueFactory::GetStringValue("a");
@@ -489,15 +502,53 @@ void LPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
   key_column_ids.push_back(key_column_id1);
   key_column_ids.push_back(key_column_id2);
   // setup expr's
-  ExpressionType expr_type1 = EXPRESSION_TYPE_COMPARE_EQUAL;
-  ExpressionType expr_type2 = EXPRESSION_TYPE_COMPARE_EQUAL;
-  expr_types.push_back(expr_type1);
-  expr_types.push_back(expr_type2);
+  expr_types.push_back(EXPRESSION_TYPE_COMPARE_EQUAL);
+  expr_types.push_back(EXPRESSION_TYPE_COMPARE_EQUAL);
 
   locations.clear();
-  lpage->Scan(values, key_column_ids, expr_types, direction, locations, false);
+  lpage->Scan(values, key_column_ids, expr_types, direction, locations, nullptr,
+              false);
   if (index_key_type == NON_UNIQUE_KEY) {
     EXPECT_EQ(locations.size(), 3);
+  } else {
+    EXPECT_EQ(locations.size(), 1);
+  }
+
+  // col1 == 100 && col 2 != 'a'
+  expr_types[0] = EXPRESSION_TYPE_COMPARE_EQUAL;
+  expr_types[1] = EXPRESSION_TYPE_COMPARE_NOTEQUAL;
+  locations.clear();
+  lpage->Scan(values, key_column_ids, expr_types, direction, locations, nullptr,
+              false);
+  if (index_key_type == NON_UNIQUE_KEY) {
+    EXPECT_EQ(locations.size(), 4);
+    // last_val_non_unique = locations[3];
+  } else {
+    EXPECT_EQ(locations.size(), 2);
+    // last_val_unique =locations[1];
+  }
+
+  // TODO reverse scan again with SCAN_DIRECTION_TYPE_BACKWARD
+  /*
+  locations.clear();
+   lpage->Scan(values, key_column_ids, expr_types, SCAN_DIRECTION_TYPE_BACKWARD,
+  locations, nullptr, false);
+  if (index_key_type == NON_UNIQUE_KEY) {
+    EXPECT_EQ(locations.size(), 4);
+    EXPECT_EQ(locations[0].block, last_val_non_unique.block);
+    EXPECT_EQ(locations[0].offset, last_val_non_unique.offset);
+  } else {
+    EXPECT_EQ(locations.size(), 2);
+  }*/
+
+  // col1 > 100 && col 2 != 'a'
+  expr_types[0] = EXPRESSION_TYPE_COMPARE_GREATERTHAN;
+  expr_types[1] = EXPRESSION_TYPE_COMPARE_NOTEQUAL;
+  locations.clear();
+  lpage->Scan(values, key_column_ids, expr_types, direction, locations, nullptr,
+              false);
+  if (index_key_type == NON_UNIQUE_KEY) {
+    EXPECT_EQ(locations.size(), 1);
   } else {
     EXPECT_EQ(locations.size(), 1);
   }
@@ -667,14 +718,11 @@ void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
   EXPECT_TRUE(map->CompressDeltaChain(lpid, new_base_node, split_delta));
   auto compressed_node = map->GetMappingTable()->GetNode(lpid);
 
-  // TEST RIGHT SIBLING
-  // TODO did not pass, need fix
-  /*
-    auto compressed_lnode = reinterpret_cast<index::LPage<TestKeyType,
-    TestValueType, TestComparatorType> *> (compressed_node);
+  auto compressed_lnode = reinterpret_cast<
+      index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
+      compressed_node);
 
-    EXPECT_EQ(compressed_lnode->GetRightSiblingLPID(), right_split_id);
-  */
+  EXPECT_EQ(compressed_lnode->GetRightSiblingLPID(), right_split_id);
 
   EXPECT_NE(compressed_node, split_delta);
   locations = prev->ScanKey(index_key0);
