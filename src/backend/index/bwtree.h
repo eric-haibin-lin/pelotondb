@@ -18,6 +18,7 @@
 #include <vector>
 #include <climits>
 #include <string.h>
+#include <algorithm>
 
 namespace peloton {
 namespace index {
@@ -102,7 +103,6 @@ class INodeStateBuilder
  private:
   // IPage children nodes
   std::pair<KeyType, LPID> children_[IPAGE_ARITY + IPAGE_DELTA_CHAIN_LIMIT];
-  IPage<KeyType, ValueType, KeyComparator> *new_page_ = nullptr;
 
  public:
   // IPage constructor
@@ -141,7 +141,6 @@ class LNodeStateBuilder
   // LPage members
   LPID left_sibling_ = INVALID_LPID;
   LPID right_sibling_ = INVALID_LPID;
-  LPage<KeyType, ValueType, KeyComparator> *new_page_ = nullptr;
   int separator_index_ = -1;
 
   // LPage members
@@ -162,10 +161,7 @@ class LNodeStateBuilder
 
   BWTreeNode<KeyType, ValueType, KeyComparator> *GetPage();
 
-  ~LNodeStateBuilder(){
-      // TODO delete arrays
-      // should the builder delete the page?
-  };
+  ~LNodeStateBuilder(){};
 
   //***************************************************
   // LPage Methods
@@ -181,6 +177,22 @@ class LNodeStateBuilder
 
   void SeparateFromKey(KeyType separator_key, int index,
                        LPID split_new_page_id);
+
+  /*
+   * Methods for Scan
+   */
+  void Scan(__attribute__((unused)) const std::vector<Value> &values,
+            __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
+            __attribute__((unused))
+            const std::vector<ExpressionType> &expr_types,
+            __attribute__((unused)) const ScanDirectionType &scan_direction,
+            __attribute__((unused)) std::vector<ValueType> &result,
+            __attribute__((unused)) const KeyType *index_key,
+            __attribute__((unused)) const bool all_constraints_are_equal);
+
+  void ScanAllKeys(__attribute__((unused)) std::vector<ValueType> &result);
+
+  std::vector<ValueType> ScanKey(__attribute__((unused)) KeyType key);
 
  private:
   bool ItemPointerEquals(ValueType v1, ValueType v2);
@@ -378,7 +390,8 @@ class BWTree {
                               const std::vector<oid_t> &key_column_ids,
                               const std::vector<ExpressionType> &expr_types,
                               const ScanDirectionType &scan_direction,
-                              const bool special_case);
+                              const KeyType *index_key,
+                              const bool all_constraints_are_equal);
   std::vector<ValueType> ScanAllKeys();
   std::vector<ValueType> ScanKey(KeyType key);
 
@@ -434,6 +447,10 @@ class BWTree {
   }
 
   LPID *GetRootLPIDAddress() { return &root_; }
+
+  std::vector<oid_t> ScanKeyInternal(KeyType key,
+                                     std::pair<KeyType, ValueType> *locations,
+                                     oid_t size);
 };
 
 //===--------------------------------------------------------------------===//
@@ -458,8 +475,8 @@ class BWTreeNode {
                     const std::vector<oid_t> &key_column_ids,
                     const std::vector<ExpressionType> &expr_types,
                     const ScanDirectionType &scan_direction,
-                    std::vector<ValueType> &result,
-                    const bool special_case) = 0;
+                    std::vector<ValueType> &result, const KeyType *index_key,
+                    const bool all_constraints_are_equal) = 0;
 
   virtual void ScanAllKeys(std::vector<ValueType> &result) = 0;
 
@@ -543,7 +560,8 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
             const std::vector<oid_t> &key_column_ids,
             const std::vector<ExpressionType> &expr_types,
             const ScanDirectionType &scan_direction,
-            std::vector<ValueType> &result, const bool special_case);
+            std::vector<ValueType> &result, const KeyType *index_key,
+            const bool all_constraints_are_equal);
 
   void ScanAllKeys(std::vector<ValueType> &result);
 
@@ -586,7 +604,7 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
             const std::vector<ExpressionType> &expr_types,
             const ScanDirectionType &scan_direction,
             __attribute__((unused)) std::vector<ValueType> &result,
-            const bool special_case);
+            const KeyType *index_key, const bool all_constraints_are_equal);
 
   void ScanAllKeys(std::vector<ValueType> &result);
 
@@ -886,7 +904,7 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
             const std::vector<ExpressionType> &expr_types,
             const ScanDirectionType &scan_direction,
             __attribute__((unused)) std::vector<ValueType> &result,
-            const bool special_case);
+            const KeyType *index_key, const bool all_constraints_are_equal);
 
   void ScanAllKeys(std::vector<ValueType> &result);
 

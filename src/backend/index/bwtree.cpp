@@ -26,11 +26,9 @@ namespace index {
 template <typename KeyType, typename ValueType, class KeyComparator>
 BWTreeNode<KeyType, ValueType, KeyComparator> *
 INodeStateBuilder<KeyType, ValueType, KeyComparator>::GetPage() {
-  if (new_page_ == nullptr) {
-    // TODO call IPage constructor
-    // new_page = new IPage<KeyType, ValueType, KeyComparator>();
-  }
-  return new_page_;
+  // TODO call IPage constructor
+  // return new IPage<KeyType, ValueType, KeyComparator>();
+  return nullptr;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -92,10 +90,7 @@ void INodeStateBuilder<KeyType, ValueType, KeyComparator>::SeparateFromKey(
 template <typename KeyType, typename ValueType, class KeyComparator>
 BWTreeNode<KeyType, ValueType, KeyComparator> *
 LNodeStateBuilder<KeyType, ValueType, KeyComparator>::GetPage() {
-  if (new_page_ == nullptr) {
-    new_page_ = new LPage<KeyType, ValueType, KeyComparator>(this->map, this);
-  }
-  return new_page_;
+  return new LPage<KeyType, ValueType, KeyComparator>(this->map, this);
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -223,16 +218,22 @@ bool BWTree<KeyType, ValueType, KeyComparator>::InsertEntry(
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::Scan(
-    __attribute__((unused)) const std::vector<Value> &values,
-    __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
-    __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
-    __attribute__((unused)) const ScanDirectionType &scan_direction,
-    __attribute__((unused)) const bool special_case) {
+    const std::vector<Value> &values, const std::vector<oid_t> &key_column_ids,
+    const std::vector<ExpressionType> &expr_types,
+    const ScanDirectionType &scan_direction, const KeyType *index_key,
+    const bool all_constraints_are_equal) {
   std::vector<ValueType> result;
   LOG_INFO("Enter BWTree::Scan");
   // recursive call scan from the root of BWTree
   GetMappingTable()->GetNode(root_)->Scan(values, key_column_ids, expr_types,
-                                          scan_direction, result, special_case);
+                                          scan_direction, result, index_key,
+                                          all_constraints_are_equal);
+
+  // reverse the result if scan in backward direction. inefficient
+  // implementation
+  if (scan_direction == SCAN_DIRECTION_TYPE_BACKWARD) {
+    std::reverse(result.begin(), result.end());
+  }
 
   LOG_INFO("Leave BWTree::Scan");
   return result;
@@ -290,6 +291,38 @@ int BWTree<KeyType, ValueType, KeyComparator>::BinarySearch(
   }
 };
 
+template <typename KeyType, typename ValueType, class KeyComparator>
+std::vector<oid_t> BWTree<KeyType, ValueType, KeyComparator>::ScanKeyInternal(
+    KeyType key, std::pair<KeyType, ValueType> *locations, oid_t size) {
+  LOG_INFO("BWTree::ScanKeyInternal");
+  assert(locations != nullptr);
+  std::vector<oid_t> result;
+  // empty LPage
+  if (size == 0) {
+    return result;
+  }
+  assert(size > 0);
+  // do a binary search on locations to get the key
+  int index = BinarySearch(key, locations, size);
+  if (index < 0) {
+    // key not found, return empty result
+    return result;
+  }
+
+  // try to collect all matching keys. If unique_keys, only one key matches
+  while (index < size) {
+    std::pair<KeyType, ValueType> location = (locations)[index];
+    if (CompareKey(location.first, key) == 0) {
+      // found a matching key
+      result.push_back(index++);
+    } else {
+      // key not found, return result
+      return result;
+    }
+  }
+  return result;
+};
+
 //===--------------------------------------------------------------------===//
 // IPage Methods
 //===--------------------------------------------------------------------===//
@@ -313,18 +346,23 @@ bool IPage<KeyType, ValueType, KeyComparator>::InsertEntry(
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 void IPage<KeyType, ValueType, KeyComparator>::Scan(
-    __attribute__((unused)) const std::vector<Value> &values,
-    __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
-    __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
-    __attribute__((unused)) const ScanDirectionType &scan_direction,
-    __attribute__((unused)) std::vector<ValueType> &result,
-    __attribute__((unused)) const bool special_case) {
-  // TODO scan for special case
-  LPID child_id = this->children_[0].second;
+    const std::vector<Value> &values, const std::vector<oid_t> &key_column_ids,
+    const std::vector<ExpressionType> &expr_types,
+    const ScanDirectionType &scan_direction, std::vector<ValueType> &result,
+    const KeyType *index_key, const bool all_constraints_are_equal) {
+  LOG_INFO("Enter IPage::Scan");
+  LPID child_id = 0;
+  if (index_key != nullptr) {
+    int child_idx = GetChild(*index_key, children_, size_);
+    LOG_INFO("Got child_idx as %d", child_idx);
+    child_id = this->children_[child_idx].second;
+  }
   BWTreeNode<KeyType, ValueType, KeyComparator> *child =
       this->map->GetMappingTable()->GetNode(child_id);
+  assert(child != nullptr);
   child->Scan(values, key_column_ids, expr_types, scan_direction, result,
-              special_case);
+              index_key, all_constraints_are_equal);
+  LOG_INFO("Leave IPage::Scan");
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -501,21 +539,22 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
 void Delta<KeyType, ValueType, KeyComparator>::Scan(
-    __attribute__((unused)) const std::vector<Value> &values,
-    __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
-    __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
-    __attribute__((unused)) const ScanDirectionType &scan_direction,
-    __attribute__((unused)) std::vector<ValueType> &result,
-    __attribute__((unused)) const bool special_case) {
+    const std::vector<Value> &values, const std::vector<oid_t> &key_column_ids,
+    const std::vector<ExpressionType> &expr_types,
+    const ScanDirectionType &scan_direction, std::vector<ValueType> &result,
+    const KeyType *index_key, const bool all_constraints_are_equal) {
   LOG_INFO("Delta::Scan");
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
       this->BuildNodeState();
   BWTreeNode<KeyType, ValueType, KeyComparator> *page = builder->GetPage();
   assert(page != nullptr);
+  // TODO do scan on the builder directly
   page->Scan(values, key_column_ids, expr_types, scan_direction, result,
-             special_case);
+             index_key, all_constraints_are_equal);
+
   // release builder
-  delete (builder);
+  delete page;
+  delete builder;
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -538,6 +577,7 @@ std::vector<ValueType> Delta<KeyType, ValueType, KeyComparator>::ScanKey(
   std::vector<ValueType> result;
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
       this->BuildNodeState(-1);
+  // TODO instead of building a page, call ScanKey on the builder directly
   BWTreeNode<KeyType, ValueType, KeyComparator> *page = builder->GetPage();
   assert(page != nullptr);
   if (!builder->IsSeparated()) {
@@ -892,22 +932,54 @@ NodeStateBuilder<KeyType, ValueType, KeyComparator> *LPageUpdateDelta<
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 void LPage<KeyType, ValueType, KeyComparator>::Scan(
-    __attribute__((unused)) const std::vector<Value> &values,
-    __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
-    __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
-    __attribute__((unused)) const ScanDirectionType &scan_direction,
-    __attribute__((unused)) std::vector<ValueType> &result,
-    __attribute__((unused)) const bool special_case) {
-  // assume we only handle forward scan for now
-  assert(scan_direction == SCAN_DIRECTION_TYPE_FORWARD);
-  int index;
-  for (index = 0; index < size_; index++) {
+    const std::vector<Value> &values, const std::vector<oid_t> &key_column_ids,
+    const std::vector<ExpressionType> &expr_types,
+    const ScanDirectionType &scan_direction, std::vector<ValueType> &result,
+    const KeyType *index_key, const bool all_constraints_are_equal) {
+  int index = 0;
+  // equality constraint on index_key
+  if (index_key != nullptr) {
+    index = this->map->BinarySearch(*index_key, locations_, size_);
+    // key not found.
+    if (index < 0) {
+      return;
+    }
+    for (; index < size_; index++) {
+      std::pair<KeyType, ValueType> pair = locations_[index];
+      KeyType key = pair.first;
+      // key doesn't match index_key
+      if (this->map->CompareKey(key, *index_key) != 0) {
+        return;
+      }
+      auto tuple = key.GetTupleForComparison(this->map->GetKeySchema());
+      if (Index::Compare(tuple, key_column_ids, expr_types, values) == true) {
+        ItemPointer location = pair.second;
+        result.push_back(location);
+      } else {
+        // TODO return early if all_constraints_are_equal?
+        // All expressions are equality and we already found them
+        //          if (all_constraints_are_equal) {
+        //            return;
+        //          }
+      }
+    }
+    // reach the end of current LPage, go to next LPage for more results
+    if (index == size_ && right_sib_ != INVALID_LPID) {
+      this->map->GetMappingTable()
+          ->GetNode(right_sib_)
+          ->Scan(values, key_column_ids, expr_types, scan_direction, result,
+                 index_key, all_constraints_are_equal);
+    }
+    return;
+  }
+
+  // no constraint for index_key equality check
+  for (; index < size_; index++) {
     std::pair<KeyType, ValueType> pair = locations_[index];
     KeyType key = pair.first;
     auto tuple = key.GetTupleForComparison(this->map->GetKeySchema());
     // Compare the current key in the scan with "values" based on "expression
-    // types"
-    // For instance, "5" EXPR_GREATER_THAN "2" is true
+    // types" For instance, "5" EXPR_GREATER_THAN "2" is true
     if (Index::Compare(tuple, key_column_ids, expr_types, values) == true) {
       ItemPointer location = pair.second;
       result.push_back(location);
@@ -918,7 +990,7 @@ void LPage<KeyType, ValueType, KeyComparator>::Scan(
     this->map->GetMappingTable()
         ->GetNode(right_sib_)
         ->Scan(values, key_column_ids, expr_types, scan_direction, result,
-               special_case);
+               index_key, all_constraints_are_equal);
   }
 };
 
@@ -942,7 +1014,8 @@ std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::ScanKey(
     KeyType key) {
   LOG_INFO("LPage::ScanKey");
   std::vector<ValueType> result;
-  std::vector<oid_t> indices = ScanKeyInternal(key);
+  std::vector<oid_t> indices =
+      this->map->ScanKeyInternal(key, locations_, size_);
   // we only need the values
   oid_t index;
   for (index = 0; index < indices.size(); index++) {
@@ -954,38 +1027,6 @@ std::vector<ValueType> LPage<KeyType, ValueType, KeyComparator>::ScanKey(
     std::vector<ValueType> sib_result =
         this->map->GetMappingTable()->GetNode(right_sib_)->ScanKey(key);
     result.insert(result.end(), sib_result.begin(), sib_result.end());
-  }
-  return result;
-};
-
-template <typename KeyType, typename ValueType, class KeyComparator>
-std::vector<oid_t> LPage<KeyType, ValueType, KeyComparator>::ScanKeyInternal(
-    KeyType key) {
-  LOG_INFO(" ");
-  assert(locations_ != nullptr);
-  std::vector<oid_t> result;
-  // empty LPage
-  if (size_ == 0) {
-    return result;
-  }
-  assert(size_ > 0);
-  // do a binary search on locations to get the key
-  int index = this->map->BinarySearch(key, locations_, size_);
-  if (index < 0) {
-    // key not found, return empty result
-    return result;
-  }
-
-  // try to collect all matching keys. If unique_keys, only one key matches
-  while (index < size_) {
-    std::pair<KeyType, ValueType> location = (locations_)[index];
-    if (this->map->CompareKey(location.first, key) == 0) {
-      // found a matching key
-      result.push_back(index++);
-    } else {
-      // key not found, return result
-      return result;
-    }
   }
   return result;
 };
