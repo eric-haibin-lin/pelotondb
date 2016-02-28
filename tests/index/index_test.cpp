@@ -718,14 +718,11 @@ void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
   EXPECT_TRUE(map->CompressDeltaChain(lpid, new_base_node, split_delta));
   auto compressed_node = map->GetMappingTable()->GetNode(lpid);
 
-  // TEST RIGHT SIBLING
-  // TODO did not pass, need fix
-  /*
-    auto compressed_lnode = reinterpret_cast<index::LPage<TestKeyType,
-    TestValueType, TestComparatorType> *> (compressed_node);
+  auto compressed_lnode = reinterpret_cast<
+      index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
+      compressed_node);
 
-    EXPECT_EQ(compressed_lnode->GetRightSiblingLPID(), right_split_id);
-  */
+  EXPECT_EQ(compressed_lnode->GetRightSiblingLPID(), right_split_id);
 
   EXPECT_NE(compressed_node, split_delta);
   locations = prev->ScanKey(index_key0);
