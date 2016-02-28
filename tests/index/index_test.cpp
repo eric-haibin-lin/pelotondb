@@ -757,6 +757,11 @@ TEST(IndexTests, BWTreeLPageDeltaConsilidationTest) {
 TEST(IndexTests, BWTreeLPageSplitTest) {
   auto pool = TestingHarness::GetInstance().GetTestingPool();
   auto map = BuildBWTree(UNIQUE_KEY);
+
+  index::IPage<TestKeyType, TestValueType, TestComparatorType> *originalRoot =
+      reinterpret_cast<
+          index::IPage<TestKeyType, TestValueType, TestComparatorType> *>(
+          map->GetMappingTable()->GetNode(0));
   index::LPage<TestKeyType, TestValueType, TestComparatorType> *baseNode =
       reinterpret_cast<
           index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
@@ -803,8 +808,72 @@ TEST(IndexTests, BWTreeLPageSplitTest) {
 
   baseNode->SplitNodes(1, 0);
 
-  // TODO destruct all prev
-  //}
+  // If this passes, it means that the IPageUpdateDelta has been successfully
+  // posted
+  EXPECT_NE(originalRoot, map->GetMappingTable()->GetNode(0));
+
+  // If this passes, it means that the LPageSplitDelta has been successfully
+  // posted
+  EXPECT_NE(baseNode, map->GetMappingTable()->GetNode(1));
+
+  index::IPageUpdateDelta<TestKeyType, TestValueType, TestComparatorType> *
+      ipage_update_delta =
+          reinterpret_cast<index::IPageUpdateDelta<TestKeyType, TestValueType,
+                                                   TestComparatorType> *>(
+              map->GetMappingTable()->GetNode(0));
+
+  EXPECT_EQ(originalRoot, ipage_update_delta->GetModifiedNode());
+
+  index::LPageSplitDelta<TestKeyType, TestValueType, TestComparatorType> *
+      split_delta =
+          reinterpret_cast<index::LPageSplitDelta<TestKeyType, TestValueType,
+                                                  TestComparatorType> *>(
+              map->GetMappingTable()->GetNode(1));
+
+  EXPECT_EQ(baseNode, split_delta->GetModifiedNode());
+
+  EXPECT_EQ(split_delta->GetRightSplitPageLPID(), 2);
+
+  index::LPage<TestKeyType, TestValueType, TestComparatorType> *
+      right_split_node = reinterpret_cast<
+          index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
+          map->GetMappingTable()->GetNode(2));
+
+  int expected_size_right_child;
+
+  expected_size_right_child = LPAGE_ARITY - (LPAGE_ARITY / 2) - 1;
+
+  EXPECT_EQ(right_split_node->GetSize(), expected_size_right_child);
+
+  for (int i = 0; i < expected_size_right_child; i++) {
+    switch ((i + (LPAGE_ARITY - expected_size_right_child)) % 3) {
+      case 0:
+        // EXPECT_EQ(right_split_node->GetLocationsArray()[i].first,
+        // index_key0);
+        EXPECT_EQ(right_split_node->GetLocationsArray()[i].second.block,
+                  item0.block);
+        EXPECT_EQ(right_split_node->GetLocationsArray()[i].second.offset,
+                  item0.offset);
+        break;
+      case 1:
+        // EXPECT_EQ(right_split_node->GetLocationsArray()[i].first,
+        // index_key1);
+        EXPECT_EQ(right_split_node->GetLocationsArray()[i].second.block,
+                  item1.block);
+        EXPECT_EQ(right_split_node->GetLocationsArray()[i].second.offset,
+                  item1.offset);
+        break;
+      case 2:
+        // EXPECT_EQ(right_split_node->GetLocationsArray()[i].first,
+        // index_key2);
+        EXPECT_EQ(right_split_node->GetLocationsArray()[i].second.block,
+                  item2.block);
+        EXPECT_EQ(right_split_node->GetLocationsArray()[i].second.offset,
+                  item2.offset);
+        break;
+    }
+  }
+
   delete map;
 }
 

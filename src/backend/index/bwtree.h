@@ -721,6 +721,12 @@ class LPageSplitDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
       int max_index);
 
+  BWTreeNode<KeyType, ValueType, KeyComparator> *GetModifiedNode() {
+    return this->modified_node;
+  }
+
+  LPID GetRightSplitPageLPID() { return right_split_page_lpid_; }
+
  private:
   // This key included in left child, excluded in the right child
   KeyType modified_key_;
@@ -846,6 +852,10 @@ class IPageUpdateDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
 
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_IPAGE; };
 
+  BWTreeNode<KeyType, ValueType, KeyComparator> *GetModifiedNode() {
+    return this->modified_node;
+  }
+
  private:
   // The key which is modified
   KeyType max_key_left_split_node_, max_key_right_split_node_;
@@ -930,6 +940,8 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   std::pair<KeyType, ValueType> *GetLocationsArray() { return locations_; }
 
   void SetSize(int size) { size_ = size; }
+
+  int GetSize() { return size_; }
 
  private:
   // return a vector of indices of the matched slots
