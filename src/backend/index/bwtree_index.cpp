@@ -94,7 +94,6 @@ BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Scan(
     }
   }
   std::unique_ptr<storage::Tuple> start_key;
-  bool all_constraints_are_equal = false;
 
   // If it is a special case, we can figure out the range to scan in the index
   if (special_case == true) {
@@ -102,14 +101,13 @@ BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Scan(
     index_key.SetFromKey(start_key.get());
 
     // Construct the lower bound key tuple
-    all_constraints_are_equal = ConstructLowerBoundTuple(
+    ConstructLowerBoundTuple(
         start_key.get(), values, key_column_ids, expr_types);
-    LOG_TRACE("All constraints are equal : %d ", all_constraints_are_equal);
     result = container.Scan(values, key_column_ids, expr_types, scan_direction,
-                            &index_key, all_constraints_are_equal);
+                            &index_key);
   } else {
     result = container.Scan(values, key_column_ids, expr_types, scan_direction,
-                            nullptr, all_constraints_are_equal);
+                            nullptr);
   }
   return result;
 }

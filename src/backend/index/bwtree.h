@@ -85,6 +85,8 @@ class NodeStateBuilder {
 
   virtual BWTreeNode<KeyType, ValueType, KeyComparator> *GetPage() = 0;
 
+  virtual void ScanAllKeys(std::vector<ValueType> &result) = 0;
+
   inline bool IsSeparated() { return is_separated; }
 
   inline KeyType GetSeparatorKey() { return separator_key; }
@@ -130,6 +132,8 @@ class INodeStateBuilder
   void RemoveChild(KeyType &key_to_remove);
 
   void SeparateFromKey(KeyType separator_key, LPID split_new_page_id);
+
+  void ScanAllKeys(std::vector<ValueType> &result);
 
   friend class LPage<KeyType, ValueType, KeyComparator>;
 };
@@ -187,12 +191,11 @@ class LNodeStateBuilder
             const std::vector<ExpressionType> &expr_types,
             __attribute__((unused)) const ScanDirectionType &scan_direction,
             __attribute__((unused)) std::vector<ValueType> &result,
-            __attribute__((unused)) const KeyType *index_key,
-            __attribute__((unused)) const bool all_constraints_are_equal);
+            __attribute__((unused)) const KeyType *index_key);
 
-  void ScanAllKeys(__attribute__((unused)) std::vector<ValueType> &result);
+  void ScanAllKeys(std::vector<ValueType> &result);
 
-  std::vector<ValueType> ScanKey(__attribute__((unused)) KeyType key);
+  void ScanKey(KeyType key, std::vector<ValueType> &result);
 
  private:
   bool ItemPointerEquals(ValueType v1, ValueType v2);
@@ -390,8 +393,7 @@ class BWTree {
                               const std::vector<oid_t> &key_column_ids,
                               const std::vector<ExpressionType> &expr_types,
                               const ScanDirectionType &scan_direction,
-                              const KeyType *index_key,
-                              const bool all_constraints_are_equal);
+                              const KeyType *index_key);
   std::vector<ValueType> ScanAllKeys();
   std::vector<ValueType> ScanKey(KeyType key);
 
@@ -451,6 +453,9 @@ class BWTree {
   std::vector<oid_t> ScanKeyInternal(KeyType key,
                                      std::pair<KeyType, ValueType> *locations,
                                      oid_t size);
+
+  void ScanAllKeysHelper(oid_t size, std::pair<KeyType, ValueType> *locations,
+                         oid_t right_sibling, std::vector<ValueType> &result);
 };
 
 //===--------------------------------------------------------------------===//
@@ -475,12 +480,12 @@ class BWTreeNode {
                     const std::vector<oid_t> &key_column_ids,
                     const std::vector<ExpressionType> &expr_types,
                     const ScanDirectionType &scan_direction,
-                    std::vector<ValueType> &result, const KeyType *index_key,
-                    const bool all_constraints_are_equal) = 0;
+                    std::vector<ValueType> &result,
+                    const KeyType *index_key) = 0;
 
   virtual void ScanAllKeys(std::vector<ValueType> &result) = 0;
 
-  virtual std::vector<ValueType> ScanKey(KeyType key) = 0;
+  virtual void ScanKey(KeyType key, std::vector<ValueType> &result) = 0;
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState() {
     return this->BuildNodeState(-1);
@@ -560,12 +565,11 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
             const std::vector<oid_t> &key_column_ids,
             const std::vector<ExpressionType> &expr_types,
             const ScanDirectionType &scan_direction,
-            std::vector<ValueType> &result, const KeyType *index_key,
-            const bool all_constraints_are_equal);
+            std::vector<ValueType> &result, const KeyType *index_key);
 
   void ScanAllKeys(std::vector<ValueType> &result);
 
-  std::vector<ValueType> ScanKey(KeyType key);
+  void ScanKey(KeyType key, std::vector<ValueType> &result);
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
       int max_index);
@@ -604,11 +608,11 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
             const std::vector<ExpressionType> &expr_types,
             const ScanDirectionType &scan_direction,
             __attribute__((unused)) std::vector<ValueType> &result,
-            const KeyType *index_key, const bool all_constraints_are_equal);
+            const KeyType *index_key);
 
   void ScanAllKeys(std::vector<ValueType> &result);
 
-  std::vector<ValueType> ScanKey(KeyType key);
+  void ScanKey(KeyType key, std::vector<ValueType> &result);
 
   virtual ~Delta(){};
 
@@ -713,7 +717,7 @@ class LPageSplitDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
 
   bool DeleteEntry(KeyType key, ValueType location, LPID self);
 
-  std::vector<ValueType> ScanKey(KeyType key);
+  void ScanKey(KeyType key, std::vector<ValueType> &result);
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
       int max_index);
@@ -771,7 +775,7 @@ class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
     return status;
   };
 
-  std::vector<ValueType> ScanKey(KeyType key);
+  void ScanKey(KeyType key, std::vector<ValueType> &result);
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
       int max_index);
@@ -835,7 +839,7 @@ class IPageUpdateDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
 
   bool DeleteEntry(KeyType key, ValueType location, LPID self);
 
-  std::vector<ValueType> ScanKey(KeyType key);
+  void ScanKey(KeyType key, std::vector<ValueType> &result);
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
       int max_index);
@@ -903,12 +907,11 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
             const std::vector<oid_t> &key_column_ids,
             const std::vector<ExpressionType> &expr_types,
             const ScanDirectionType &scan_direction,
-            __attribute__((unused)) std::vector<ValueType> &result,
-            const KeyType *index_key, const bool all_constraints_are_equal);
+            std::vector<ValueType> &result, const KeyType *index_key);
 
   void ScanAllKeys(std::vector<ValueType> &result);
 
-  std::vector<ValueType> ScanKey(KeyType key);
+  void ScanKey(KeyType key, std::vector<ValueType> &result);
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
       int max_index);
