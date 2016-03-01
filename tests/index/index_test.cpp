@@ -124,6 +124,9 @@ void BasicTestHelper(INDEX_KEY_TYPE index_key_type) {
   EXPECT_EQ(locations.size(), 1);
   EXPECT_EQ(locations[0].block, item0.block);
 
+  locations = index->ScanAllKeys();
+  EXPECT_EQ(locations.size(), 1);
+
   // DELETE
   index->DeleteEntry(key0.get(), item0);
 
@@ -334,6 +337,13 @@ void DeleteTestHelper(INDEX_KEY_TYPE index_key_type) {
   locations = index->ScanKey(key2.get());
   EXPECT_EQ(locations.size(), 1);
 
+  locations = index->ScanAllKeys();
+  if (index_key_type == NON_UNIQUE_KEY) {
+    EXPECT_EQ(locations.size(), 9 * scale_factor);
+  } else if (index_key_type == UNIQUE_KEY) {
+    EXPECT_EQ(locations.size(), 5 * scale_factor);
+  }
+
   LaunchParallelTest(1, DeleteTest, index.get(), pool, scale_factor);
 
   locations = index->ScanKey(key0.get());
@@ -371,8 +381,8 @@ TEST(IndexTests, MultiThreadedInsertTest) {
   size_t scale_factor = 1;
   LaunchParallelTest(num_threads, InsertTest, index.get(), pool, scale_factor);
 
-  //  locations = index->ScanAllKeys();
-  //  EXPECT_EQ(locations.size(), 9 * num_threads);
+  locations = index->ScanAllKeys();
+  EXPECT_EQ(locations.size(), 9 * num_threads);
 
   std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
   std::unique_ptr<storage::Tuple> keynonce(
@@ -475,12 +485,13 @@ void ScanKeyHelper(const TestKeyType &index_key0, INDEX_KEY_TYPE index_key_type,
             index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
             node);
     lpage->ScanKey(index_key0, locations);
-    //  } else if (node_type == LNODE_STATE_BUILDER) {
-    //    index::LNodeStateBuilder<TestKeyType,TestValueType,TestComparatorType>
-    //    *lbuilder =
-    //        reinterpret_cast<index::LNodeStateBuilder<TestKeyType,TestValueType,TestComparatorType>*>
-    //        (node);
-    //    locations = lbuilder->ScanKey(index_key0); ;
+  } else if (node_type == LNODE_STATE_BUILDER) {
+    index::LNodeStateBuilder<TestKeyType, TestValueType,
+                             TestComparatorType> *lbuilder =
+        reinterpret_cast<index::LNodeStateBuilder<TestKeyType, TestValueType,
+                                                  TestComparatorType> *>(node);
+    lbuilder->ScanKey(index_key0, locations);
+    ;
   }
 
   if (index_key_type == NON_UNIQUE_KEY) {
@@ -533,8 +544,7 @@ void LPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
   index_key0.SetFromKey(key0.get());
 
   // TEST SCAN KEY
-  //  ScanKeyHelper(index_key0,
-  //   index_key_type, builder, LNODE_STATE_BUILDER);
+  ScanKeyHelper(index_key0, index_key_type, builder, LNODE_STATE_BUILDER);
   ScanKeyHelper(index_key0, index_key_type, lpage, LPAGE);
 
   // TEST SCAN ALL KEYS
@@ -848,8 +858,8 @@ TEST(IndexTests, BWTreeLPageSplitTest) {
       reinterpret_cast<
           index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
           map->GetMappingTable()->GetNode(1));
-  // Insert a bunch of keys based on scale itr
 
+  // Insert a bunch of keys based on scale itr
   std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
   std::unique_ptr<storage::Tuple> key1(new storage::Tuple(key_schema, true));
   std::unique_ptr<storage::Tuple> key2(new storage::Tuple(key_schema, true));

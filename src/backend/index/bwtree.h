@@ -87,7 +87,22 @@ class NodeStateBuilder {
 
   virtual BWTreeNode<KeyType, ValueType, KeyComparator> *GetPage() = 0;
 
+  virtual void Scan(__attribute__((unused)) const std::vector<Value> &values,
+                    __attribute__((unused))
+                    const std::vector<oid_t> &key_column_ids,
+
+                    __attribute__((unused))
+                    const std::vector<ExpressionType> &expr_types,
+                    __attribute__((unused))
+                    const ScanDirectionType &scan_direction,
+                    __attribute__((unused)) std::vector<ValueType> &result,
+                    __attribute__((unused)) const KeyType *index_key){};
+
   virtual void ScanAllKeys(std::vector<ValueType> &result) = 0;
+
+  virtual void ScanKey(__attribute__((unused)) KeyType key,
+                       __attribute__((unused))
+                       std::vector<ValueType> &result){};
 
   inline bool IsSeparated() { return is_separated; }
 
@@ -119,9 +134,7 @@ class INodeStateBuilder
 
   BWTreeNode<KeyType, ValueType, KeyComparator> *GetPage();
 
-  ~INodeStateBuilder(){
-      // TODO delete arrays
-  };
+  ~INodeStateBuilder(){};
 
   //***************************************************
   // IPage Methods
@@ -187,13 +200,12 @@ class LNodeStateBuilder
   /*
    * Methods for Scan
    */
-  void Scan(__attribute__((unused)) const std::vector<Value> &values,
-            __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
-            __attribute__((unused))
+  void Scan(const std::vector<Value> &values,
+            const std::vector<oid_t> &key_column_ids,
+
             const std::vector<ExpressionType> &expr_types,
-            __attribute__((unused)) const ScanDirectionType &scan_direction,
-            __attribute__((unused)) std::vector<ValueType> &result,
-            __attribute__((unused)) const KeyType *index_key);
+            const ScanDirectionType &scan_direction,
+            std::vector<ValueType> &result, const KeyType *index_key);
 
   void ScanAllKeys(std::vector<ValueType> &result);
 
@@ -456,8 +468,20 @@ class BWTree {
                                      std::pair<KeyType, ValueType> *locations,
                                      oid_t size);
 
+  void ScanHelper(const std::vector<Value> &values,
+                  const std::vector<oid_t> &key_column_ids,
+                  const std::vector<ExpressionType> &expr_types,
+                  const ScanDirectionType &scan_direction,
+                  const KeyType *index_key, std::vector<ValueType> &result,
+                  std::pair<KeyType, ValueType> *locations, oid_t size,
+                  LPID right_sibling);
+
   void ScanAllKeysHelper(oid_t size, std::pair<KeyType, ValueType> *locations,
                          oid_t right_sibling, std::vector<ValueType> &result);
+
+  void ScanKeyHelper(KeyType key, oid_t size,
+                     std::pair<KeyType, ValueType> *locations,
+                     oid_t right_sibling, std::vector<ValueType> &result);
 };
 
 //===--------------------------------------------------------------------===//
@@ -872,7 +896,7 @@ class IPageUpdateDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
 };
 
 // TODO More delta classes such as
-// merge, split, remove_page, separator
+// merge, remove_page
 
 //===--------------------------------------------------------------------===//
 // LPage
