@@ -15,6 +15,7 @@
 #include "backend/index/index_key.h"
 #include "backend/storage/tuple.h"
 #include "backend/index/bwtree.cpp"
+#include <iostream>
 
 namespace peloton {
 namespace index {
@@ -72,10 +73,10 @@ template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
 std::vector<ItemPointer>
 BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Scan(
-    __attribute__((unused)) const std::vector<Value> &values,
-    __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
-    __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
-    __attribute__((unused)) const ScanDirectionType &scan_direction) {
+    const std::vector<Value> &values, const std::vector<oid_t> &key_column_ids,
+    const std::vector<ExpressionType> &expr_types,
+    const ScanDirectionType &scan_direction) {
+  std::cout << "Scan invoked, key_type: " << this->HasUniqueKeys() << std::endl;
   std::vector<ItemPointer> result;
   KeyType index_key;
   // Check if we have leading (leftmost) column equality
@@ -98,14 +99,16 @@ BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Scan(
   // If it is a special case, we can figure out the range to scan in the index
   if (special_case == true) {
     start_key.reset(new storage::Tuple(metadata->GetKeySchema(), true));
-    index_key.SetFromKey(start_key.get());
-
     // Construct the lower bound key tuple
     ConstructLowerBoundTuple(start_key.get(), values, key_column_ids,
                              expr_types);
+    index_key.SetFromKey(start_key.get());
+
+    LOG_INFO("Scan: special case");
     result = container.Scan(values, key_column_ids, expr_types, scan_direction,
                             &index_key);
   } else {
+    LOG_INFO("Scan: scan all keys which satisfy condition");
     result = container.Scan(values, key_column_ids, expr_types, scan_direction,
                             nullptr);
   }
@@ -128,7 +131,7 @@ template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
 std::vector<ItemPointer>
 BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::ScanKey(
-    __attribute__((unused)) const storage::Tuple *key) {
+    const storage::Tuple *key) {
   std::vector<ItemPointer> result;
   KeyType index_key;
   index_key.SetFromKey(key);

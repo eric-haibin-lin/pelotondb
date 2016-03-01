@@ -119,14 +119,14 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::AddLeafData(
   // not found. shift every element to the right
   if (index < 0 || this->size == 0 ||
       (index == 0 && this->map->CompareKey(locations_[0].first, key) != 0)) {
-    LOG_INFO("LNodeStateBuilder::AddLeafData - key not found");
+    // LOG_INFO("LNodeStateBuilder::AddLeafData - key not found");
     index = -1 * index;
     for (int i = this->size; i > index; i--) {
       locations_[i] = locations_[i - 1];
     }
     this->size++;
   } else {
-    LOG_INFO("LNodeStateBuilder::AddLeafData - key found");
+    // LOG_INFO("LNodeStateBuilder::AddLeafData - key found");
     if (!this->map->unique_keys) {
       // shift every element to the right if we allow non-unique keys
       for (int i = this->size; i > index; i--) {
@@ -162,18 +162,19 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::RemoveLeafData(
     std::pair<KeyType, ValueType> pair = locations_[src];
     if (key_matches && this->map->CompareKey(key, pair.first) == 0) {
       if (ItemPointerEquals(pair.second, entry_to_remove.second)) {
-        LOG_INFO(
-            "LNodeStateBuilder::RemoveLeafData - found exact entry at index %d",
-            src);
+        // LOG_INFO(
+        //    "LNodeStateBuilder::RemoveLeafData - found exact entry at index
+        //    %d",
+        //    src);
         found_exact_entry_count++;
       } else {
         // value doesn't match
-        LOG_INFO("LNodeStateBuilder::RemoveLeafData - not exact entry");
+        // LOG_INFO("LNodeStateBuilder::RemoveLeafData - not exact entry");
         locations_[dest++] = pair;
       }
     } else {
       key_matches = false;
-      LOG_INFO("LNodeStateBuilder::RemoveLeafData - key not match");
+      // LOG_INFO("LNodeStateBuilder::RemoveLeafData - key not match");
       locations_[dest++] = pair;
     }
   }
@@ -360,10 +361,12 @@ void BWTree<KeyType, ValueType, KeyComparator>::ScanHelper(
     const ScanDirectionType &scan_direction, const KeyType *index_key,
     std::vector<ValueType> &result, std::pair<KeyType, ValueType> *locations,
     oid_t size, LPID right_sibling) {
+  LOG_INFO("BWTree::ScanHelper");
   int index = 0;
   // equality constraint on index_key
   if (index_key != nullptr) {
     index = BinarySearch(*index_key, locations, size);
+    LOG_INFO("Scan from position %d", index);
     // key not found.
     if (index < 0) {
       return;
@@ -476,7 +479,6 @@ void IPage<KeyType, ValueType, KeyComparator>::Scan(
     const ScanDirectionType &scan_direction, std::vector<ValueType> &result,
     const KeyType *index_key) {
   LOG_INFO("Enter IPage::Scan");
-  std::cout << "Scan" << std::endl;
   LPID child_id = this->children_[0].second;
   if (index_key != nullptr) {
     // special case
@@ -495,7 +497,6 @@ void IPage<KeyType, ValueType, KeyComparator>::Scan(
 template <typename KeyType, typename ValueType, class KeyComparator>
 void IPage<KeyType, ValueType, KeyComparator>::ScanAllKeys(
     std::vector<ValueType> &result) {
-  std::cout << "ScanAllKeys" << std::endl;
   LPID child_id = this->children_[0].second;
   BWTreeNode<KeyType, ValueType, KeyComparator> *child =
       this->map->GetMappingTable()->GetNode(child_id);
@@ -506,7 +507,6 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 void IPage<KeyType, ValueType, KeyComparator>::ScanKey(
     KeyType key, std::vector<ValueType> &result) {
   LOG_INFO("Enter IPage::ScanKey");
-  std::cout << "ScanKey" << std::endl;
   // locate the child who covers the key
   int child_idx = GetChild(key, this->children_, this->size_);
   LOG_INFO("Got child_idx as %d", child_idx);
