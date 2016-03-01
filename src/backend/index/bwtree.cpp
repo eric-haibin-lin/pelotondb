@@ -830,6 +830,11 @@ bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
         ->InsertEntry(key, location, right_split_page_lpid_, self);
   }
 
+  if (!this->split_completed_) {
+    LOG_INFO("Returning early because split in progress");
+    return false;
+  }
+
   // This Delta must now be inserted BELOW this delta
   LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
       new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
@@ -1208,6 +1213,7 @@ bool LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
 
   assert(swapSuccess == true);
 
+  splitDelta->SetSplitCompleted();
   LOG_INFO("Split finished");
   return true;
 }

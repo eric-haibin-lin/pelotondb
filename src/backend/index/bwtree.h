@@ -732,7 +732,8 @@ class LPageSplitDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
       : LPageDelta<KeyType, ValueType, KeyComparator>(map, modified_node),
         modified_key_(splitterKey),
         modified_key_index_(modified_index),
-        right_split_page_lpid_(rightSplitPage){};
+        right_split_page_lpid_(rightSplitPage),
+        split_completed_(false){};
 
   // This method will either try to create a delta on top of itself, if the
   // current key is less
@@ -754,6 +755,8 @@ class LPageSplitDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
 
   LPID GetRightSplitPageLPID() { return right_split_page_lpid_; }
 
+  void SetSplitCompleted() { split_completed_ = true; }
+
  private:
   // This key included in left child, excluded in the right child
   KeyType modified_key_;
@@ -761,6 +764,8 @@ class LPageSplitDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
 
   // The LPID of the new LPage
   LPID right_split_page_lpid_;
+
+  bool split_completed_;
 };
 
 //===--------------------------------------------------------------------===//
