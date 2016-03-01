@@ -12,6 +12,7 @@
 
 #include "backend/index/bwtree.h"
 #include "backend/common/exception.h"
+#include <iostream>
 
 namespace peloton {
 namespace index {
@@ -475,8 +476,10 @@ void IPage<KeyType, ValueType, KeyComparator>::Scan(
     const ScanDirectionType &scan_direction, std::vector<ValueType> &result,
     const KeyType *index_key) {
   LOG_INFO("Enter IPage::Scan");
-  LPID child_id = 0;
+  std::cout << "Scan" << std::endl;
+  LPID child_id = this->children_[0].second;
   if (index_key != nullptr) {
+    // special case
     int child_idx = GetChild(*index_key, children_, size_);
     LOG_INFO("Got child_idx as %d", child_idx);
     child_id = this->children_[child_idx].second;
@@ -492,6 +495,7 @@ void IPage<KeyType, ValueType, KeyComparator>::Scan(
 template <typename KeyType, typename ValueType, class KeyComparator>
 void IPage<KeyType, ValueType, KeyComparator>::ScanAllKeys(
     std::vector<ValueType> &result) {
+  std::cout << "ScanAllKeys" << std::endl;
   LPID child_id = this->children_[0].second;
   BWTreeNode<KeyType, ValueType, KeyComparator> *child =
       this->map->GetMappingTable()->GetNode(child_id);
@@ -502,6 +506,7 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 void IPage<KeyType, ValueType, KeyComparator>::ScanKey(
     KeyType key, std::vector<ValueType> &result) {
   LOG_INFO("Enter IPage::ScanKey");
+  std::cout << "ScanKey" << std::endl;
   // locate the child who covers the key
   int child_idx = GetChild(key, this->children_, this->size_);
   LOG_INFO("Got child_idx as %d", child_idx);

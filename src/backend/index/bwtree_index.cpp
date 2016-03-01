@@ -101,8 +101,8 @@ BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Scan(
     index_key.SetFromKey(start_key.get());
 
     // Construct the lower bound key tuple
-    ConstructLowerBoundTuple(
-        start_key.get(), values, key_column_ids, expr_types);
+    ConstructLowerBoundTuple(start_key.get(), values, key_column_ids,
+                             expr_types);
     result = container.Scan(values, key_column_ids, expr_types, scan_direction,
                             &index_key);
   } else {

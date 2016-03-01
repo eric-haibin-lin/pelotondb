@@ -634,8 +634,7 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
             const std::vector<oid_t> &key_column_ids,
             const std::vector<ExpressionType> &expr_types,
             const ScanDirectionType &scan_direction,
-            __attribute__((unused)) std::vector<ValueType> &result,
-            const KeyType *index_key);
+            std::vector<ValueType> &result, const KeyType *index_key);
 
   void ScanAllKeys(std::vector<ValueType> &result);
 
@@ -771,7 +770,6 @@ class LPageSplitDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
 template <typename KeyType, typename ValueType, class KeyComparator>
 class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
  public:
-  // TODO @abj initialize "is_delete_" to the desired value as well
   LPageUpdateDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
                    BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
                    KeyType key, ValueType value)
