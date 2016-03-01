@@ -44,6 +44,9 @@ enum BWTreeNodeType {
 #define LPAGE_DELTA_CHAIN_LIMIT 5
 #define IPAGE_DELTA_CHAIN_LIMIT 5
 
+#define EPOCH_PAGE_SIZE 256
+#define MAX_ACTIVE_EPOCHS 2
+
 template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTree;
 
@@ -55,6 +58,9 @@ class IPage;
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 class LPage;
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+class EpochManager;
 
 //===--------------------------------------------------------------------===//
 // NodeStateBuilder
@@ -326,6 +332,77 @@ class MappingTable {
     latch_.ReleaseRead();
     return ret;
   }
+};
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+struct EpochPage {
+	BWTreeNode<KeyType, ValueType, KeyComparator> *pointers[EPOCH_PAGE_SIZE];
+	EpochPage * next_page = nullptr;
+};
+
+//===--------------------------------------------------------------------===//
+// EpochManager
+//===--------------------------------------------------------------------===//
+template <typename KeyType, typename ValueType, class KeyComparator>
+class EpochManager{
+public:
+	EpochManager(){
+		// should start GC pthread
+		current_epoch_ = 0;
+		destructor_called_ = false;
+		memset(&first_pages_, 0, MAX_ACTIVE_EPOCHS*sizeof(EpochPage<KeyType, ValueType, KeyComparator> * ));
+		memset(&epoch_size_, 0, MAX_ACTIVE_EPOCHS*sizeof(int));
+		memset(&epoch_users_, 0, MAX_ACTIVE_EPOCHS*sizeof(int));
+		pthread_create(&management_pthread_, nullptr, epoch_management, nullptr);
+	}
+
+	~EpochManager(){
+		destructor_called_ = true;
+		void ** pthread_ret;
+		pthread_join(management_pthread_, pthread_ret);
+
+	}
+
+	unsigned long GetCurrentEpoch(){
+		auto current_epoch = current_epoch_;
+		__sync_add_and_fetch(&epoch_users_[current_epoch], 1);
+		return current_epoch;
+
+	}
+	void ReleaseCurrentEpoch(unsigned long i){
+		__sync_add_and_fetch(&epoch_users_[i], -1);
+	}
+
+	void AddNodeToEpoch(BWTreeNode<KeyType, ValueType, KeyComparator> * node_to_destroy){
+		auto curr_epoch = current_epoch_;
+		auto write_pos = __sync_fetch_and_add(&epoch_size_[curr_epoch], 1);
+		// find correct page
+		auto curr_page = &(first_pages_[curr_epoch]);
+		for(int i = 0; i < write_pos/EPOCH_PAGE_SIZE; i++){
+			if (curr_page == nullptr){
+				EpochPage<KeyType, ValueType, KeyComparator>* new_page = new EpochPage<KeyType, ValueType, KeyComparator>;
+				if(!__sync_bool_compare_and_swap(curr_page, nullptr, new_page)){
+					delete new_page;
+				}
+			}
+			curr_page = &((*curr_page)->next_page);
+		}
+		(*curr_page)->pointers = node_to_destroy;
+	}
+
+private:
+
+	EpochPage<KeyType, ValueType, KeyComparator> * first_pages_[MAX_ACTIVE_EPOCHS];
+	int epoch_size_[MAX_ACTIVE_EPOCHS];
+	int epoch_users_[MAX_ACTIVE_EPOCHS];
+	unsigned long current_epoch_;
+	bool destructor_called_;
+	pthread_t management_pthread_;
+// private internal methods for GC pthread
+	void* epoch_management(void * args){
+
+		return nullptr;
+	}
 };
 
 //===--------------------------------------------------------------------===//
