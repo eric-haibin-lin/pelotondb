@@ -847,7 +847,12 @@ bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
       &(this->modified_node), old_child_node_hard_ptr, new_delta);
   if (!status) {
     delete new_delta;
+  } else {
+    if (this->modified_node->GetDeltaChainLen() >= LPAGE_DELTA_CHAIN_LIMIT) {
+      this->map->CompressDeltaChain(self, this, this);
+    }
   }
+
   return status;
 };
 
@@ -939,6 +944,7 @@ NodeStateBuilder<KeyType, ValueType, KeyComparator> *IPageUpdateDelta<
 template <typename KeyType, typename ValueType, class KeyComparator>
 bool IPageUpdateDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
     KeyType key, ValueType location, LPID self, LPID parent) {
+  LOG_INFO("Inside IPageUpdateDelta InsertEntry");
   if (this->map->CompareKey(key, max_key_right_split_node_) ==
       1)  // should go down to the lower level IPage
   {
@@ -1105,7 +1111,9 @@ bool LPage<KeyType, ValueType, KeyComparator>::InsertEntry(KeyType key,
                                                               key, location);
 
   bool status = this->map->GetMappingTable()->SwapNode(self, this, new_delta);
+
   if (!status) {
+    LOG_INFO("LPage InsertEntry failed");
     delete new_delta;
   }
   return status;
@@ -1183,6 +1191,10 @@ bool LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
   }
 
   LOG_INFO("The SwapNode attempt for split succeeded.");
+
+  splitDelta->SetSplitCompleted();
+
+  return true;
   // This completes the atomic half split
   // At this point no one else can succeed with the complete split because
   // this guy won in the half split

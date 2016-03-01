@@ -547,7 +547,7 @@ class BWTreeNode {
   };
 
   inline int GetDeltaChainLen() {
-    LOG_INFO("got delta chain len %d\n", delta_chain_len_);
+    LOG_INFO("Got delta chain len %d", delta_chain_len_);
     return delta_chain_len_;
   }
 
@@ -651,6 +651,8 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   bool PerformDeltaInsert(LPID my_lpid,
                           Delta<KeyType, ValueType, KeyComparator> *new_delta) {
     bool status;
+    LOG_INFO("Inside PerformDeltaChainInsert with new_delta len = %d",
+             new_delta->GetDeltaChainLen());
     if (new_delta->GetDeltaChainLen() > this->GetDeltaChainLimit()) {
       status = this->map->CompressDeltaChain(my_lpid, this, new_delta);
     } else {
@@ -707,7 +709,7 @@ class IPageSplitDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
 };
 
 //===--------------------------------------------------------------------===//
-// IPageDelta
+// LPageDelta
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
 class LPageDelta : public Delta<KeyType, ValueType, KeyComparator> {
@@ -842,6 +844,89 @@ class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
 
   // The item pointer of the updated key
   ValueType modified_val_;
+
+  // Whether it's a delete delta
+  bool is_delete_ = false;
+};
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+class LPageRemoveDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
+ public:
+  LPageRemoveDelta(BWTree<KeyType, ValueType, KeyComparator> *map)
+      : LPageDelta<KeyType, ValueType, KeyComparator>(map) {
+    LOG_INFO("Inside LPageRemoveDelta Constructor");
+  };
+
+  bool InsertEntry(__attribute__((unused)) KeyType key,
+                   __attribute__((unused)) ValueType location,
+                   __attribute__((unused)) LPID my_lpid,
+                   __attribute__((unused)) LPID parent);
+
+  bool DeleteEntry(__attribute__((unused)) KeyType key,
+                   __attribute__((unused)) ValueType location, LPID my_lpid);
+
+  void ScanKey(KeyType key, std::vector<ValueType> &result);
+
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
+      int max_index);
+
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildScanState(
+      __attribute__((unused)) KeyType key) {
+    return nullptr;
+  };
+
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildScanState(
+      __attribute__((unused)) const std::vector<Value> &values,
+      __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
+      __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
+      __attribute__((unused)) const ScanDirectionType &scan_direction) {
+    return nullptr;
+  };
+
+ private:
+  // The key which is modified
+
+  // Whether it's a delete delta
+  bool is_delete_ = false;
+};
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+class LPageMergeDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
+ public:
+  LPageMergeDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
+                  BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node)
+      : LPageDelta<KeyType, ValueType, KeyComparator>(map, modified_node) {
+    LOG_INFO("Inside LPageMergeDelta Constructor");
+  };
+
+  bool InsertEntry(__attribute__((unused)) KeyType key,
+                   __attribute__((unused)) ValueType location,
+                   __attribute__((unused)) LPID my_lpid,
+                   __attribute__((unused)) LPID parent);
+
+  bool DeleteEntry(__attribute__((unused)) KeyType key,
+                   __attribute__((unused)) ValueType location, LPID my_lpid);
+
+  void ScanKey(KeyType key, std::vector<ValueType> &result);
+
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
+      int max_index);
+
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildScanState(
+      __attribute__((unused)) KeyType key) {
+    return nullptr;
+  };
+
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildScanState(
+      __attribute__((unused)) const std::vector<Value> &values,
+      __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
+      __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
+      __attribute__((unused)) const ScanDirectionType &scan_direction) {
+    return nullptr;
+  };
+
+ private:
+  // The key which is modified
 
   // Whether it's a delete delta
   bool is_delete_ = false;
