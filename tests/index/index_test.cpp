@@ -475,24 +475,12 @@ BuildLNodeStateBuilder(
   return builder;
 }
 
-void ScanKeyHelper(const TestKeyType &index_key0, INDEX_KEY_TYPE index_key_type,
-                   void *node, NODE_TYPE node_type) {
+void ScanKeyHelper(
+    const TestKeyType &index_key0, INDEX_KEY_TYPE index_key_type,
+    index::LPage<TestKeyType, TestValueType, TestComparatorType> *lpage) {
   // TEST SCAN KEY
   std::vector<TestValueType> locations;
-  if (node_type == LPAGE) {
-    index::LPage<TestKeyType, TestValueType, TestComparatorType> *lpage =
-        reinterpret_cast<
-            index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
-            node);
-    lpage->ScanKey(index_key0, locations);
-  } else if (node_type == LNODE_STATE_BUILDER) {
-    index::LNodeStateBuilder<TestKeyType, TestValueType,
-                             TestComparatorType> *lbuilder =
-        reinterpret_cast<index::LNodeStateBuilder<TestKeyType, TestValueType,
-                                                  TestComparatorType> *>(node);
-    lbuilder->ScanKey(index_key0, locations);
-    ;
-  }
+  lpage->ScanKey(index_key0, locations);
 
   if (index_key_type == NON_UNIQUE_KEY) {
     EXPECT_EQ(locations.size(), 3);
@@ -502,62 +490,28 @@ void ScanKeyHelper(const TestKeyType &index_key0, INDEX_KEY_TYPE index_key_type,
   return;
 }
 
-void ScanAllKeysHelper(INDEX_KEY_TYPE index_key_type, void *node,
-                       NODE_TYPE node_type) {
+void ScanAllKeysHelper(
+    INDEX_KEY_TYPE index_key_type,
+    index::LPage<TestKeyType, TestValueType, TestComparatorType> *lpage) {
   // TEST SCAN ALL KEYS
   std::vector<TestValueType> locations;
-  if (node_type == LPAGE) {
-    index::LPage<TestKeyType, TestValueType, TestComparatorType> *lpage =
-        reinterpret_cast<
-            index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
-            node);
-    lpage->ScanAllKeys(locations);
-  } else if (node_type == LNODE_STATE_BUILDER) {
-    index::LNodeStateBuilder<TestKeyType, TestValueType,
-                             TestComparatorType> *lbuilder =
-        reinterpret_cast<index::LNodeStateBuilder<TestKeyType, TestValueType,
-                                                  TestComparatorType> *>(node);
-    lbuilder->ScanAllKeys(locations);
-  }
+  lpage->ScanAllKeys(locations);
+
   if (index_key_type == NON_UNIQUE_KEY) {
     EXPECT_EQ(locations.size(), 8);
   } else {
     EXPECT_EQ(locations.size(), 4);
   }
 }
-
-void LPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
-  auto pool = TestingHarness::GetInstance().GetTestingPool();
-  index::BWTree<TestKeyType, TestValueType, TestComparatorType> *map =
-      BuildBWTree(index_key_type);
-  index::LNodeStateBuilder<TestKeyType, TestValueType, TestComparatorType> *
-      builder = BuildLNodeStateBuilder(pool, index_key_type, map);
-  index::LPage<TestKeyType, TestValueType, TestComparatorType> *lpage =
-      reinterpret_cast<
-          index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
-          builder->GetPage());
-
-  std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
-  key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
-  key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
-  TestKeyType index_key0;
-  index_key0.SetFromKey(key0.get());
-
-  // TEST SCAN KEY
-  ScanKeyHelper(index_key0, index_key_type, builder, LNODE_STATE_BUILDER);
-  ScanKeyHelper(index_key0, index_key_type, lpage, LPAGE);
-
-  // TEST SCAN ALL KEYS
-  ScanAllKeysHelper(index_key_type, builder, LNODE_STATE_BUILDER);
-  ScanAllKeysHelper(index_key_type, lpage, LPAGE);
-
+void ScanHelper(
+    INDEX_KEY_TYPE index_key_type,
+    index::LPage<TestKeyType, TestValueType, TestComparatorType> *lpage) {
   // TEST SCAN
   std::vector<peloton::Value> values;
   std::vector<oid_t> key_column_ids;
   std::vector<ExpressionType> expr_types;
-  // TestValueType last_val_non_unique, last_val_unique;
-
   ScanDirectionType direction = SCAN_DIRECTION_TYPE_FORWARD;
+  // TestValueType last_val_non_unique, last_val_unique;
 
   // setup values
   peloton::Value value1 = ValueFactory::GetIntegerValue(100);
@@ -597,11 +551,10 @@ void LPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
     // last_val_unique =locations[1];
   }
 
-  // TODO reverse scan again with SCAN_DIRECTION_TYPE_BACKWARD
-  /*
+  /* TODO reverse scan again with SCAN_DIRECTION_TYPE_BACKWARD
   locations.clear();
    lpage->Scan(values, key_column_ids, expr_types, SCAN_DIRECTION_TYPE_BACKWARD,
-  locations, nullptr, false);
+  locations, nullptr);
   if (index_key_type == NON_UNIQUE_KEY) {
     EXPECT_EQ(locations.size(), 4);
     EXPECT_EQ(locations[0].block, last_val_non_unique.block);
@@ -621,6 +574,54 @@ void LPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
   } else {
     EXPECT_EQ(locations.size(), 1);
   }
+}
+
+void LPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
+  auto pool = TestingHarness::GetInstance().GetTestingPool();
+  index::BWTree<TestKeyType, TestValueType, TestComparatorType> *map =
+      BuildBWTree(index_key_type);
+  index::LNodeStateBuilder<TestKeyType, TestValueType, TestComparatorType> *
+      builder = BuildLNodeStateBuilder(pool, index_key_type, map);
+  index::LPage<TestKeyType, TestValueType, TestComparatorType> *lpage =
+      reinterpret_cast<
+          index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
+          builder->GetPage());
+
+  std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
+  key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+  key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
+  TestKeyType index_key0;
+  index_key0.SetFromKey(key0.get());
+
+  // TEST SCAN KEY
+  ScanKeyHelper(index_key0, index_key_type, lpage);
+
+  // TEST SCAN ALL KEYS
+  ScanAllKeysHelper(index_key_type, lpage);
+
+  // TEST SCAN
+  ScanHelper(index_key_type, lpage);
+
+  delete builder;
+  delete lpage;
+}
+
+void IPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
+  auto pool = TestingHarness::GetInstance().GetTestingPool();
+  index::BWTree<TestKeyType, TestValueType, TestComparatorType> *map =
+      BuildBWTree(index_key_type);
+  index::LNodeStateBuilder<TestKeyType, TestValueType, TestComparatorType> *
+      builder = BuildLNodeStateBuilder(pool, index_key_type, map);
+  index::LPage<TestKeyType, TestValueType, TestComparatorType> *lpage =
+      reinterpret_cast<
+          index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
+          builder->GetPage());
+
+  // TODO TEST SCAN KEY
+
+  // TODO TEST SCAN ALL KEYS
+
+  // TODO TEST SCAN
 
   delete builder;
   delete lpage;
@@ -629,6 +630,12 @@ void LPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
 TEST(IndexTests, LPageScanTest) {
   for (unsigned int i = 0; i < index_types.size(); i++) {
     LPageScanTestHelper(index_types[i]);
+  }
+}
+
+TEST(IndexTests, IPageScanTest) {
+  for (unsigned int i = 0; i < index_types.size(); i++) {
+    IPageScanTestHelper(index_types[i]);
   }
 }
 
