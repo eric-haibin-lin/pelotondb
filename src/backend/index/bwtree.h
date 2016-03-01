@@ -19,6 +19,8 @@
 #include <climits>
 #include <string.h>
 #include <algorithm>
+#include <chrono>
+#include <thread>
 
 namespace peloton {
 namespace index {
@@ -46,6 +48,7 @@ enum BWTreeNodeType {
 
 #define EPOCH_PAGE_SIZE 256
 #define MAX_ACTIVE_EPOCHS 2
+#define EPOCH_LENGTH_MILLIS 40
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTree;
@@ -336,73 +339,122 @@ class MappingTable {
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 struct EpochPage {
-	BWTreeNode<KeyType, ValueType, KeyComparator> *pointers[EPOCH_PAGE_SIZE];
-	EpochPage * next_page = nullptr;
+  BWTreeNode<KeyType, ValueType, KeyComparator> *pointers[EPOCH_PAGE_SIZE];
+  EpochPage *next_page = nullptr;
 };
 
 //===--------------------------------------------------------------------===//
 // EpochManager
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
-class EpochManager{
-public:
-	EpochManager(){
-		// should start GC pthread
-		current_epoch_ = 0;
-		destructor_called_ = false;
-		memset(&first_pages_, 0, MAX_ACTIVE_EPOCHS*sizeof(EpochPage<KeyType, ValueType, KeyComparator> * ));
-		memset(&epoch_size_, 0, MAX_ACTIVE_EPOCHS*sizeof(int));
-		memset(&epoch_users_, 0, MAX_ACTIVE_EPOCHS*sizeof(int));
-		pthread_create(&management_pthread_, nullptr, epoch_management, nullptr);
-	}
+class EpochManager {
+ public:
+  EpochManager() {
+    // should start GC pthread
+    current_epoch_ = 0;
+    destructor_called_ = false;
+    memset(&epoch_size_, 0, MAX_ACTIVE_EPOCHS * sizeof(int));
+    memset(&epoch_users_, 0, MAX_ACTIVE_EPOCHS * sizeof(int));
+    pthread_create(&management_pthread_, nullptr, &epoch_management, this);
+    for (int i = 0; i < MAX_ACTIVE_EPOCHS; i++){
+    	first_pages_[i] = new EpochPage<KeyType, ValueType, KeyComparator>();
+    }
+  }
 
-	~EpochManager(){
-		destructor_called_ = true;
-		void ** pthread_ret;
-		pthread_join(management_pthread_, pthread_ret);
+  ~EpochManager() {
+    destructor_called_ = true;
+    LOG_INFO("set destructor called flag");
+    pthread_join(management_pthread_, nullptr);
+  }
 
-	}
+  unsigned long GetCurrentEpoch() {
+    auto current_epoch = current_epoch_;
+    __sync_add_and_fetch(&epoch_users_[current_epoch], 1);
+    return current_epoch;
+  }
+  void ReleaseCurrentEpoch(unsigned long i) {
+    __sync_add_and_fetch(&epoch_users_[i], -1);
+  }
 
-	unsigned long GetCurrentEpoch(){
-		auto current_epoch = current_epoch_;
-		__sync_add_and_fetch(&epoch_users_[current_epoch], 1);
-		return current_epoch;
+  void AddNodeToEpoch(
+      BWTreeNode<KeyType, ValueType, KeyComparator> *node_to_destroy) {
+    auto curr_epoch = current_epoch_;
+    auto write_pos = __sync_fetch_and_add(&epoch_size_[curr_epoch], 1);
+    // find correct page
+    auto curr_page = first_pages_[curr_epoch];
+    for (int i = 0; i < (write_pos / EPOCH_PAGE_SIZE) +1; i++) {
+      if (curr_page->next_page == nullptr) {
+        EpochPage<KeyType, ValueType, KeyComparator> *new_page =
+            new EpochPage<KeyType, ValueType, KeyComparator>();
+        if (!__sync_bool_compare_and_swap(&(curr_page->next_page), nullptr, new_page)) {
+          delete new_page;
+        }
+      }
+      curr_page = curr_page->next_page;
+    }
+    curr_page->pointers[write_pos] = node_to_destroy;
+  }
 
-	}
-	void ReleaseCurrentEpoch(unsigned long i){
-		__sync_add_and_fetch(&epoch_users_[i], -1);
-	}
+ private:
+  EpochPage<KeyType, ValueType, KeyComparator> *first_pages_[MAX_ACTIVE_EPOCHS];
+  int epoch_size_[MAX_ACTIVE_EPOCHS];
+  int epoch_users_[MAX_ACTIVE_EPOCHS];
+  unsigned long current_epoch_;
+  bool destructor_called_;
+  pthread_t management_pthread_;
 
-	void AddNodeToEpoch(BWTreeNode<KeyType, ValueType, KeyComparator> * node_to_destroy){
-		auto curr_epoch = current_epoch_;
-		auto write_pos = __sync_fetch_and_add(&epoch_size_[curr_epoch], 1);
-		// find correct page
-		auto curr_page = &(first_pages_[curr_epoch]);
-		for(int i = 0; i < write_pos/EPOCH_PAGE_SIZE; i++){
-			if (curr_page == nullptr){
-				EpochPage<KeyType, ValueType, KeyComparator>* new_page = new EpochPage<KeyType, ValueType, KeyComparator>;
-				if(!__sync_bool_compare_and_swap(curr_page, nullptr, new_page)){
-					delete new_page;
-				}
-			}
-			curr_page = &((*curr_page)->next_page);
-		}
-		(*curr_page)->pointers = node_to_destroy;
-	}
+  // private internal methods for GC pthread
 
-private:
+  static inline void CollectGarbageForPage(
+      EpochPage<KeyType, ValueType, KeyComparator> *top_page) {
+    auto curr_epoch_page = top_page;
+    while (curr_epoch_page != nullptr) {
+      // free all pages
+      for (int i = 0; i < EPOCH_PAGE_SIZE; i++) {
+        auto currptr = curr_epoch_page->pointers[i];
+        if (currptr != nullptr) {
+          currptr->SetCleanUpChildren();
+          delete currptr;
+        }
+      }
+      auto next_epoch_page = curr_epoch_page->next_page;
+      delete curr_epoch_page;
+      curr_epoch_page = next_epoch_page;
+    }
+  }
+  static void *epoch_management(__attribute__((unused)) void *args) {
+    auto manager =
+        reinterpret_cast<EpochManager<KeyType, ValueType, KeyComparator> *>(
+            args);
+    LOG_INFO("Epoch Management Thread initialized");
+    while (!manager->destructor_called_) {
+      // give it time to start up
+      std::this_thread::sleep_for(
+          std::chrono::milliseconds(EPOCH_LENGTH_MILLIS));
+      auto old_epoch = manager->current_epoch_;
+      auto new_epoch = (old_epoch + 1) % MAX_ACTIVE_EPOCHS;
+      manager->current_epoch_ = new_epoch;
 
-	EpochPage<KeyType, ValueType, KeyComparator> * first_pages_[MAX_ACTIVE_EPOCHS];
-	int epoch_size_[MAX_ACTIVE_EPOCHS];
-	int epoch_users_[MAX_ACTIVE_EPOCHS];
-	unsigned long current_epoch_;
-	bool destructor_called_;
-	pthread_t management_pthread_;
-// private internal methods for GC pthread
-	void* epoch_management(void * args){
+      // wait for other threads to see the new epoch
+      while (manager->epoch_size_[new_epoch] == 0 && !manager->destructor_called_)
+        ;
 
-		return nullptr;
-	}
+      // wait for users of the old epoch to complete
+      while (manager->epoch_users_[old_epoch] > 0 && !manager->destructor_called_)
+        ;
+      CollectGarbageForPage(manager->first_pages_[old_epoch]);
+      manager->first_pages_[old_epoch] = new EpochPage<KeyType, ValueType, KeyComparator>();
+      manager->epoch_size_[old_epoch] = 0;
+    }
+    // we are exiting collect all garbage
+    // we assume no threads are currently adding_stuff
+    LOG_INFO("Epoch Management Thread cleaing up remaining garbage");
+    for (int i = 0; i < MAX_ACTIVE_EPOCHS; i++) {
+      CollectGarbageForPage(manager->first_pages_[i]);
+    }
+    LOG_INFO("Epoch Management Thread exiting");
+    return nullptr;
+  }
 };
 
 //===--------------------------------------------------------------------===//
@@ -416,6 +468,7 @@ class BWTree {
   IndexMetadata *metadata_;
   KeyComparator comparator_;
   MappingTable<KeyType, ValueType, KeyComparator> *mapping_table_;
+//  EpochManager<KeyType, ValueType, KeyComparator> epoch_manager_;
 
  public:
   /*
@@ -456,7 +509,10 @@ class BWTree {
     // with the given comparator
   };
 
-  ~BWTree() { delete mapping_table_; }
+  ~BWTree() {
+	  delete mapping_table_;
+
+  }
 
   // get the index of the first occurrence of the given key
   template <typename PairSecond>
@@ -530,7 +586,9 @@ class BWTree {
                                                  new_node_ptr);
     // if we didn't failed to install we should clean up the page we created
     if (completed) {
-      // TODO: add old node to epoch
+    	// TODO add this back when other memory problems fixed
+
+//      this->epoch_manager_.AddNodeToEpoch(old_node_ptr);
     } else {
       // if we failed we should clean up the new page
       delete new_node_ptr;
@@ -605,6 +663,8 @@ class BWTreeNode {
     return nullptr;
   };
 
+  void SetCleanUpChildren() { clean_up_children_ = true; }
+
   // TODO to be implemented in the future
   //    virtual NodeStateBuilder<KeyType, ValueType, KeyComparator>
   //    *BuildScanState(
@@ -634,6 +694,8 @@ class BWTreeNode {
 
   // length of delta chain
   int delta_chain_len_;
+
+  bool clean_up_children_ = false;
 };
 
 //===--------------------------------------------------------------------===//
@@ -717,7 +779,11 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   void ScanKey(KeyType key, std::vector<ValueType> &result);
 
-  virtual ~Delta(){};
+  virtual ~Delta() {
+    if (this->clean_up_children_) {
+      delete modified_node;
+    }
+  };
 
  protected:
   // the modified node could either be a LPage or IPage or Delta
@@ -734,6 +800,11 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
       status = this->map->GetMappingTable()->SwapNode(my_lpid, this, new_delta);
     }
     return status;
+  }
+
+  void SetCleanUpChildren() {
+    BWTreeNode<KeyType, ValueType, KeyComparator>::SetCleanUpChildren();
+    modified_node->SetCleanUpChildren();
   }
 };
 
