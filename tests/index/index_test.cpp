@@ -484,7 +484,7 @@ TEST(IndexTests, MultiThreadedTest) {
   LaunchParallelTest(num_threads, InsertTest, index.get(), pool, scale_factor);
 
   locations = index->ScanAllKeys();
-  EXPECT_EQ(locations.size(), 9 * num_threads);
+  EXPECT_EQ(locations.size(), 9 * num_threads * scale_factor);
 
   std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
   std::unique_ptr<storage::Tuple> keynonce(
@@ -539,7 +539,7 @@ TEST(IndexTests, MultiThreadedTest) {
   expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
   locations = index->Scan(values, key_column_ids, expr_types, direction);
   // assume non_unique_key
-  EXPECT_EQ(locations.size(), 1 * num_threads);
+  EXPECT_EQ(locations.size(), 1 * num_threads *scale_factor);
 
   // DELETE
   LaunchParallelTest(num_threads, DeleteTest, index.get(), pool, scale_factor);
@@ -587,7 +587,7 @@ TEST(IndexTests, MultiThreadedTest) {
   expr_types[0] = EXPRESSION_TYPE_COMPARE_GREATERTHAN;
   expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
   locations = index->Scan(values, key_column_ids, expr_types, direction);
-  EXPECT_EQ(locations.size(), 1 * num_threads);
+  EXPECT_EQ(locations.size(), 1 * num_threads *scale_factor);
 
   delete tuple_schema;
 }*/
