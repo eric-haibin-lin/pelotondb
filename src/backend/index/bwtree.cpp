@@ -843,7 +843,7 @@ bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
   {
     return this->map->GetMappingTable()
         ->GetNode(right_split_page_lpid_)
-        ->InsertEntry(key, location, right_split_page_lpid_, self);
+        ->InsertEntry(key, location, right_split_page_lpid_, parent);
   }
 
   if (!this->split_completed_) {
