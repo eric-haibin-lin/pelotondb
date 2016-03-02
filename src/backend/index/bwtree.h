@@ -356,8 +356,8 @@ class EpochManager {
     memset(&epoch_size_, 0, MAX_ACTIVE_EPOCHS * sizeof(int));
     memset(&epoch_users_, 0, MAX_ACTIVE_EPOCHS * sizeof(int));
     pthread_create(&management_pthread_, nullptr, &epoch_management, this);
-    for (int i = 0; i < MAX_ACTIVE_EPOCHS; i++){
-    	first_pages_[i] = new EpochPage<KeyType, ValueType, KeyComparator>();
+    for (int i = 0; i < MAX_ACTIVE_EPOCHS; i++) {
+      first_pages_[i] = new EpochPage<KeyType, ValueType, KeyComparator>();
     }
   }
 
@@ -370,23 +370,27 @@ class EpochManager {
   unsigned long GetCurrentEpoch() {
     auto current_epoch = current_epoch_;
     __sync_add_and_fetch(&epoch_users_[current_epoch], 1);
+    LOG_INFO("Got current epoch %lu", current_epoch);
     return current_epoch;
   }
-  void ReleaseCurrentEpoch(unsigned long i) {
+  void ReleaseEpoch(unsigned long i) {
     __sync_add_and_fetch(&epoch_users_[i], -1);
   }
 
   void AddNodeToEpoch(
       BWTreeNode<KeyType, ValueType, KeyComparator> *node_to_destroy) {
+    LOG_INFO("Adding node to epoch");
     auto curr_epoch = current_epoch_;
     auto write_pos = __sync_fetch_and_add(&epoch_size_[curr_epoch], 1);
     // find correct page
     auto curr_page = first_pages_[curr_epoch];
-    for (int i = 0; i < (write_pos / EPOCH_PAGE_SIZE) +1; i++) {
+    for (int i = 0; i < (write_pos / EPOCH_PAGE_SIZE) + 1; i++) {
+      LOG_INFO("Epoch Page Full, getting child page");
       if (curr_page->next_page == nullptr) {
         EpochPage<KeyType, ValueType, KeyComparator> *new_page =
             new EpochPage<KeyType, ValueType, KeyComparator>();
-        if (!__sync_bool_compare_and_swap(&(curr_page->next_page), nullptr, new_page)) {
+        if (!__sync_bool_compare_and_swap(&(curr_page->next_page), nullptr,
+                                          new_page)) {
           delete new_page;
         }
       }
@@ -409,6 +413,7 @@ class EpochManager {
       EpochPage<KeyType, ValueType, KeyComparator> *top_page) {
     auto curr_epoch_page = top_page;
     while (curr_epoch_page != nullptr) {
+      LOG_INFO("Garbage Collector cleaning page");
       // free all pages
       for (int i = 0; i < EPOCH_PAGE_SIZE; i++) {
         auto currptr = curr_epoch_page->pointers[i];
@@ -431,19 +436,24 @@ class EpochManager {
       // give it time to start up
       std::this_thread::sleep_for(
           std::chrono::milliseconds(EPOCH_LENGTH_MILLIS));
+      LOG_INFO("Collecting Garbage start");
       auto old_epoch = manager->current_epoch_;
       auto new_epoch = (old_epoch + 1) % MAX_ACTIVE_EPOCHS;
       manager->current_epoch_ = new_epoch;
 
       // wait for other threads to see the new epoch
-      while (manager->epoch_size_[new_epoch] == 0 && !manager->destructor_called_)
+      while (manager->epoch_size_[new_epoch] == 0 &&
+             !manager->destructor_called_)
         ;
 
       // wait for users of the old epoch to complete
-      while (manager->epoch_users_[old_epoch] > 0 && !manager->destructor_called_)
+      while (manager->epoch_users_[old_epoch] > 0 &&
+             !manager->destructor_called_)
         ;
+      LOG_INFO("Collecting Garbage for page %lu", old_epoch);
       CollectGarbageForPage(manager->first_pages_[old_epoch]);
-      manager->first_pages_[old_epoch] = new EpochPage<KeyType, ValueType, KeyComparator>();
+      manager->first_pages_[old_epoch] =
+          new EpochPage<KeyType, ValueType, KeyComparator>();
       manager->epoch_size_[old_epoch] = 0;
     }
     // we are exiting collect all garbage
@@ -468,7 +478,7 @@ class BWTree {
   IndexMetadata *metadata_;
   KeyComparator comparator_;
   MappingTable<KeyType, ValueType, KeyComparator> *mapping_table_;
-//  EpochManager<KeyType, ValueType, KeyComparator> epoch_manager_;
+  EpochManager<KeyType, ValueType, KeyComparator> epoch_manager_;
 
  public:
   /*
@@ -509,10 +519,7 @@ class BWTree {
     // with the given comparator
   };
 
-  ~BWTree() {
-	  delete mapping_table_;
-
-  }
+  ~BWTree() { delete mapping_table_; }
 
   // get the index of the first occurrence of the given key
   template <typename PairSecond>
@@ -527,12 +534,15 @@ class BWTree {
 
   bool DeleteEntry(KeyType key, ValueType location) {
     LPID child_lpid;
-    child_lpid = root_;
-
-    while (!GetMappingTable()
-                ->GetNode(child_lpid)
-                ->DeleteEntry(key, location, child_lpid))
-      ;
+    bool complete = false;
+    while (!complete) {
+      auto epochNum = epoch_manager_.GetCurrentEpoch();
+      child_lpid = root_;
+      complete = GetMappingTable()
+                     ->GetNode(child_lpid)
+                     ->DeleteEntry(key, location, child_lpid);
+      epoch_manager_.ReleaseEpoch(epochNum);
+    }
     return true;
   };
 
@@ -586,9 +596,9 @@ class BWTree {
                                                  new_node_ptr);
     // if we didn't failed to install we should clean up the page we created
     if (completed) {
-    	// TODO add this back when other memory problems fixed
+      // TODO add this back when other memory problems fixed
 
-//      this->epoch_manager_.AddNodeToEpoch(old_node_ptr);
+      this->epoch_manager_.AddNodeToEpoch(old_node_ptr);
     } else {
       // if we failed we should clean up the new page
       delete new_node_ptr;
@@ -779,7 +789,7 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   void ScanKey(KeyType key, std::vector<ValueType> &result);
 
-  virtual ~Delta() {
+  ~Delta() {
     if (this->clean_up_children_) {
       delete modified_node;
     }

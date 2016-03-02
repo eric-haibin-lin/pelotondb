@@ -15,8 +15,11 @@
 #include "backend/common/logger.h"
 #include "backend/index/index_factory.h"
 #include "backend/index/index_key.h"
-#include "backend/index/bwtree.h"
+
 #include "backend/storage/tuple.h"
+#define private public
+#define protected public
+#include "backend/index/bwtree.h"
 
 namespace peloton {
 namespace test {
@@ -604,6 +607,7 @@ void LPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
 
   delete builder;
   delete lpage;
+  delete map;
 }
 
 void IPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
@@ -622,7 +626,7 @@ void IPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
   // TODO TEST SCAN ALL KEYS
 
   // TODO TEST SCAN
-
+  delete map;
   delete builder;
   delete lpage;
 }
@@ -642,6 +646,7 @@ TEST(IndexTests, IPageScanTest) {
 void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
   auto pool = TestingHarness::GetInstance().GetTestingPool();
   auto map = BuildBWTree(index_key_type);
+  map->epoch_manager_.GetCurrentEpoch();
   auto baseNode =
       new index::LPage<TestKeyType, TestValueType, TestComparatorType>(map);
   index::LPID lpid = map->GetMappingTable()->InstallPage(baseNode);

@@ -239,12 +239,16 @@ bool BWTree<KeyType, ValueType, KeyComparator>::InsertEntry(
   // just call InsertEntry on root
   // return false;
   LPID child_lpid;
-  child_lpid = root_;
 
-  while (!GetMappingTable()
-              ->GetNode(child_lpid)
-              ->InsertEntry(key, location, child_lpid, child_lpid))
-    ;
+  bool complete = false;
+  while (!complete) {
+    auto epochNum = epoch_manager_.GetCurrentEpoch();
+    child_lpid = root_;
+    complete = GetMappingTable()
+                   ->GetNode(child_lpid)
+                   ->InsertEntry(key, location, child_lpid, child_lpid);
+    epoch_manager_.ReleaseEpoch(epochNum);
+  }
   return true;
 };
 
@@ -256,8 +260,10 @@ std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::Scan(
   std::vector<ValueType> result;
   LOG_INFO("Enter BWTree::Scan");
   // recursive call scan from the root of BWTree
+  auto curr_epoch = epoch_manager_.GetCurrentEpoch();
   GetMappingTable()->GetNode(root_)->Scan(values, key_column_ids, expr_types,
                                           scan_direction, result, index_key);
+  epoch_manager_.ReleaseEpoch(curr_epoch);
 
   // reverse the result if scan in backward direction. inefficient
   // implementation
@@ -275,7 +281,9 @@ BWTree<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
   std::vector<ValueType> result;
 
   // recursive call scan from the root of BWTree
+  auto curr_epoch = epoch_manager_.GetCurrentEpoch();
   GetMappingTable()->GetNode(root_)->ScanAllKeys(result);
+  epoch_manager_.ReleaseEpoch(curr_epoch);
   return result;
 };
 
@@ -287,7 +295,9 @@ std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::ScanKey(
 
   // recursive call scan from the root of BWTree
   LOG_INFO("Inside ScanKey of BWTree");
+  auto curr_epoch = epoch_manager_.GetCurrentEpoch();
   GetMappingTable()->GetNode(root_)->ScanKey(key, result);
+  epoch_manager_.ReleaseEpoch(curr_epoch);
   LOG_INFO("Leaving ScanKey of BWTree");
 
   return result;
