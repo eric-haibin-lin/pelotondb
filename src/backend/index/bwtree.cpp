@@ -240,12 +240,16 @@ bool BWTree<KeyType, ValueType, KeyComparator>::InsertEntry(
   // just call InsertEntry on root
   // return false;
   LPID child_lpid;
-  child_lpid = root_;
 
-  while (!GetMappingTable()
-              ->GetNode(child_lpid)
-              ->InsertEntry(key, location, child_lpid, child_lpid))
-    ;
+  bool complete = false;
+  while (!complete) {
+    auto epochNum = epoch_manager_.GetCurrentEpoch();
+    child_lpid = root_;
+    complete = GetMappingTable()
+                   ->GetNode(child_lpid)
+                   ->InsertEntry(key, location, child_lpid, child_lpid);
+    epoch_manager_.ReleaseEpoch(epochNum);
+  }
   return true;
 };
 
@@ -257,8 +261,10 @@ std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::Scan(
   std::vector<ValueType> result;
   LOG_INFO("Enter BWTree::Scan");
   // recursive call scan from the root of BWTree
+  auto curr_epoch = epoch_manager_.GetCurrentEpoch();
   GetMappingTable()->GetNode(root_)->Scan(values, key_column_ids, expr_types,
                                           scan_direction, result, index_key);
+  epoch_manager_.ReleaseEpoch(curr_epoch);
 
   // reverse the result if scan in backward direction. inefficient
   // implementation
@@ -276,7 +282,9 @@ BWTree<KeyType, ValueType, KeyComparator>::ScanAllKeys() {
   std::vector<ValueType> result;
 
   // recursive call scan from the root of BWTree
+  auto curr_epoch = epoch_manager_.GetCurrentEpoch();
   GetMappingTable()->GetNode(root_)->ScanAllKeys(result);
+  epoch_manager_.ReleaseEpoch(curr_epoch);
   return result;
 };
 
@@ -288,7 +296,9 @@ std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator>::ScanKey(
 
   // recursive call scan from the root of BWTree
   LOG_INFO("Inside ScanKey of BWTree");
+  auto curr_epoch = epoch_manager_.GetCurrentEpoch();
   GetMappingTable()->GetNode(root_)->ScanKey(key, result);
+  epoch_manager_.ReleaseEpoch(curr_epoch);
   LOG_INFO("Leaving ScanKey of BWTree");
 
   return result;
@@ -837,6 +847,11 @@ bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
         ->InsertEntry(key, location, right_split_page_lpid_, self);
   }
 
+  if (!this->split_completed_) {
+    LOG_INFO("Returning early because split in progress");
+    return false;
+  }
+
   // This Delta must now be inserted BELOW this delta
   LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
       new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
@@ -849,7 +864,12 @@ bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
       &(this->modified_node), old_child_node_hard_ptr, new_delta);
   if (!status) {
     delete new_delta;
+  } else {
+    if (this->modified_node->GetDeltaChainLen() >= LPAGE_DELTA_CHAIN_LIMIT) {
+      this->map->CompressDeltaChain(self, this, this);
+    }
   }
+
   return status;
 };
 
@@ -941,6 +961,7 @@ NodeStateBuilder<KeyType, ValueType, KeyComparator> *IPageUpdateDelta<
 template <typename KeyType, typename ValueType, class KeyComparator>
 bool IPageUpdateDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
     KeyType key, ValueType location, LPID self, LPID parent) {
+  LOG_INFO("Inside IPageUpdateDelta InsertEntry");
   if (this->map->CompareKey(key, max_key_right_split_node_) ==
       1)  // should go down to the lower level IPage
   {
@@ -1107,7 +1128,9 @@ bool LPage<KeyType, ValueType, KeyComparator>::InsertEntry(KeyType key,
                                                               key, location);
 
   bool status = this->map->GetMappingTable()->SwapNode(self, this, new_delta);
+
   if (!status) {
+    LOG_INFO("LPage InsertEntry failed");
     delete new_delta;
   }
   return status;
@@ -1185,6 +1208,10 @@ bool LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
   }
 
   LOG_INFO("The SwapNode attempt for split succeeded.");
+
+  splitDelta->SetSplitCompleted();
+
+  return true;
   // This completes the atomic half split
   // At this point no one else can succeed with the complete split because
   // this guy won in the half split
@@ -1215,6 +1242,7 @@ bool LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
 
   assert(swapSuccess == true);
 
+  splitDelta->SetSplitCompleted();
   LOG_INFO("Split finished");
   return true;
 }
