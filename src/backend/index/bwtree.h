@@ -14,6 +14,7 @@
 #include "backend/common/types.h"
 #include "backend/common/logger.h"
 #include "backend/index/index.h"
+#include "backend/storage/tuple.h"
 #include <map>
 #include <vector>
 #include <climits>
@@ -627,6 +628,11 @@ class BWTree {
   void ScanKeyHelper(KeyType key, oid_t size,
                      std::pair<KeyType, ValueType> *locations,
                      oid_t right_sibling, std::vector<ValueType> &result);
+
+ private:
+  bool MatchLeadingColumn(const AbstractTuple &index_key,
+                          const std::vector<oid_t> &key_column_ids,
+                          const std::vector<Value> &values);
 };
 
 //===--------------------------------------------------------------------===//

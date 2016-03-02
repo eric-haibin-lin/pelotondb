@@ -379,23 +379,20 @@ void BWTree<KeyType, ValueType, KeyComparator>::ScanHelper(
     index = BinarySearch(*index_key, locations, size);
     LOG_INFO("Scan from position %d, total len: %lu", index, size);
     // key not found.
-    if (index < 0 || size == 0 ||
-        (index == 0 && CompareKey(locations[0].first, *index_key) != 0)) {
-      LOG_INFO("Scan key not found");
-      // TODO fix this
-      // return;
+    if (index < 0) {
+      index = -index;
     }
 
     for (; index < size; index++) {
       std::pair<KeyType, ValueType> pair = locations[index];
       KeyType key = pair.first;
-      // key doesn't match index_key
-      if (CompareKey(key, *index_key) != 0) {
-        LOG_INFO("Scan key doesn't match");
-        // TODO fix this
-        //        return;
-      }
       auto tuple = key.GetTupleForComparison(GetKeySchema());
+
+      // key doesn't match index_key
+      if (!MatchLeadingColumn(tuple, key_column_ids, values)) {
+        LOG_INFO("Scan key's leading column doesn't match");
+        return;
+      }
       if (Index::Compare(tuple, key_column_ids, expr_types, values) == true) {
         ItemPointer location = pair.second;
         result.push_back(location);
@@ -462,6 +459,27 @@ void BWTree<KeyType, ValueType, KeyComparator>::ScanKeyHelper(
   if (index == size && right_sibling != INVALID_LPID) {
     GetMappingTable()->GetNode(right_sibling)->ScanKey(key, result);
   }
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+bool BWTree<KeyType, ValueType, KeyComparator>::MatchLeadingColumn(
+    const AbstractTuple &index_key, const std::vector<oid_t> &key_column_ids,
+    const std::vector<Value> &values) {
+  int diff;
+  oid_t leading_column_id = 0;
+  auto key_column_itr = std::find(key_column_ids.begin(), key_column_ids.end(),
+                                  leading_column_id) -
+                        key_column_ids.begin();
+  assert(key_column_itr < key_column_ids.size());
+
+  const Value &rhs = values[key_column_itr];
+  const Value &lhs = index_key.GetValue(0);
+
+  diff = lhs.Compare(rhs);
+  if (diff == VALUE_COMPARE_EQUAL) {
+    return true;
+  }
+  return false;
 }
 
 //===--------------------------------------------------------------------===//
@@ -1122,7 +1140,7 @@ bool LPage<KeyType, ValueType, KeyComparator>::InsertEntry(KeyType key,
                                                            ValueType location,
                                                            LPID self,
                                                            LPID parent) {
-  if (this->size_ > LPAGE_SPLIT_THRESHOLD) {
+  if (this->size_ > LPAGE_ARITY) {
     bool splitSuccess = this->SplitNodes(self, parent);
     if (!splitSuccess) return false;
   }
