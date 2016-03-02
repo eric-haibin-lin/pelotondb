@@ -1239,10 +1239,10 @@ bool LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
             this->map, parentHardPtr, maxLeftSplitNodeKey, maxRightSplitNodeKey,
             left_page_lpid, newLpageLPID, false);
 
-//    if (parentUpdateDelta->GetDeltaChainLen() > IPAGE_DELTA_CHAIN_LIMIT) {
-//      this->map->CompressDeltaChain(parent, parentHardPtr, parentUpdateDelta);
-//      continue;
-//    }
+    if (parentUpdateDelta->GetDeltaChainLen() > IPAGE_DELTA_CHAIN_LIMIT) {
+      this->map->CompressDeltaChain(parent, parentHardPtr, parentUpdateDelta);
+      continue;
+    }
 
     LOG_INFO("Now Doing a SwapNode to install this IPageUpdateDelta");
 
