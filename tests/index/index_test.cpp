@@ -595,7 +595,7 @@ TEST(IndexTests, MultiThreadedTest) {
 /*============================================================================
  * WHITE BOX TEST SPECIFIC TO BWTREE
  *===========================================================================*/
-
+/*
 TEST(IndexTests, BWTreeMappingTableTest) {
   // the values of the templates dont really matter;
   int size_to_test = 1025;
@@ -1229,7 +1229,7 @@ TEST(IndexTests, BWTreeLPageSplitTest) {
   }
 
   delete map;
-}
+}*/
 
 }  // End test namespace
 }  // End peloton namespace

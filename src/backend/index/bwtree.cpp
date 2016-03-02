@@ -816,7 +816,8 @@ void LPageSplitDelta<KeyType, ValueType, KeyComparator>::ScanKey(
         ->ScanKey(key, result);
   } else {
     // Scan the modified node
-    this->modified_node->ScanKey(key, result);
+    auto builder = this->BuildNodeState(-1);
+    builder->ScanKey(key, result);
   }
 };
 
@@ -829,8 +830,6 @@ LPageSplitDelta<KeyType, ValueType, KeyComparator>::BuildNodeState(int) {
           this->modified_node->BuildNodeState(modified_key_index_));
   assert(builder != nullptr);
   builder->UpdateRightSib(right_split_page_lpid_);
-  //  builder->SeparateFromKey(modified_key_, modified_key_index_,
-  //                           right_split_page_lpid_);
 
   return builder;
 }
@@ -852,14 +851,14 @@ bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
     return false;
   }
 
+  BWTreeNode<KeyType, ValueType, KeyComparator> *old_child_node_hard_ptr =
+      this->modified_node;
   // This Delta must now be inserted BELOW this delta
   LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
       new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
-          this->map, this->modified_node, key, location);
+          this->map, old_child_node_hard_ptr, key, location);
   // bool status = this->map->GetMappingTable()->SwapNode(self, this,
   // new_delta);
-  BWTreeNode<KeyType, ValueType, KeyComparator> *old_child_node_hard_ptr;
-  old_child_node_hard_ptr = this->modified_node;
   bool status = __sync_bool_compare_and_swap(
       &(this->modified_node), old_child_node_hard_ptr, new_delta);
   if (!status) {
@@ -884,19 +883,25 @@ bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::DeleteEntry(
         ->DeleteEntry(key, location, right_split_page_lpid_);
   }
 
+  BWTreeNode<KeyType, ValueType, KeyComparator> *old_child_node_hard_ptr =
+      this->modified_node;
+
   LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
-      new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
-                                                              key, location);
+      new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
+          this->map, old_child_node_hard_ptr, key, location);
   new_delta->SetDeleteFlag();
   // bool status = this->map->GetMappingTable()->SwapNode(self, this,
   // new_delta);
-  BWTreeNode<KeyType, ValueType, KeyComparator> *old_child_node_hard_ptr;
-  old_child_node_hard_ptr = this->modified_node;
   bool status = __sync_bool_compare_and_swap(
       &(this->modified_node), old_child_node_hard_ptr, new_delta);
   if (!status) {
     delete new_delta;
+  } else {
+    if (this->modified_node->GetDeltaChainLen() >= LPAGE_DELTA_CHAIN_LIMIT) {
+      this->map->CompressDeltaChain(self, this, this);
+    }
   }
+
   return status;
 };
 //===--------------------------------------------------------------------===//
@@ -1117,7 +1122,7 @@ bool LPage<KeyType, ValueType, KeyComparator>::InsertEntry(KeyType key,
                                                            ValueType location,
                                                            LPID self,
                                                            LPID parent) {
-  if (this->size_ > LPAGE_ARITY) {
+  if (this->size_ > LPAGE_SPLIT_THRESHOLD) {
     bool splitSuccess = this->SplitNodes(self, parent);
     if (!splitSuccess) return false;
   }
