@@ -335,7 +335,8 @@ std::vector<oid_t> BWTree<KeyType, ValueType, KeyComparator>::ScanKeyInternal(
   assert(size > 0);
   // do a binary search on locations to get the key
   int index = BinarySearch(key, locations, size);
-  if (index < 0) {
+  if (index < 0 || size == 0 ||
+      (index == 0 && CompareKey(locations[0].first, key) != 0)) {
     // key not found, return empty result
     return result;
   }
@@ -366,17 +367,23 @@ void BWTree<KeyType, ValueType, KeyComparator>::ScanHelper(
   // equality constraint on index_key
   if (index_key != nullptr) {
     index = BinarySearch(*index_key, locations, size);
-    LOG_INFO("Scan from position %d", index);
+    LOG_INFO("Scan from position %d, total len: %lu", index, size);
     // key not found.
-    if (index < 0) {
-      return;
+    if (index < 0 || size == 0 ||
+        (index == 0 && CompareKey(locations[0].first, *index_key) != 0)) {
+      LOG_INFO("Scan key not found");
+      // TODO fix this
+      // return;
     }
+
     for (; index < size; index++) {
       std::pair<KeyType, ValueType> pair = locations[index];
       KeyType key = pair.first;
       // key doesn't match index_key
       if (CompareKey(key, *index_key) != 0) {
-        return;
+        LOG_INFO("Scan key doesn't match");
+        // TODO fix this
+        //        return;
       }
       auto tuple = key.GetTupleForComparison(GetKeySchema());
       if (Index::Compare(tuple, key_column_ids, expr_types, values) == true) {

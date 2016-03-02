@@ -29,9 +29,6 @@ BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::BWTreeIndex(
       equals(metadata),
       comparator(metadata) {
   LOG_INFO("Inside BWTreeIndex constructor");
-  // Add your implementation here
-  // abj1: I think this will culminate in the BWTree constructor being called
-  // TODO instantiate BWTree with KeyComparator(metadata);
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator,
@@ -44,10 +41,11 @@ BWTreeIndex<KeyType, ValueType, KeyComparator,
 template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
 bool BWTreeIndex<KeyType, ValueType, KeyComparator,
-                 KeyEqualityChecker>::InsertEntry(__attribute__((unused))
-                                                  const storage::Tuple *key,
-                                                  __attribute__((unused))
+                 KeyEqualityChecker>::InsertEntry(const storage::Tuple *key,
+
                                                   const ItemPointer location) {
+  std::cout << "InsertEntry invoked, key_type: " << this->HasUniqueKeys()
+            << std::endl;
   KeyType index_key;
   index_key.SetFromKey(key);
   ValueType value(location);
@@ -58,11 +56,11 @@ bool BWTreeIndex<KeyType, ValueType, KeyComparator,
 template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
 bool BWTreeIndex<KeyType, ValueType, KeyComparator,
-                 KeyEqualityChecker>::DeleteEntry(__attribute__((unused))
-                                                  const storage::Tuple *key,
-                                                  __attribute__((unused))
+                 KeyEqualityChecker>::DeleteEntry(const storage::Tuple *key,
+
                                                   const ItemPointer location) {
-  // Add your implementation here
+  std::cout << "DeleteEntry invoked, key_type: " << this->HasUniqueKeys()
+            << std::endl;
   KeyType index_key;
   index_key.SetFromKey(key);
   ValueType value(location);
@@ -119,6 +117,8 @@ template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
 std::vector<ItemPointer> BWTreeIndex<KeyType, ValueType, KeyComparator,
                                      KeyEqualityChecker>::ScanAllKeys() {
+  std::cout << "ScanAllKeys invoked, key_type: " << this->HasUniqueKeys()
+            << std::endl;
   std::vector<ItemPointer> result;
   result = container.ScanAllKeys();
   return result;
@@ -132,6 +132,8 @@ template <typename KeyType, typename ValueType, class KeyComparator,
 std::vector<ItemPointer>
 BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::ScanKey(
     const storage::Tuple *key) {
+  std::cout << "ScanKey invoked, key_type: " << this->HasUniqueKeys()
+            << std::endl;
   std::vector<ItemPointer> result;
   KeyType index_key;
   index_key.SetFromKey(key);
