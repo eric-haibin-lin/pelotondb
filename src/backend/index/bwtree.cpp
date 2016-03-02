@@ -27,9 +27,8 @@ namespace index {
 template <typename KeyType, typename ValueType, class KeyComparator>
 BWTreeNode<KeyType, ValueType, KeyComparator> *
 INodeStateBuilder<KeyType, ValueType, KeyComparator>::GetPage() {
-  // TODO call IPage constructor
-  // return new IPage<KeyType, ValueType, KeyComparator>();
-  return nullptr;
+   return new IPage<KeyType, ValueType, KeyComparator>(this->map, this);
+
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -459,7 +458,7 @@ void BWTree<KeyType, ValueType, KeyComparator>::ScanKeyHelper(
     result.push_back(result_pair.second);
   }
   // reach the end of current LPage, go to next LPage for more results
-  if (index == size && right_sibling != INVALID_LPID) {
+  if (indices.size() > 0 && indices[indices.size()-1] == size - 1 && right_sibling != INVALID_LPID) {
     GetMappingTable()->GetNode(right_sibling)->ScanKey(key, result);
   }
 }
@@ -628,6 +627,9 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
         new IPageUpdateDelta<KeyType, ValueType, KeyComparator>(
             this->map, parentHardPtr, maxLeftSplitNodeKey, maxRightSplitNodeKey,
             INVALID_LPID, newIpageLPID, false);
+    if (parentHardPtr->GetDeltaChainLen() > IPAGE_DELTA_CHAIN_LIMIT) {
+      this->map->CompressDeltaChain(parent, parentHardPtr, parentUpdateDelta);
+    }
 
     LOG_INFO("Now Doing a SwapNode to install this IPageUpdateDelta");
 
@@ -1214,9 +1216,9 @@ bool LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
 
   LOG_INFO("The SwapNode attempt for split succeeded.");
 
-  splitDelta->SetSplitCompleted();
-
-  return true;
+  //  splitDelta->SetSplitCompleted();
+  //
+  //  return true;
   // This completes the atomic half split
   // At this point no one else can succeed with the complete split because
   // this guy won in the half split
@@ -1230,21 +1232,26 @@ bool LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
   LOG_INFO("Now try to create a new IPageUpdateDelta");
 
   BWTreeNode<KeyType, ValueType, KeyComparator> *parentHardPtr;
+  do {
+    parentHardPtr = this->map->GetMappingTable()->GetNode(parent);
+    IPageUpdateDelta<KeyType, ValueType, KeyComparator> *parentUpdateDelta =
+        new IPageUpdateDelta<KeyType, ValueType, KeyComparator>(
+            this->map, parentHardPtr, maxLeftSplitNodeKey, maxRightSplitNodeKey,
+            left_page_lpid, newLpageLPID, false);
 
-  parentHardPtr = this->map->GetMappingTable()->GetNode(parent);
-  IPageUpdateDelta<KeyType, ValueType, KeyComparator> *parentUpdateDelta =
-      new IPageUpdateDelta<KeyType, ValueType, KeyComparator>(
-          this->map, parentHardPtr, maxLeftSplitNodeKey, maxRightSplitNodeKey,
-          left_page_lpid, newLpageLPID, false);
+//    if (parentUpdateDelta->GetDeltaChainLen() > IPAGE_DELTA_CHAIN_LIMIT) {
+//      this->map->CompressDeltaChain(parent, parentHardPtr, parentUpdateDelta);
+//      continue;
+//    }
 
-  LOG_INFO("Now Doing a SwapNode to install this IPageUpdateDelta");
+    LOG_INFO("Now Doing a SwapNode to install this IPageUpdateDelta");
 
-  // This SwapNode has to be successful. No one else can do this for now.
-  // TODO if we allow any node to complete a partial SMO, then this will
-  // change
-  swapSuccess = this->map->GetMappingTable()->SwapNode(parent, parentHardPtr,
-                                                       parentUpdateDelta);
-
+    // This SwapNode has to be successful. No one else can do this for now.
+    // TODO if we allow any node to complete a partial SMO, then this will
+    // change
+    swapSuccess = this->map->GetMappingTable()->SwapNode(parent, parentHardPtr,
+                                                         parentUpdateDelta);
+  } while (!swapSuccess);
   assert(swapSuccess == true);
 
   splitDelta->SetSplitCompleted();
