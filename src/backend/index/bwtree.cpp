@@ -973,7 +973,7 @@ NodeStateBuilder<KeyType, ValueType, KeyComparator> *IPageUpdateDelta<
     builder->AddChild(right_pair);
 
     std::pair<KeyType, LPID> left_pair(max_key_left_split_node_,
-                                       right_split_node_lpid_);
+                                       left_split_node_lpid_);
     builder->AddChild(left_pair);
   }
   return builder;
