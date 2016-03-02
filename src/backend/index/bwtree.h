@@ -1053,8 +1053,6 @@ class LPageRemoveDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
   };
 
  private:
-  // The key which is modified
-
   // Whether it's a delete delta
   bool is_delete_ = false;
 };
