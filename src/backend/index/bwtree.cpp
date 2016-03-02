@@ -214,6 +214,8 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::Scan(
     const std::vector<ExpressionType> &expr_types,
     const ScanDirectionType &scan_direction, std::vector<ValueType> &result,
     const KeyType *index_key) {
+
+	LOG_INFO("LNodeStateBuilder::Scan, size: %lu", this->size);
   this->map->ScanHelper(values, key_column_ids, expr_types, scan_direction,
                         index_key, result, locations_, this->size,
                         right_sibling_);
@@ -222,12 +224,15 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::Scan(
 template <typename KeyType, typename ValueType, class KeyComparator>
 void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::ScanAllKeys(
     std::vector<ValueType> &result) {
+	LOG_INFO("LNodeStateBuilder::ScanAllKeys, size: %lu", this->size);
   this->map->ScanAllKeysHelper(this->size, locations_, right_sibling_, result);
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::ScanKey(
     KeyType key, std::vector<ValueType> &result) {
+
+	LOG_INFO("LNodeStateBuilder::ScanKey, size: %lu", this->size);
   this->map->ScanKeyHelper(key, this->size, locations_, right_sibling_, result);
 }
 //===--------------------------------------------------------------------===//
@@ -841,6 +846,7 @@ bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
   if (this->map->CompareKey(key, modified_key_) ==
       1)  // this key is greater than modified_key_
   {
+	  LOG_INFO("LPageSplitDelta redirecting insert to right child");
     return this->map->GetMappingTable()
         ->GetNode(right_split_page_lpid_)
         ->InsertEntry(key, location, right_split_page_lpid_, parent);
@@ -851,6 +857,7 @@ bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
     return false;
   }
 
+  LOG_INFO("LPageSplitDelta inserting insert delta below itself");
   BWTreeNode<KeyType, ValueType, KeyComparator> *old_child_node_hard_ptr =
       this->modified_node;
   // This Delta must now be inserted BELOW this delta
@@ -878,10 +885,19 @@ bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::DeleteEntry(
   if (this->map->CompareKey(key, modified_key_) ==
       1)  // this key is greater than modified_key_
   {
+	  LOG_INFO("LPageSplitDelta redirecting delete to right child");
+
     return this->map->GetMappingTable()
         ->GetNode(right_split_page_lpid_)
         ->DeleteEntry(key, location, right_split_page_lpid_);
   }
+
+  if (!this->split_completed_) {
+    LOG_INFO("Returning early because split in progress");
+    return false;
+  }
+
+  LOG_INFO("LPageSplitDelta inserting delete delta below itself");
 
   BWTreeNode<KeyType, ValueType, KeyComparator> *old_child_node_hard_ptr =
       this->modified_node;
@@ -1126,7 +1142,7 @@ bool LPage<KeyType, ValueType, KeyComparator>::InsertEntry(KeyType key,
     bool splitSuccess = this->SplitNodes(self, parent);
     if (!splitSuccess) return false;
   }
-  LOG_INFO("Inside LPage InsertEntry");
+  LOG_INFO("Inside LPage InsertEntry. It's size is %d", (int)this->size_);
 
   LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
       new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
@@ -1189,6 +1205,20 @@ bool LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
 
   maxRightSplitNodeKey = locations_[size_ - 1].first;
 
+  assert(this->map->CompareKey(maxLeftSplitNodeKey, maxRightSplitNodeKey) != 1);
+
+  for (int i = 0; i <= size_ / 2; i++)
+  {
+	  assert(this->map->CompareKey(locations_[i].first, maxLeftSplitNodeKey) <= 0);
+	  assert(this->map->CompareKey(locations_[i].first, maxRightSplitNodeKey) <= 0);
+  }
+
+  for (int i = 0; i < newLpage->GetSize(); i++)
+  {
+	  assert(this->map->CompareKey(newLpage->GetLocationsArray()[i].first, maxLeftSplitNodeKey) != -1);
+	  assert(this->map->CompareKey(newLpage->GetLocationsArray()[i].first, maxRightSplitNodeKey) != 1);
+  }
+
   newLpageLPID = this->map->GetMappingTable()->InstallPage(newLpage);
 
   LOG_INFO("This newly created right split node got LPID: %lu", newLpageLPID);
@@ -1214,9 +1244,6 @@ bool LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
 
   LOG_INFO("The SwapNode attempt for split succeeded.");
 
-  splitDelta->SetSplitCompleted();
-
-  return true;
   // This completes the atomic half split
   // At this point no one else can succeed with the complete split because
   // this guy won in the half split
@@ -1232,6 +1259,7 @@ bool LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
   BWTreeNode<KeyType, ValueType, KeyComparator> *parentHardPtr;
 
   parentHardPtr = this->map->GetMappingTable()->GetNode(parent);
+
   IPageUpdateDelta<KeyType, ValueType, KeyComparator> *parentUpdateDelta =
       new IPageUpdateDelta<KeyType, ValueType, KeyComparator>(
           this->map, parentHardPtr, maxLeftSplitNodeKey, maxRightSplitNodeKey,
