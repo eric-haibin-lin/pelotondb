@@ -27,8 +27,7 @@ namespace index {
 template <typename KeyType, typename ValueType, class KeyComparator>
 BWTreeNode<KeyType, ValueType, KeyComparator> *
 INodeStateBuilder<KeyType, ValueType, KeyComparator>::GetPage() {
-   return new IPage<KeyType, ValueType, KeyComparator>(this->map, this);
-
+  return new IPage<KeyType, ValueType, KeyComparator>(this->map, this);
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -454,8 +453,11 @@ void BWTree<KeyType, ValueType, KeyComparator>::ScanKeyHelper(
     std::pair<KeyType, ValueType> result_pair = (locations[indices[index]]);
     result.push_back(result_pair.second);
   }
+  LOG_INFO("BWTree::ScanKeyHelper found %lu results", indices.size());
   // reach the end of current LPage, go to next LPage for more results
-  if (indices.size() > 0 && indices[indices.size()-1] == size - 1 && right_sibling != INVALID_LPID) {
+  if (indices.size() > 0 && indices[indices.size() - 1] == size - 1 &&
+      right_sibling != INVALID_LPID) {
+    LOG_INFO("BWTree::ScanKeyHelper go to the right sibling for more result");
     GetMappingTable()->GetNode(right_sibling)->ScanKey(key, result);
   }
 }
@@ -856,11 +858,9 @@ LPageSplitDelta<KeyType, ValueType, KeyComparator>::BuildNodeState(int) {
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
-    KeyType key, ValueType location, LPID self,
-    __attribute__((unused)) LPID parent) {
-  if (this->map->CompareKey(key, modified_key_) ==
-      1)  // this key is greater than modified_key_
-  {
+    KeyType key, ValueType location, LPID self, LPID parent) {
+  // this key is greater than modified_key_
+  if (this->map->CompareKey(key, modified_key_) == 1) {
     return this->map->GetMappingTable()
         ->GetNode(right_split_page_lpid_)
         ->InsertEntry(key, location, right_split_page_lpid_, parent);
@@ -871,36 +871,39 @@ bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
     return false;
   }
 
+  if (this->modified_node->GetDeltaChainLen() + 1 > LPAGE_DELTA_CHAIN_LIMIT) {
+    this->map->CompressDeltaChain(self, this, this);
+    return false;
+  }
+
   BWTreeNode<KeyType, ValueType, KeyComparator> *old_child_node_hard_ptr =
       this->modified_node;
   // This Delta must now be inserted BELOW this delta
   LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
       new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
           this->map, old_child_node_hard_ptr, key, location);
-  // bool status = this->map->GetMappingTable()->SwapNode(self, this,
-  // new_delta);
+
   bool status = __sync_bool_compare_and_swap(
       &(this->modified_node), old_child_node_hard_ptr, new_delta);
   if (!status) {
     delete new_delta;
-  } else {
-    if (this->modified_node->GetDeltaChainLen() >= LPAGE_DELTA_CHAIN_LIMIT) {
-      this->map->CompressDeltaChain(self, this, this);
-    }
   }
-
   return status;
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::DeleteEntry(
     KeyType key, ValueType location, __attribute__((unused)) LPID self) {
-  if (this->map->CompareKey(key, modified_key_) ==
-      1)  // this key is greater than modified_key_
-  {
+  // this key is greater than modified_key_
+
+  if (this->map->CompareKey(key, modified_key_) == 1) {
     return this->map->GetMappingTable()
         ->GetNode(right_split_page_lpid_)
         ->DeleteEntry(key, location, right_split_page_lpid_);
+  }
+  if (this->modified_node->GetDeltaChainLen() + 1 > LPAGE_DELTA_CHAIN_LIMIT) {
+    this->map->CompressDeltaChain(self, this, this);
+    return false;
   }
 
   BWTreeNode<KeyType, ValueType, KeyComparator> *old_child_node_hard_ptr =
@@ -910,16 +913,11 @@ bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::DeleteEntry(
       new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
           this->map, old_child_node_hard_ptr, key, location);
   new_delta->SetDeleteFlag();
-  // bool status = this->map->GetMappingTable()->SwapNode(self, this,
-  // new_delta);
+
   bool status = __sync_bool_compare_and_swap(
       &(this->modified_node), old_child_node_hard_ptr, new_delta);
   if (!status) {
     delete new_delta;
-  } else {
-    if (this->modified_node->GetDeltaChainLen() >= LPAGE_DELTA_CHAIN_LIMIT) {
-      this->map->CompressDeltaChain(self, this, this);
-    }
   }
 
   return status;
@@ -1142,7 +1140,7 @@ bool LPage<KeyType, ValueType, KeyComparator>::InsertEntry(KeyType key,
                                                            ValueType location,
                                                            LPID self,
                                                            LPID parent) {
-  if (this->size_ > LPAGE_ARITY) {
+  if (this->size_ > LPAGE_SPLIT_THRESHOLD) {
     bool splitSuccess = this->SplitNodes(self, parent);
     if (!splitSuccess) return false;
   }

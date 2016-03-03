@@ -129,7 +129,8 @@ class NodeStateBuilder {
 template <typename KeyType, typename ValueType, class KeyComparator>
 class INodeStateBuilder
     : public NodeStateBuilder<KeyType, ValueType, KeyComparator> {
-	friend class IPage<KeyType, ValueType, KeyComparator>;
+  friend class IPage<KeyType, ValueType, KeyComparator>;
+
  private:
   // IPage children nodes
   std::pair<KeyType, LPID> children_[IPAGE_ARITY + IPAGE_DELTA_CHAIN_LIMIT];
@@ -723,7 +724,6 @@ class BWTreeNode {
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
 class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
-
  public:
   IPage(BWTree<KeyType, ValueType, KeyComparator> *map)
       : BWTreeNode<KeyType, ValueType, KeyComparator>(map, 0) {
@@ -731,14 +731,16 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     // children_ = new std::pair<KeyType, LPID>();
   };
 
-  IPage(BWTree<KeyType, ValueType, KeyComparator> *map, NodeStateBuilder<KeyType, ValueType, KeyComparator> *state)
-        : BWTreeNode<KeyType, ValueType, KeyComparator>(map, 0) {
-	  size_ = state->size;
-	      INodeStateBuilder<KeyType, ValueType, KeyComparator> *istate =
-	          reinterpret_cast<
-	              INodeStateBuilder<KeyType, ValueType, KeyComparator> *>(state);
-	 memcpy(children_, istate->children_, size_*sizeof(std::pair<KeyType, LPID>));
-    };
+  IPage(BWTree<KeyType, ValueType, KeyComparator> *map,
+        NodeStateBuilder<KeyType, ValueType, KeyComparator> *state)
+      : BWTreeNode<KeyType, ValueType, KeyComparator>(map, 0) {
+    size_ = state->size;
+    INodeStateBuilder<KeyType, ValueType, KeyComparator> *istate =
+        reinterpret_cast<
+            INodeStateBuilder<KeyType, ValueType, KeyComparator> *>(state);
+    memcpy(children_, istate->children_,
+           size_ * sizeof(std::pair<KeyType, LPID>));
+  };
 
   ~IPage(){};
 
