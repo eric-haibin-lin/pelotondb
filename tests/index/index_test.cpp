@@ -479,8 +479,8 @@ TEST(IndexTests, MultiThreadedTest) {
   std::unique_ptr<index::Index> index(BuildIndex(NON_UNIQUE_KEY));
 
   // Parallel Test
-  size_t num_threads = 24;
-  size_t scale_factor = 1;
+  size_t num_threads = 1;
+  size_t scale_factor = 1000;
   LaunchParallelTest(num_threads, InsertTest, index.get(), pool, scale_factor);
 
   locations = index->ScanAllKeys();

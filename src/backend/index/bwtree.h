@@ -41,6 +41,7 @@ enum BWTreeNodeType {
 #define LPAGE_ARITY 256
 
 #define LPAGE_SPLIT_THRESHOLD 64
+#define IPAGE_SPLIT_THRESHOLD 64
 
 #define INVALID_LPID ULLONG_MAX
 
@@ -543,7 +544,7 @@ class BWTree {
       child_lpid = root_;
       complete = GetMappingTable()
                      ->GetNode(child_lpid)
-                     ->DeleteEntry(key, location, child_lpid);
+                     ->DeleteEntry(key, location, child_lpid, child_lpid);
       epoch_manager_.ReleaseEpoch(epochNum);
     }
     return true;
@@ -654,7 +655,8 @@ class BWTreeNode {
   virtual bool InsertEntry(KeyType key, ValueType location, LPID self,
                            LPID parent) = 0;
 
-  virtual bool DeleteEntry(KeyType key, ValueType location, LPID self) = 0;
+  virtual bool DeleteEntry(KeyType key, ValueType location, LPID self,
+                           LPID parent) = 0;
 
   virtual void Scan(const std::vector<Value> &values,
                     const std::vector<oid_t> &key_column_ids,
@@ -738,6 +740,7 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     INodeStateBuilder<KeyType, ValueType, KeyComparator> *istate =
         reinterpret_cast<
             INodeStateBuilder<KeyType, ValueType, KeyComparator> *>(state);
+    assert(size_ <= IPAGE_ARITY);
     memcpy(children_, istate->children_,
            size_ * sizeof(std::pair<KeyType, LPID>));
   };
@@ -748,12 +751,16 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   bool DeleteEntry(__attribute__((unused)) KeyType key,
                    __attribute__((unused)) ValueType location,
-                   __attribute__((unused)) LPID self) {
+                   __attribute__((unused)) LPID self,
+                   __attribute__((unused)) LPID parent) {
+    if (size_ > IPAGE_SPLIT_THRESHOLD) {
+      this->SplitNodes(self, parent);
+    }
     int child_index = GetChild(key, children_, size_);
     LPID child_lpid = this->children_[child_index].second;
     return this->map->GetMappingTable()
         ->GetNode(child_lpid)
-        ->DeleteEntry(key, location, child_lpid);
+        ->DeleteEntry(key, location, child_lpid, self);
   };
 
   void Scan(const std::vector<Value> &values,
@@ -870,7 +877,7 @@ class IPageSplitDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
 
   bool InsertEntry(KeyType key, ValueType location, LPID self, LPID parent);
 
-  bool DeleteEntry(KeyType key, ValueType location, LPID self);
+  bool DeleteEntry(KeyType key, ValueType location, LPID self, LPID parent);
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
       int max_index);
@@ -921,7 +928,7 @@ class LPageSplitDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
   // newly created right_split_page_lpid
   bool InsertEntry(KeyType key, ValueType location, LPID self, LPID parent);
 
-  bool DeleteEntry(KeyType key, ValueType location, LPID self);
+  bool DeleteEntry(KeyType key, ValueType location, LPID self, LPID parent);
 
   void ScanKey(KeyType key, std::vector<ValueType> &result);
 
@@ -978,7 +985,8 @@ class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
   };
 
   bool DeleteEntry(__attribute__((unused)) KeyType key,
-                   __attribute__((unused)) ValueType location, LPID my_lpid) {
+                   __attribute__((unused)) ValueType location, LPID my_lpid,
+                   __attribute__((unused)) LPID parent) {
     LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
         new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
                                                                 key, location);
@@ -1040,7 +1048,8 @@ class LPageRemoveDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
                    __attribute__((unused)) LPID parent);
 
   bool DeleteEntry(__attribute__((unused)) KeyType key,
-                   __attribute__((unused)) ValueType location, LPID my_lpid);
+                   __attribute__((unused)) ValueType location, LPID my_lpid,
+                   LPID parent);
 
   void ScanKey(KeyType key, std::vector<ValueType> &result);
 
@@ -1080,7 +1089,8 @@ class LPageMergeDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
                    __attribute__((unused)) LPID parent);
 
   bool DeleteEntry(__attribute__((unused)) KeyType key,
-                   __attribute__((unused)) ValueType location, LPID my_lpid);
+                   __attribute__((unused)) ValueType location, LPID my_lpid,
+                   LPID parent);
 
   void ScanKey(KeyType key, std::vector<ValueType> &result);
 
@@ -1134,7 +1144,7 @@ class IPageUpdateDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
 
   bool InsertEntry(KeyType key, ValueType location, LPID self, LPID parent);
 
-  bool DeleteEntry(KeyType key, ValueType location, LPID self);
+  bool DeleteEntry(KeyType key, ValueType location, LPID self, LPID parent);
 
   void ScanKey(KeyType key, std::vector<ValueType> &result);
 
@@ -1187,7 +1197,7 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     LNodeStateBuilder<KeyType, ValueType, KeyComparator> *lstate =
         reinterpret_cast<
             LNodeStateBuilder<KeyType, ValueType, KeyComparator> *>(state);
-
+    assert(size_ < LPAGE_ARITY);
     memcpy(locations_, lstate->locations_,
            sizeof(std::pair<KeyType, ValueType>) * size_);
     left_sib_ = lstate->left_sibling_;
@@ -1202,7 +1212,7 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   bool InsertEntry(KeyType key, ValueType location, LPID self, LPID parent);
 
-  bool DeleteEntry(KeyType key, ValueType location, LPID self);
+  bool DeleteEntry(KeyType key, ValueType location, LPID self, LPID parent);
 
   void Scan(const std::vector<Value> &values,
             const std::vector<oid_t> &key_column_ids,
