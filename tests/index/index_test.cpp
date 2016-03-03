@@ -779,7 +779,7 @@ TEST(IndexTests, SingleThreadedSplitTest) {
 /*============================================================================
  * WHITE BOX TEST SPECIFIC TO BWTREE
  *===========================================================================*/
-/*
+
 TEST(IndexTests, BWTreeMappingTableTest) {
   // the values of the templates dont really matter;
   int size_to_test = 1025;
@@ -987,7 +987,6 @@ void ScanHelper(
   lpage->Scan(values, key_column_ids, expr_types, direction, locations,
               &index_key_low);
   if (index_key_type == NON_UNIQUE_KEY) {
-    // TODO fix this!!!
     EXPECT_EQ(locations.size(), 4);
     // last_val_non_unique = locations[3];
   } else {
@@ -1255,9 +1254,13 @@ TEST(IndexTests, IPageScanTest) {
       index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
       compressed_node);
 
+  // Make sure the consolidation update the right sibling pointer
   EXPECT_EQ(compressed_lnode->GetRightSiblingLPID(), right_split_id);
 
   EXPECT_NE(compressed_node, split_delta);
+
+  // Set the right sibling pointer to nullptr in order to do scan
+  compressed_lnode->right_sib_ = INVALID_LPID;
   locations.clear();
   prev->ScanKey(index_key0, locations);
   EXPECT_EQ(locations.size(), 1);
@@ -1413,7 +1416,7 @@ TEST(IndexTests, BWTreeLPageSplitTest) {
   }
 
   delete map;
-}*/
+}
 
 }  // End test namespace
 }  // End peloton namespace
