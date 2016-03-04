@@ -930,11 +930,6 @@ bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
     return false;
   }
 
-  if (this->modified_node->GetDeltaChainLen() + 1 > LPAGE_DELTA_CHAIN_LIMIT) {
-    this->map->CompressDeltaChain(self, this, this);
-    return false;
-  }
-
   BWTreeNode<KeyType, ValueType, KeyComparator> *old_child_node_hard_ptr =
       this->modified_node;
 
