@@ -480,7 +480,7 @@ TEST(IndexTests, MultiThreadedTest) {
 
   // Parallel Test
   size_t num_threads = 1;
-  size_t scale_factor = 1000;
+  size_t scale_factor = 10000;
   LaunchParallelTest(num_threads, InsertTest, index.get(), pool, scale_factor);
 
   locations = index->ScanAllKeys();
@@ -539,7 +539,7 @@ TEST(IndexTests, MultiThreadedTest) {
   expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
   locations = index->Scan(values, key_column_ids, expr_types, direction);
   // assume non_unique_key
-  EXPECT_EQ(locations.size(), 1 * num_threads *scale_factor);
+  EXPECT_EQ(locations.size(), 1 * num_threads * scale_factor);
 
   // DELETE
   LaunchParallelTest(num_threads, DeleteTest, index.get(), pool, scale_factor);
@@ -587,7 +587,7 @@ TEST(IndexTests, MultiThreadedTest) {
   expr_types[0] = EXPRESSION_TYPE_COMPARE_GREATERTHAN;
   expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
   locations = index->Scan(values, key_column_ids, expr_types, direction);
-  EXPECT_EQ(locations.size(), 1 * num_threads *scale_factor);
+  EXPECT_EQ(locations.size(), 1 * num_threads * scale_factor);
 
   delete tuple_schema;
 }*/

@@ -360,16 +360,17 @@ class EpochManager {
     destructor_called_ = false;
     memset(&epoch_size_, 0, MAX_ACTIVE_EPOCHS * sizeof(int));
     memset(&epoch_users_, 0, MAX_ACTIVE_EPOCHS * sizeof(int));
-    pthread_create(&management_pthread_, nullptr, &epoch_management, this);
     for (int i = 0; i < MAX_ACTIVE_EPOCHS; i++) {
       first_pages_[i] = new EpochPage<KeyType, ValueType, KeyComparator>();
     }
+    //    pthread_create(&management_pthread_, nullptr, &epoch_management,
+    //    this);
   }
 
   ~EpochManager() {
     destructor_called_ = true;
     LOG_INFO("set destructor called flag");
-    pthread_join(management_pthread_, nullptr);
+    //    pthread_join(management_pthread_, nullptr);
   }
 
   unsigned long GetCurrentEpoch() {
@@ -634,7 +635,7 @@ class BWTree {
     if (completed) {
       // TODO add this back when other memory problems fixed
 
-      this->epoch_manager_.AddNodeToEpoch(old_node_ptr);
+      //      this->epoch_manager_.AddNodeToEpoch(old_node_ptr);
     } else {
       // if we failed we should clean up the new page
       delete new_node_ptr;
@@ -749,6 +750,7 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   IPage(BWTree<KeyType, ValueType, KeyComparator> *map)
       : BWTreeNode<KeyType, ValueType, KeyComparator>(map, 0) {
     size_ = 1;
+    should_split_ = false;
     // children_ = new std::pair<KeyType, LPID>();
   };
 
@@ -762,18 +764,17 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     assert(size_ <= IPAGE_ARITY);
     memcpy(children_, istate->children_,
            size_ * sizeof(std::pair<KeyType, LPID>));
+    should_split_ = size_ > IPAGE_SPLIT_THRESHOLD;
   };
 
   ~IPage(){};
 
   bool InsertEntry(KeyType key, ValueType location, LPID self, LPID parent);
 
-  bool DeleteEntry(KeyType key,
-                   ValueType location,
-                   LPID self,
-                   LPID parent) {
-    if (size_ > IPAGE_SPLIT_THRESHOLD) {
-      this->SplitNodes(self, parent);
+  bool DeleteEntry(KeyType key, ValueType location, LPID self, LPID parent) {
+    if (should_split_) {
+      SplitNodes(self, parent);
+      return false;
     }
     int child_index = GetChild(key, children_, size_);
     LPID child_lpid = this->children_[child_index].second;
@@ -810,6 +811,8 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   std::pair<KeyType, LPID> children_[IPAGE_ARITY];
 
   oid_t size_;
+
+  bool should_split_;
 };
 
 //===--------------------------------------------------------------------===//
@@ -897,6 +900,8 @@ class IPageSplitDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
   bool InsertEntry(KeyType key, ValueType location, LPID self, LPID parent);
 
   bool DeleteEntry(KeyType key, ValueType location, LPID self, LPID parent);
+
+  void ScanKey(KeyType key, std::vector<ValueType> &result);
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
       int max_index);
