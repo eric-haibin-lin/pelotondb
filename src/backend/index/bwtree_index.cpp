@@ -148,6 +148,13 @@ std::string BWTreeIndex<KeyType, ValueType, KeyComparator,
   return "BWTree";
 }
 
+template <typename KeyType, typename ValueType, class KeyComparator,
+          class KeyEqualityChecker>
+void BWTreeIndex<KeyType, ValueType, KeyComparator,
+                 KeyEqualityChecker>::Debug() {
+  this->container.Debug();
+}
+
 // Explicit template instantiation
 template class BWTreeIndex<IntsKey<1>, ItemPointer, IntsComparator<1>,
                            IntsEqualityChecker<1>>;
