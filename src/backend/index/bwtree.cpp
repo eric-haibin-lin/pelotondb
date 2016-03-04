@@ -571,7 +571,8 @@ IPage<KeyType, ValueType, KeyComparator>::BuildNodeState(int max_index) {
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder;
   // build node state for IPage
   builder = new INodeStateBuilder<KeyType, ValueType, KeyComparator>(
-      children_, max_index == -1 ? size_ : max_index, this->map);
+      children_, max_index == -1 ? size_ : max_index, this->map,
+      this->right_most_key, this->infinity);
   return builder;
 };
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -626,7 +627,8 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
 
   LOG_INFO("The size of this node (LPID %lu) is %d", self, (int)size_);
   IPage<KeyType, ValueType, KeyComparator> *newIpage =
-      new IPage<KeyType, ValueType, KeyComparator>(this->map);
+      new IPage<KeyType, ValueType, KeyComparator>(
+          this->map, this->right_most_key, this->infinity);
 
   for (int i = size_ / 2 + 1; i < size_; i++) {
     newIpage->children_[newPageIndex++] = children_[i];
@@ -647,7 +649,8 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
 
   IPageSplitDelta<KeyType, ValueType, KeyComparator> *splitDelta =
       new IPageSplitDelta<KeyType, ValueType, KeyComparator>(
-          this->map, this, maxLeftSplitNodeKey, newIpageLPID, modifiedIndex);
+          this->map, this, maxLeftSplitNodeKey, newIpageLPID, modifiedIndex,
+          this->right_most_key, this->infinity);
 
   swapSuccess = this->map->GetMappingTable()->SwapNode(self, this, splitDelta);
 
@@ -655,21 +658,11 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
     LOG_INFO("This SwapNode attempt for split failed");
     delete splitDelta;
     delete newIpage;
-    // What should we do on failure? This means that someone else succeeded in
-    // doing the
-    // atomic half split. Now if try and install our own Insert / Delete /
-    // Update delta, it
-    // will automatically be created on top of the LPageSplitDelta
     return;
   }
 
   LOG_INFO("The SwapNode attempt for split succeeded.");
   // This completes the atomic half split
-  // At this point no one else can succeed with the complete split because
-  // this guy won in the half split
-  // Now we still have to update the size field and the right_sib of this
-  // node... how can we do it atomically?
-  // Edit: No need to do that! Because the consolidation will do that.
 
   LOG_INFO("Split page %lu, into new page %lu", self, newIpageLPID);
 
@@ -686,7 +679,8 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
     IPageUpdateDelta<KeyType, ValueType, KeyComparator> *parentUpdateDelta =
         new IPageUpdateDelta<KeyType, ValueType, KeyComparator>(
             this->map, parentHardPtr, maxLeftSplitNodeKey, maxRightSplitNodeKey,
-            INVALID_LPID, newIpageLPID, false);
+            INVALID_LPID, newIpageLPID, false, parentHardPtr->GetRightMostKey(),
+            parentHardPtr->IsInifinity());
     if (parentHardPtr->GetDeltaChainLen() > IPAGE_DELTA_CHAIN_LIMIT) {
       this->map->CompressDeltaChain(parent, parentHardPtr, parentUpdateDelta);
     }
@@ -706,7 +700,8 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
   LOG_INFO("This is a split on the root node. Must handle it separately");
 
   IPage<KeyType, ValueType, KeyComparator> *new_root =
-      new IPage<KeyType, ValueType, KeyComparator>(this->map);
+      new IPage<KeyType, ValueType, KeyComparator>(
+          this->map, this->right_most_key, this->infinity);
 
   LPID new_root_LPID;
 
@@ -815,13 +810,11 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 NodeStateBuilder<KeyType, ValueType, KeyComparator> *IPageSplitDelta<
     KeyType, ValueType, KeyComparator>::BuildNodeState(int max_index) {
   // Children of IPageDelta always return a INodeStateBuilder
-  INodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
-      reinterpret_cast<INodeStateBuilder<KeyType, ValueType, KeyComparator> *>(
-          this->modified_node->BuildNodeState(max_index));
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
+      this->modified_node->BuildNodeState(max_index);
+  builder->SetInfinity(false);
+  builder->SetRightMostKey(modified_key_);
   assert(builder != nullptr);
-  /*std::pair<KeyType, LPID> splitter(modified_key_, modified_val_);
-  builder->SeparateFromKey(splitter);*/
-
   return builder;
 };
 
@@ -887,13 +880,18 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 NodeStateBuilder<KeyType, ValueType, KeyComparator> *
 LPageSplitDelta<KeyType, ValueType, KeyComparator>::BuildNodeState(int) {
   // Children of IPageDelta always return a INodeStateBuilder
-  LNodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
-      reinterpret_cast<LNodeStateBuilder<KeyType, ValueType, KeyComparator> *>(
-          this->modified_node->BuildNodeState(modified_key_index_));
+  NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
+      this->modified_node->BuildNodeState(modified_key_index_);
+  builder->SetInfinity(false);
+  builder->SetRightMostKey(modified_key_);
   assert(builder != nullptr);
-  builder->UpdateRightSib(right_split_page_lpid_);
 
-  return builder;
+  LNodeStateBuilder<KeyType, ValueType, KeyComparator> *lbuilder =
+      reinterpret_cast<LNodeStateBuilder<KeyType, ValueType, KeyComparator> *>(
+          builder);
+  lbuilder->UpdateRightSib(right_split_page_lpid_);
+
+  return lbuilder;
 }
 template <typename KeyType, typename ValueType, class KeyComparator>
 std::string LPageSplitDelta<KeyType, ValueType, KeyComparator>::Debug(
@@ -918,6 +916,11 @@ std::string LPageSplitDelta<KeyType, ValueType, KeyComparator>::Debug(
 template <typename KeyType, typename ValueType, class KeyComparator>
 bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
     KeyType key, ValueType location, LPID self, LPID parent) {
+  // if the key falls out of responsible range, retry
+  if (!this->infinity && this->map->CompareKey(key, this->right_most_key) > 0) {
+    return false;
+  }
+
   // this key is greater than modified_key_
   if (this->map->CompareKey(key, modified_key_) == 1) {
     return this->map->GetMappingTable()
@@ -933,7 +936,8 @@ bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
   BWTreeNode<KeyType, ValueType, KeyComparator> *old_child_node_hard_ptr =
       this->modified_node;
 
-  if (old_child_node_hard_ptr->GetDeltaChainLen() + 1 > LPAGE_DELTA_CHAIN_LIMIT) {
+  if (old_child_node_hard_ptr->GetDeltaChainLen() + 1 >
+      LPAGE_DELTA_CHAIN_LIMIT) {
     this->map->CompressDeltaChain(self, this, this);
     return false;
   }
@@ -941,7 +945,8 @@ bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
   // This Delta must now be inserted BELOW this delta
   LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
       new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
-          this->map, old_child_node_hard_ptr, key, location);
+          this->map, old_child_node_hard_ptr, key, location,
+          this->right_most_key, this->infinity);
 
   bool status = __sync_bool_compare_and_swap(
       &(this->modified_node), old_child_node_hard_ptr, new_delta);
@@ -954,18 +959,23 @@ bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
 template <typename KeyType, typename ValueType, class KeyComparator>
 bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::DeleteEntry(
     KeyType key, ValueType location, __attribute__((unused)) LPID self) {
-  // this key is greater than modified_key_
+  // if the key falls out of responsible range, retry
+  if (!this->infinity && this->map->CompareKey(key, this->right_most_key) > 0) {
+    return false;
+  }
 
+  // this key is greater than modified_key_
   if (this->map->CompareKey(key, modified_key_) == 1) {
     return this->map->GetMappingTable()
         ->GetNode(right_split_page_lpid_)
         ->DeleteEntry(key, location, right_split_page_lpid_);
   }
-  //TODO same issue as insertEntry.
-  //BWTreeNode<KeyType, ValueType, KeyComparator> *old_child_node_hard_ptr =
-     // this->modified_node;
 
-  if (this->modified_node->GetDeltaChainLen() + 1 > LPAGE_DELTA_CHAIN_LIMIT) {
+  BWTreeNode<KeyType, ValueType, KeyComparator> *old_child_node_hard_ptr =
+      this->modified_node;
+
+  if (old_child_node_hard_ptr->GetDeltaChainLen() + 1 >
+      LPAGE_DELTA_CHAIN_LIMIT) {
     this->map->CompressDeltaChain(self, this, this);
     return false;
   }
@@ -976,13 +986,10 @@ bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::DeleteEntry(
   }
 
   LOG_INFO("LPageSplitDelta inserting delete delta below itself");
-
-  BWTreeNode<KeyType, ValueType, KeyComparator> *old_child_node_hard_ptr =
-      this->modified_node;
-
   LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
       new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
-          this->map, old_child_node_hard_ptr, key, location);
+          this->map, old_child_node_hard_ptr, key, location,
+          this->right_most_key, this->infinity);
   new_delta->SetDeleteFlag();
 
   bool status = __sync_bool_compare_and_swap(
@@ -1257,7 +1264,7 @@ std::string LPage<KeyType, ValueType, KeyComparator>::Debug(int depth,
     }
   }
   info += "\n";
-  //We temporarily do this because of duplicate keys across pages
+  // We temporarily do this because of duplicate keys across pages
   if (right_sib_ != INVALID_LPID) {
     BWTreeNode<KeyType, ValueType, KeyComparator> *child =
         this->map->GetMappingTable()->GetNode(right_sib_);
@@ -1273,7 +1280,8 @@ LPage<KeyType, ValueType, KeyComparator>::BuildNodeState(int max_index) {
   // build node state for LPage
   builder = new LNodeStateBuilder<KeyType, ValueType, KeyComparator>(
       left_sib_, right_sib_, locations_,
-      max_index == -1 ? size_ : max_index + 1, this->map);
+      max_index == -1 ? size_ : max_index + 1, this->map, this->right_most_key,
+      this->infinity);
   return builder;
 };
 
@@ -1287,10 +1295,13 @@ bool LPage<KeyType, ValueType, KeyComparator>::InsertEntry(KeyType key,
     if (!splitSuccess) return false;
   }
   LOG_INFO("Inside LPage InsertEntry. It's size is %d", (int)this->size_);
-
+  // if the key falls out of responsible range, retry
+  if (!this->infinity && this->map->CompareKey(key, this->right_most_key) > 0) {
+    return false;
+  }
   LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
-      new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
-                                                              key, location);
+      new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
+          this->map, this, key, location, this->right_most_key, this->infinity);
 
   bool status = this->map->GetMappingTable()->SwapNode(self, this, new_delta);
 
@@ -1305,9 +1316,14 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 bool LPage<KeyType, ValueType, KeyComparator>::DeleteEntry(KeyType key,
                                                            ValueType location,
                                                            LPID self) {
+  // if the key falls out of responsible range, retry
+  if (!this->infinity && this->map->CompareKey(key, this->right_most_key) > 0) {
+    return false;
+  }
+
   LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
-      new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
-                                                              key, location);
+      new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
+          this->map, this, key, location, this->right_most_key, this->infinity);
 
   new_delta->SetDeleteFlag();
   bool status = this->map->GetMappingTable()->SwapNode(self, this, new_delta);
@@ -1330,7 +1346,8 @@ bool LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
 
   LOG_INFO("The size of this node (LPID %lu) is %lu", self, size_);
   LPage<KeyType, ValueType, KeyComparator> *newLpage =
-      new LPage<KeyType, ValueType, KeyComparator>(this->map);
+      new LPage<KeyType, ValueType, KeyComparator>(
+          this->map, this->right_most_key, this->infinity);
 
   for (int i = size_ / 2 + 1; i < size_; i++) {
     newLpage->locations_[newPageIndex++] = locations_[i];
@@ -1372,7 +1389,7 @@ bool LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
   LPageSplitDelta<KeyType, ValueType, KeyComparator> *splitDelta =
       new LPageSplitDelta<KeyType, ValueType, KeyComparator>(
           this->map, this, maxLeftSplitNodeKey, leftSplitNodeIndex,
-          newLpageLPID);
+          newLpageLPID, this->right_most_key, this->infinity);
 
   swapSuccess = this->map->GetMappingTable()->SwapNode(self, this, splitDelta);
 
@@ -1408,7 +1425,8 @@ bool LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
     IPageUpdateDelta<KeyType, ValueType, KeyComparator> *parentUpdateDelta =
         new IPageUpdateDelta<KeyType, ValueType, KeyComparator>(
             this->map, parentHardPtr, maxLeftSplitNodeKey, maxRightSplitNodeKey,
-            left_page_lpid, newLpageLPID, false);
+            left_page_lpid, newLpageLPID, false,
+            parentHardPtr->GetRightMostKey(), parentHardPtr->IsInifinity());
 
     if (parentUpdateDelta->GetDeltaChainLen() > IPAGE_DELTA_CHAIN_LIMIT) {
       this->map->CompressDeltaChain(parent, parentHardPtr, parentUpdateDelta);
