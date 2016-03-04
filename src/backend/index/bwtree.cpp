@@ -937,6 +937,12 @@ bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
 
   BWTreeNode<KeyType, ValueType, KeyComparator> *old_child_node_hard_ptr =
       this->modified_node;
+
+  if (old_child_node_hard_ptr->GetDeltaChainLen() + 1 > LPAGE_DELTA_CHAIN_LIMIT) {
+    this->map->CompressDeltaChain(self, this, this);
+    return false;
+  }
+
   // This Delta must now be inserted BELOW this delta
   LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
       new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
@@ -960,6 +966,10 @@ bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::DeleteEntry(
         ->GetNode(right_split_page_lpid_)
         ->DeleteEntry(key, location, right_split_page_lpid_);
   }
+  //TODO same issue as insertEntry.
+  //BWTreeNode<KeyType, ValueType, KeyComparator> *old_child_node_hard_ptr =
+     // this->modified_node;
+
   if (this->modified_node->GetDeltaChainLen() + 1 > LPAGE_DELTA_CHAIN_LIMIT) {
     this->map->CompressDeltaChain(self, this, this);
     return false;
@@ -1250,6 +1260,13 @@ std::string LPage<KeyType, ValueType, KeyComparator>::Debug(int depth,
     if (i % 5 == 1) {
       info += "\n" + blank;
     }
+  }
+  info += "\n";
+  //We temporarily do this because of duplicate keys across pages
+  if (right_sib_ != INVALID_LPID) {
+    BWTreeNode<KeyType, ValueType, KeyComparator> *child =
+        this->map->GetMappingTable()->GetNode(right_sib_);
+    info += child->Debug(depth, right_sib_);
   }
   return info;
 }
