@@ -602,16 +602,22 @@ TEST(IndexTests, SingleThreadedSplitTest) {
   // Parallel Test
   size_t num_threads = 24;
   size_t scale_factor = 1;
-  //LaunchParallelTest(num_threads, InsertTest, index.get(), pool, scale_factor);
+  // LaunchParallelTest(num_threads, InsertTest, index.get(), pool,
+  // scale_factor);
 
   for (int i = 0; i < (int)num_threads; i++) {
     for (size_t scale_itr = 1; scale_itr <= scale_factor; scale_itr++) {
       // Insert a bunch of keys based on scale itr
-      std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
-      std::unique_ptr<storage::Tuple> key1(new storage::Tuple(key_schema, true));
-      std::unique_ptr<storage::Tuple> key2(new storage::Tuple(key_schema, true));
-      std::unique_ptr<storage::Tuple> key3(new storage::Tuple(key_schema, true));
-      std::unique_ptr<storage::Tuple> key4(new storage::Tuple(key_schema, true));
+      std::unique_ptr<storage::Tuple> key0(
+          new storage::Tuple(key_schema, true));
+      std::unique_ptr<storage::Tuple> key1(
+          new storage::Tuple(key_schema, true));
+      std::unique_ptr<storage::Tuple> key2(
+          new storage::Tuple(key_schema, true));
+      std::unique_ptr<storage::Tuple> key3(
+          new storage::Tuple(key_schema, true));
+      std::unique_ptr<storage::Tuple> key4(
+          new storage::Tuple(key_schema, true));
       std::unique_ptr<storage::Tuple> keynonce(
           new storage::Tuple(key_schema, true));
 
@@ -624,27 +630,28 @@ TEST(IndexTests, SingleThreadedSplitTest) {
       key3->SetValue(0, ValueFactory::GetIntegerValue(400 * scale_itr), pool);
       key3->SetValue(1, ValueFactory::GetStringValue("d"), pool);
       key4->SetValue(0, ValueFactory::GetIntegerValue(500 * scale_itr), pool);
-      key4->SetValue(1, ValueFactory::GetStringValue(
-                            "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                            "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                            "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                            "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                            "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                            "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                            "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                            "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                            "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                            "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                            "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                            "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                            "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                            "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                            "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                            "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                            "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                            "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                            "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                            "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"),
+      key4->SetValue(1,
+                     ValueFactory::GetStringValue(
+                         "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                         "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                         "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                         "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                         "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                         "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                         "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                         "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                         "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                         "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                         "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                         "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                         "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                         "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                         "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                         "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                         "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                         "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                         "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                         "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"),
                      pool);
       keynonce->SetValue(0, ValueFactory::GetIntegerValue(1000 * scale_itr),
                          pool);
@@ -664,7 +671,6 @@ TEST(IndexTests, SingleThreadedSplitTest) {
       //    index->InsertEntry(key4.get(), item0);
     }
   }
-
 
   LOG_INFO("Before the first ScanAllKeys");
   locations = index->ScanAllKeys();
@@ -726,7 +732,8 @@ TEST(IndexTests, SingleThreadedSplitTest) {
   EXPECT_EQ(locations.size(), 1 * num_threads);
 
   // DELETE
-  /*LaunchParallelTest(num_threads, DeleteTest, index.get(), pool, scale_factor);
+  /*LaunchParallelTest(num_threads, DeleteTest, index.get(), pool,
+  scale_factor);
 
   locations = index->ScanKey(key0.get());
   EXPECT_EQ(locations.size(), 0);
@@ -1074,7 +1081,7 @@ TEST(IndexTests, IPageScanTest) {
   for (unsigned int i = 0; i < index_types.size(); i++) {
     IPageScanTestHelper(index_types[i]);
   }
-}*/
+}
 
 /*void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
   auto pool = TestingHarness::GetInstance().GetTestingPool();
@@ -1417,6 +1424,6 @@ TEST(IndexTests, BWTreeLPageSplitTest) {
 
   delete map;
 }
-
+*/
 }  // End test namespace
 }  // End peloton namespace

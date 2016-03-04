@@ -92,10 +92,16 @@ class NodeStateBuilder {
 
   KeyType separator_key;
   LPID split_new_page_id = 0;
+  KeyType right_most_key;
+  bool infinity = false;
 
  public:
-  NodeStateBuilder(oid_t size, BWTree<KeyType, ValueType, KeyComparator> *map)
-      : size(size), map(map){};
+  NodeStateBuilder(oid_t size, BWTree<KeyType, ValueType, KeyComparator> *map,
+                   KeyType right_most_key, bool infinity)
+      : size(size),
+        map(map),
+        right_most_key(right_most_key),
+        infinity(infinity){};
 
   virtual BWTreeNode<KeyType, ValueType, KeyComparator> *GetPage() = 0;
 
@@ -115,6 +121,12 @@ class NodeStateBuilder {
   virtual void ScanKey(__attribute__((unused)) KeyType key,
                        __attribute__((unused))
                        std::vector<ValueType> &result){};
+
+  void SetInfinity(bool infinity) { this->infinity = infinity; }
+
+  void SetRightMostKey(KeyType right_most_key) {
+    this->right_most_key = right_most_key;
+  }
 
   inline bool IsSeparated() { return is_separated; }
 
@@ -140,8 +152,10 @@ class INodeStateBuilder
  public:
   // IPage constructor
   INodeStateBuilder(std::pair<KeyType, LPID> *children, int children_len,
-                    BWTree<KeyType, ValueType, KeyComparator> *map)
-      : NodeStateBuilder<KeyType, ValueType, KeyComparator>(children_len, map) {
+                    BWTree<KeyType, ValueType, KeyComparator> *map,
+                    KeyType right_most_key, bool infinity)
+      : NodeStateBuilder<KeyType, ValueType, KeyComparator>(
+            children_len, map, right_most_key, infinity) {
     memcpy(children_, children,
            sizeof(std::pair<KeyType, LPID>) * children_len);
   };
@@ -184,8 +198,10 @@ class LNodeStateBuilder
   // LPage constructor
   LNodeStateBuilder(LPID left_sibling, LPID right_sibling,
                     std::pair<KeyType, ValueType> *locations, int location_len,
-                    BWTree<KeyType, ValueType, KeyComparator> *map)
-      : NodeStateBuilder<KeyType, ValueType, KeyComparator>(location_len, map),
+                    BWTree<KeyType, ValueType, KeyComparator> *map,
+                    KeyType right_most_key, bool infinity)
+      : NodeStateBuilder<KeyType, ValueType, KeyComparator>(
+            location_len, map, right_most_key, infinity),
         left_sibling_(left_sibling),
         right_sibling_(right_sibling) {
     memcpy(locations_, locations,
@@ -499,15 +515,16 @@ class BWTree {
     LOG_INFO("Inside BWTree Constructor");
     mapping_table_ = new MappingTable<KeyType, ValueType, KeyComparator>();
 
+    KeyType dummy_key;
     IPage<KeyType, ValueType, KeyComparator> *root =
-        new IPage<KeyType, ValueType, KeyComparator>(this);
+        new IPage<KeyType, ValueType, KeyComparator>(this, dummy_key, true);
 
     root_ = GetMappingTable()->InstallPage(root);
 
     LOG_INFO("Root got LPID: %lu", root_);
 
     LPage<KeyType, ValueType, KeyComparator> *first_lpage =
-        new LPage<KeyType, ValueType, KeyComparator>(this);
+        new LPage<KeyType, ValueType, KeyComparator>(this, dummy_key, true);
 
     std::pair<KeyType, LPID> first_lpage_pair;
 
@@ -680,8 +697,11 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTreeNode {
  public:
   BWTreeNode(BWTree<KeyType, ValueType, KeyComparator> *map,
-             int delta_chain_len)
-      : map(map), delta_chain_len_(delta_chain_len){};
+             int delta_chain_len, KeyType right_most_key, bool infinity)
+      : map(map),
+        delta_chain_len_(delta_chain_len),
+        right_most_key(right_most_key),
+        infinity(infinity){};
 
   // These are virtual methods which child classes have to implement.
   // They also have to be redeclared in the child classes
@@ -728,6 +748,10 @@ class BWTreeNode {
     return delta_chain_len_;
   }
 
+  inline bool IsInifinity() { return this->infinity; }
+
+  inline KeyType GetRightMostKey() { return this->right_most_key; }
+
  protected:
   // the handler to the mapping table
   BWTree<KeyType, ValueType, KeyComparator> *map;
@@ -736,6 +760,9 @@ class BWTreeNode {
   int delta_chain_len_;
 
   bool clean_up_children_ = false;
+
+  KeyType right_most_key;
+  bool infinity = false;
 };
 
 //===--------------------------------------------------------------------===//
@@ -747,8 +774,10 @@ class BWTreeNode {
 template <typename KeyType, typename ValueType, class KeyComparator>
 class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
  public:
-  IPage(BWTree<KeyType, ValueType, KeyComparator> *map)
-      : BWTreeNode<KeyType, ValueType, KeyComparator>(map, 0) {
+  IPage(BWTree<KeyType, ValueType, KeyComparator> *map, KeyType right_most_key,
+        bool infinity)
+      : BWTreeNode<KeyType, ValueType, KeyComparator>(map, 0, right_most_key,
+                                                      infinity) {
     size_ = 1;
     should_split_ = false;
     // children_ = new std::pair<KeyType, LPID>();
@@ -756,7 +785,8 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   IPage(BWTree<KeyType, ValueType, KeyComparator> *map,
         NodeStateBuilder<KeyType, ValueType, KeyComparator> *state)
-      : BWTreeNode<KeyType, ValueType, KeyComparator>(map, 0) {
+      : BWTreeNode<KeyType, ValueType, KeyComparator>(
+            map, 0, state->right_most_key, state->infinity) {
     size_ = state->size;
     INodeStateBuilder<KeyType, ValueType, KeyComparator> *istate =
         reinterpret_cast<
@@ -822,9 +852,11 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
  public:
   Delta(BWTree<KeyType, ValueType, KeyComparator> *map,
-        BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node)
+        BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
+        KeyType right_most_key, bool infinity)
       : BWTreeNode<KeyType, ValueType, KeyComparator>(
-            map, modified_node->GetDeltaChainLen() + 1),
+            map, modified_node->GetDeltaChainLen() + 1, right_most_key,
+            infinity),
         modified_node(modified_node){};
 
   void Scan(const std::vector<Value> &values,
@@ -875,8 +907,10 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 class IPageDelta : public Delta<KeyType, ValueType, KeyComparator> {
  public:
   IPageDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
-             BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node)
-      : Delta<KeyType, ValueType, KeyComparator>(map, modified_node){};
+             BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
+             KeyType right_most_key, bool infinity)
+      : Delta<KeyType, ValueType, KeyComparator>(map, modified_node,
+                                                 right_most_key, infinity){};
 
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_IPAGE; };
 
@@ -891,8 +925,10 @@ class IPageSplitDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
  public:
   IPageSplitDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
                   BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
-                  KeyType key, LPID value, int modified_index)
-      : IPageDelta<KeyType, ValueType, KeyComparator>(map, modified_node),
+                  KeyType key, LPID value, int modified_index,
+                  KeyType right_most_key, bool infinity)
+      : IPageDelta<KeyType, ValueType, KeyComparator>(map, modified_node,
+                                                      right_most_key, infinity),
         modified_key_(key),
         modified_val_(value),
         modified_index_(modified_index){};
@@ -923,8 +959,10 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 class LPageDelta : public Delta<KeyType, ValueType, KeyComparator> {
  public:
   LPageDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
-             BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node)
-      : Delta<KeyType, ValueType, KeyComparator>(map, modified_node){};
+             BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
+             KeyType right_most_key, bool infinity)
+      : Delta<KeyType, ValueType, KeyComparator>(map, modified_node,
+                                                 right_most_key, infinity){};
 
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_LPAGE; };
 
@@ -938,8 +976,10 @@ class LPageSplitDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
  public:
   LPageSplitDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
                   BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
-                  KeyType splitterKey, int modified_index, LPID rightSplitPage)
-      : LPageDelta<KeyType, ValueType, KeyComparator>(map, modified_node),
+                  KeyType splitterKey, int modified_index, LPID rightSplitPage,
+                  KeyType right_most_key, bool infinity)
+      : LPageDelta<KeyType, ValueType, KeyComparator>(map, modified_node,
+                                                      right_most_key, infinity),
         modified_key_(splitterKey),
         modified_key_index_(modified_index),
         right_split_page_lpid_(rightSplitPage),
@@ -989,20 +1029,28 @@ class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
  public:
   LPageUpdateDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
                    BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
-                   KeyType key, ValueType value)
-      : LPageDelta<KeyType, ValueType, KeyComparator>(map, modified_node),
+                   KeyType key, ValueType value, KeyType right_most_key,
+                   bool infinity)
+      : LPageDelta<KeyType, ValueType, KeyComparator>(map, modified_node,
+                                                      right_most_key, infinity),
         modified_key_(key),
         modified_val_(value) {
     LOG_INFO("Inside LPageUpdateDelta Constructor");
   };
 
-  bool InsertEntry(__attribute__((unused)) KeyType key,
-                   __attribute__((unused)) ValueType location,
+  bool InsertEntry(KeyType key, ValueType location,
                    __attribute__((unused)) LPID my_lpid,
                    __attribute__((unused)) LPID parent) {
+    // if the key falls out of responsible range, retry
+    if (!this->infinity &&
+        this->map->CompareKey(key, this->right_most_key) > 0) {
+      return false;
+    }
+
     LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
-        new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
-                                                                key, location);
+        new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
+            this->map, this, key, location, this->right_most_key,
+            this->infinity);
     bool status = this->PerformDeltaInsert(my_lpid, new_delta);
     if (!status) {
       delete new_delta;
@@ -1013,9 +1061,15 @@ class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
   bool DeleteEntry(__attribute__((unused)) KeyType key,
                    __attribute__((unused)) ValueType location, LPID my_lpid,
                    __attribute__((unused)) LPID parent) {
+    // if the key falls out of responsible range, retry
+    if (!this->infinity &&
+        this->map->CompareKey(key, this->right_most_key) > 0) {
+      return false;
+    }
     LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
-        new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(this->map, this,
-                                                                key, location);
+        new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
+            this->map, this, key, location, this->right_most_key,
+            this->infinity);
 
     new_delta->SetDeleteFlag();
     bool status = this->PerformDeltaInsert(my_lpid, new_delta);
@@ -1052,8 +1106,10 @@ class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
 template <typename KeyType, typename ValueType, class KeyComparator>
 class LPageRemoveDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
  public:
-  LPageRemoveDelta(BWTree<KeyType, ValueType, KeyComparator> *map)
-      : LPageDelta<KeyType, ValueType, KeyComparator>(map) {
+  LPageRemoveDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
+                   KeyType right_most_key, bool infinity)
+      : LPageDelta<KeyType, ValueType, KeyComparator>(map, right_most_key,
+                                                      infinity) {
     LOG_INFO("Inside LPageRemoveDelta Constructor");
   };
 
@@ -1071,19 +1127,6 @@ class LPageRemoveDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
       int max_index);
 
-  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildScanState(
-      __attribute__((unused)) KeyType key) {
-    return nullptr;
-  };
-
-  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildScanState(
-      __attribute__((unused)) const std::vector<Value> &values,
-      __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
-      __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
-      __attribute__((unused)) const ScanDirectionType &scan_direction) {
-    return nullptr;
-  };
-
  private:
   // Whether it's a delete delta
   bool is_delete_ = false;
@@ -1093,8 +1136,10 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 class LPageMergeDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
  public:
   LPageMergeDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
-                  BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node)
-      : LPageDelta<KeyType, ValueType, KeyComparator>(map, modified_node) {
+                  BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
+                  KeyType right_most_key, bool infinity)
+      : LPageDelta<KeyType, ValueType, KeyComparator>(
+            map, modified_node, right_most_key, infinity) {
     LOG_INFO("Inside LPageMergeDelta Constructor");
   };
 
@@ -1112,22 +1157,7 @@ class LPageMergeDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
       int max_index);
 
-  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildScanState(
-      __attribute__((unused)) KeyType key) {
-    return nullptr;
-  };
-
-  NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildScanState(
-      __attribute__((unused)) const std::vector<Value> &values,
-      __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
-      __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
-      __attribute__((unused)) const ScanDirectionType &scan_direction) {
-    return nullptr;
-  };
-
  private:
-  // The key which is modified
-
   // Whether it's a delete delta
   bool is_delete_ = false;
 };
@@ -1147,8 +1177,10 @@ class IPageUpdateDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
                    BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
                    KeyType max_key_left_split_node,
                    KeyType max_key_right_split_node, LPID left_split_node_lpid,
-                   LPID right_split_node_lpid, bool is_delete)
-      : IPageDelta<KeyType, ValueType, KeyComparator>(map, modified_node),
+                   LPID right_split_node_lpid, bool is_delete,
+                   KeyType right_most_key, bool infinity)
+      : IPageDelta<KeyType, ValueType, KeyComparator>(map, modified_node,
+                                                      right_most_key, infinity),
         max_key_left_split_node_(max_key_left_split_node),
         max_key_right_split_node_(max_key_right_split_node),
         left_split_node_lpid_(left_split_node_lpid),
@@ -1199,8 +1231,10 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   static int BinarySearch(std::pair<KeyType, ValueType> pair,
                           std::pair<KeyType, ValueType> *locations, oid_t len);
 
-  LPage(BWTree<KeyType, ValueType, KeyComparator> *map)
-      : BWTreeNode<KeyType, ValueType, KeyComparator>(map, 0) {
+  LPage(BWTree<KeyType, ValueType, KeyComparator> *map, KeyType right_most_key,
+        bool infinity)
+      : BWTreeNode<KeyType, ValueType, KeyComparator>(map, 0, right_most_key,
+                                                      infinity) {
     left_sib_ = INVALID_LPID;
     right_sib_ = INVALID_LPID;
     size_ = 0;
@@ -1208,7 +1242,8 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   LPage(BWTree<KeyType, ValueType, KeyComparator> *map,
         NodeStateBuilder<KeyType, ValueType, KeyComparator> *state)
-      : BWTreeNode<KeyType, ValueType, KeyComparator>(map, 0) {
+      : BWTreeNode<KeyType, ValueType, KeyComparator>(
+            map, 0, state->right_most_key, state->infinity) {
     LOG_INFO(" ");
     size_ = state->size;
     LNodeStateBuilder<KeyType, ValueType, KeyComparator> *lstate =
