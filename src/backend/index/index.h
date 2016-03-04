@@ -131,7 +131,7 @@ class Index {
       const std::vector<Value> &values,
       const std::vector<oid_t> &key_column_ids,
       const std::vector<ExpressionType> &exprs,
-      const ScanDirectionType& scan_direction) = 0;
+      const ScanDirectionType &scan_direction) = 0;
 
   // scan the entire index, working like a sort
   virtual std::vector<ItemPointer> ScanAllKeys() = 0;
@@ -198,14 +198,16 @@ class Index {
   // Get the memory footprint
   virtual size_t GetMemoryFootprint() = 0;
 
+  virtual void Debug() {}
+
  protected:
   Index(IndexMetadata *schema);
 
   // Set the lower bound tuple for index iteration
   bool ConstructLowerBoundTuple(storage::Tuple *index_key,
-                          const std::vector<Value> &values,
-                          const std::vector<oid_t> &key_column_ids,
-                          const std::vector<ExpressionType> &expr_types);
+                                const std::vector<Value> &values,
+                                const std::vector<oid_t> &key_column_ids,
+                                const std::vector<ExpressionType> &expr_types);
 
   //===--------------------------------------------------------------------===//
   //  Data members
