@@ -721,6 +721,20 @@ class BWTreeNode {
   virtual bool DeleteEntry(KeyType key, ValueType location, LPID self,
                            LPID parent) = 0;
 
+  virtual bool AddINodeEntry(
+      __attribute__((unused)) LPID self,
+      __attribute__((unused)) KeyType max_key_left_split_node,
+      __attribute__((unused)) KeyType max_key_right_split_node,
+      __attribute__((unused)) bool right_node_is_infinity,
+      __attribute__((unused)) LPID left_split_node_lpid,
+      __attribute__((unused)) LPID right_split_node_lpid,
+      __attribute__((unused)) bool is_delete) {
+    return false;
+  };
+
+  //  virtual bool AddINodeSplit(KeyType key, LPID value, int
+  //  modified_index){return false;};
+
   virtual void Scan(const std::vector<Value> &values,
                     const std::vector<oid_t> &key_column_ids,
                     const std::vector<ExpressionType> &expr_types,
@@ -809,6 +823,11 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   ~IPage(){};
 
+  bool AddINodeEntry(LPID self, KeyType max_key_left_split_node,
+                     KeyType max_key_right_split_node,
+                     bool right_node_is_infinity, LPID left_split_node_lpid,
+                     LPID right_split_node_lpid, bool is_delete);
+
   bool InsertEntry(KeyType key, ValueType location, LPID self, LPID parent);
 
   bool DeleteEntry(KeyType key, ValueType location, LPID self, LPID parent) {
@@ -879,7 +898,7 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   void ScanKey(KeyType key, std::vector<ValueType> &result);
 
-  ~Delta() {
+  virtual ~Delta() {
     if (this->clean_up_children_) {
       delete modified_node;
     }
@@ -941,13 +960,21 @@ class IPageSplitDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
                                                       right_most_key, infinity),
         modified_key_(key),
         modified_val_(value),
-        modified_index_(modified_index){};
+        modified_index_(modified_index),
+        split_completed_(false){};
 
   bool InsertEntry(KeyType key, ValueType location, LPID self, LPID parent);
+
+  bool AddINodeEntry(LPID self, KeyType max_key_left_split_node,
+                     KeyType max_key_right_split_node,
+                     bool right_node_is_infinity, LPID left_split_node_lpid,
+                     LPID right_split_node_lpid, bool is_delete);
 
   bool DeleteEntry(KeyType key, ValueType location, LPID self, LPID parent);
 
   void ScanKey(KeyType key, std::vector<ValueType> &result);
+
+  void SetSplitCompleted() { split_completed_ = true; }
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
       int max_index);
@@ -962,6 +989,8 @@ class IPageSplitDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
   LPID modified_val_;
   // index of last key in the left child;
   int modified_index_;
+
+  bool split_completed_;
 };
 
 //===--------------------------------------------------------------------===//
@@ -1054,10 +1083,10 @@ class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
                    __attribute__((unused)) LPID my_lpid,
                    __attribute__((unused)) LPID parent) {
     // if the key falls out of responsible range, retry
-        if (!this->infinity &&
-            this->map->CompareKey(key, this->right_most_key) > 0) {
-          return false;
-        }
+    if (!this->infinity &&
+        this->map->CompareKey(key, this->right_most_key) > 0) {
+      return false;
+    }
 
     LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
         new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
@@ -1074,10 +1103,10 @@ class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
                    __attribute__((unused)) ValueType location, LPID my_lpid,
                    __attribute__((unused)) LPID parent) {
     // if the key falls out of responsible range, retry
-        if (!this->infinity &&
-            this->map->CompareKey(key, this->right_most_key) > 0) {
-          return false;
-        }
+    if (!this->infinity &&
+        this->map->CompareKey(key, this->right_most_key) > 0) {
+      return false;
+    }
     LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
         new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
             this->map, this, key, location, this->right_most_key,
@@ -1202,6 +1231,11 @@ class IPageUpdateDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
         is_delete_(is_delete) {
     LOG_INFO("Inside IPageUpdateDelta Constructor");
   };
+
+  bool AddINodeEntry(LPID self, KeyType max_key_left_split_node,
+                     KeyType max_key_right_split_node,
+                     bool right_node_is_infinity, LPID left_split_node_lpid,
+                     LPID right_split_node_lpid, bool is_delete);
 
   bool InsertEntry(KeyType key, ValueType location, LPID self, LPID parent);
 
