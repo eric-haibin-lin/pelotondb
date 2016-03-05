@@ -110,7 +110,7 @@ index::Index *BuildIndex(INDEX_KEY_TYPE index_key_type) {
 /*============================================================================
  * BLACK BOX TEST FOR BOTH BWTREE AND BTREE
  *===========================================================================*/
-/*void BasicTestHelper(INDEX_KEY_TYPE index_key_type) {
+void BasicTestHelper(INDEX_KEY_TYPE index_key_type) {
   auto pool = TestingHarness::GetInstance().GetTestingPool();
 
   std::vector<ItemPointer> locations;
@@ -162,8 +162,12 @@ index::Index *BuildIndex(INDEX_KEY_TYPE index_key_type) {
   locations = index->Scan(values, key_column_ids, expr_types, direction);
   EXPECT_EQ(locations.size(), 0);
 
+  //index->Debug();
+
   // DELETE
   index->DeleteEntry(key0.get(), item0);
+
+  //index->Debug();
 
   locations = index->ScanKey(key0.get());
   EXPECT_EQ(locations.size(), 0);
@@ -182,15 +186,18 @@ index::Index *BuildIndex(INDEX_KEY_TYPE index_key_type) {
   expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
   locations = index->Scan(values, key_column_ids, expr_types, direction);
   EXPECT_EQ(locations.size(), 0);
+  assert(locations.size() == 0);
 
   delete tuple_schema;
 }
 
-TEST(IndexTests, BasicTest) {
-  for (unsigned int i = 0; i < index_types.size(); i++) {
-    BasicTestHelper(index_types[i]);
-  }
-}
+//TEST(IndexTests, BasicUniqueTest) {
+//    BasicTestHelper(UNIQUE_KEY);
+//}
+//
+//TEST(IndexTests, BasicNonUniqueTest) {
+//    BasicTestHelper(NON_UNIQUE_KEY);
+//}
 
 // INSERT HELPER FUNCTION
 // Loop based on scale factor
@@ -214,28 +221,7 @@ void InsertTest(index::Index *index, VarlenPool *pool, size_t scale_factor) {
     key3->SetValue(0, ValueFactory::GetIntegerValue(400 * scale_itr), pool);
     key3->SetValue(1, ValueFactory::GetStringValue("d"), pool);
     key4->SetValue(0, ValueFactory::GetIntegerValue(500 * scale_itr), pool);
-    key4->SetValue(1, ValueFactory::GetStringValue(
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"),
-                   pool);
+    key4->SetValue(1, ValueFactory::GetStringValue("ee"), pool);
     keynonce->SetValue(0, ValueFactory::GetIntegerValue(1000 * scale_itr),
                        pool);
     keynonce->SetValue(1, ValueFactory::GetStringValue("f"), pool);
@@ -253,10 +239,10 @@ void InsertTest(index::Index *index, VarlenPool *pool, size_t scale_factor) {
     index->InsertEntry(key4.get(), item1);
     //    index->InsertEntry(key4.get(), item0);
   }
-}*/
+}
 
 // DELETE HELPER FUNCTION
-/*void DeleteTest(index::Index *index, VarlenPool *pool, size_t scale_factor) {
+void DeleteTest(index::Index *index, VarlenPool *pool, size_t scale_factor) {
   // Loop based on scale factor
   for (size_t scale_itr = 1; scale_itr <= scale_factor; scale_itr++) {
     // Delete a bunch of keys based on scale itr
@@ -275,28 +261,7 @@ void InsertTest(index::Index *index, VarlenPool *pool, size_t scale_factor) {
     key3->SetValue(0, ValueFactory::GetIntegerValue(400 * scale_itr), pool);
     key3->SetValue(1, ValueFactory::GetStringValue("d"), pool);
     key4->SetValue(0, ValueFactory::GetIntegerValue(500 * scale_itr), pool);
-    key4->SetValue(1, ValueFactory::GetStringValue(
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"),
-                   pool);
+    key4->SetValue(1, ValueFactory::GetStringValue("ee"), pool);
 
     // DELETE
     index->DeleteEntry(key0.get(), item0);
@@ -305,9 +270,9 @@ void InsertTest(index::Index *index, VarlenPool *pool, size_t scale_factor) {
     index->DeleteEntry(key3.get(), item1);
     index->DeleteEntry(key4.get(), item1);
   }
-}*/
+}
 
-/*void DeleteTestHelper(INDEX_KEY_TYPE index_key_type) {
+void DeleteTestHelper(INDEX_KEY_TYPE index_key_type) {
   auto pool = TestingHarness::GetInstance().GetTestingPool();
   std::vector<ItemPointer> locations;
 
@@ -315,7 +280,7 @@ void InsertTest(index::Index *index, VarlenPool *pool, size_t scale_factor) {
   std::unique_ptr<index::Index> index(BuildIndex(index_key_type));
 
   // Single threaded test
-  size_t scale_factor = 1;
+  size_t scale_factor = 200;
   LaunchParallelTest(1, InsertTest, index.get(), pool, scale_factor);
 
   // Checks
@@ -330,13 +295,17 @@ void InsertTest(index::Index *index, VarlenPool *pool, size_t scale_factor) {
   key2->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
   key2->SetValue(1, ValueFactory::GetStringValue("c"), pool);
 
+  index->Debug();
+
   // Test insert
   locations = index->ScanKey(key0.get());
   EXPECT_EQ(locations.size(), 1);
 
+  int key1_count = 9;
+
   locations = index->ScanKey(key1.get());
   if (index_key_type == NON_UNIQUE_KEY) {
-    EXPECT_EQ(locations.size(), 5);
+    EXPECT_EQ(locations.size(), key1_count);
   } else if (index_key_type == UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
     EXPECT_EQ(locations.size(), 1);
   }
@@ -346,7 +315,7 @@ void InsertTest(index::Index *index, VarlenPool *pool, size_t scale_factor) {
 
   locations = index->ScanAllKeys();
   if (index_key_type == NON_UNIQUE_KEY) {
-    EXPECT_EQ(locations.size(), 9 * scale_factor);
+    EXPECT_EQ(locations.size(), (key1_count + 4) * scale_factor);
   } else if (index_key_type == UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
     EXPECT_EQ(locations.size(), 5 * scale_factor);
   }
@@ -368,7 +337,7 @@ void InsertTest(index::Index *index, VarlenPool *pool, size_t scale_factor) {
   expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
   locations = index->Scan(values, key_column_ids, expr_types, direction);
   if (index_key_type == NON_UNIQUE_KEY) {
-    EXPECT_EQ(locations.size(), 5);
+    EXPECT_EQ(locations.size(), key1_count);
   } else if (index_key_type == UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
     EXPECT_EQ(locations.size(), 1);
   }
@@ -383,215 +352,221 @@ void InsertTest(index::Index *index, VarlenPool *pool, size_t scale_factor) {
   expr_types[0] = EXPRESSION_TYPE_COMPARE_GREATERTHAN;
   expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
   locations = index->Scan(values, key_column_ids, expr_types, direction);
-  EXPECT_EQ(locations.size(), 1);
+  EXPECT_EQ(locations.size(), 1 * scale_factor);
 
-  LaunchParallelTest(1, DeleteTest, index.get(), pool, scale_factor);
+  index->Debug();
 
-  locations = index->ScanKey(key0.get());
-  EXPECT_EQ(locations.size(), 0);
-
-  locations = index->ScanKey(key1.get());
-  if (index_key_type == NON_UNIQUE_KEY) {
-    EXPECT_EQ(locations.size(), 2);
-  } else if (index_key_type == UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
-    EXPECT_EQ(locations.size(), 1);
-  }
-
-  locations = index->ScanKey(key2.get());
-  EXPECT_EQ(locations.size(), 1);
-  EXPECT_EQ(locations[0].block, item1.block);
-
-  // setup values
-  values[0] = ValueFactory::GetIntegerValue(100);
-  values[1] = ValueFactory::GetStringValue("b");
-  // setup column id's
-  key_column_ids[0] = 0;
-  key_column_ids[1] = 1;
-  // setup expr's
-  expr_types[0] = EXPRESSION_TYPE_COMPARE_EQUAL;
-  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
-  locations = index->Scan(values, key_column_ids, expr_types, direction);
-  if (index_key_type == NON_UNIQUE_KEY) {
-    EXPECT_EQ(locations.size(), 2);
-  } else if (index_key_type == UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
-    EXPECT_EQ(locations.size(), 1);
-  }
-
-  // THIS TEST IS FOR BWTREE ONLY. Not implemented for btree
-  std::vector<ItemPointer> reverse_locations = index->Scan(
-      values, key_column_ids, expr_types, SCAN_DIRECTION_TYPE_BACKWARD);
-  if (index_key_type == NON_UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
-    EXPECT_EQ(locations.size(), 2);
-    EXPECT_EQ(locations[0].block, reverse_locations[1].block);
-    EXPECT_EQ(locations[0].offset, reverse_locations[1].offset);
-    EXPECT_EQ(locations[1].block, reverse_locations[0].block);
-    EXPECT_EQ(locations[1].offset, reverse_locations[0].offset);
-  } else if (index_key_type == UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
-    EXPECT_EQ(locations.size(), 1);
-  }
-
-  // setup values
-  values[0] = ValueFactory::GetIntegerValue(100);
-  values[1] = ValueFactory::GetStringValue("c");
-  // setup column id's
-  key_column_ids[0] = 0;
-  key_column_ids[1] = 1;
-  // setup expr's
-  expr_types[0] = EXPRESSION_TYPE_COMPARE_EQUAL;
-  expr_types[1] = EXPRESSION_TYPE_COMPARE_NOTEQUAL;
-  locations = index->Scan(values, key_column_ids, expr_types, direction);
-  if (index_key_type == NON_UNIQUE_KEY) {
-    EXPECT_EQ(locations.size(), 2);
-  } else if (index_key_type == UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
-    EXPECT_EQ(locations.size(), 1);
-  }
-
-  // setup values
-  values[0] = ValueFactory::GetIntegerValue(100);
-  values[1] = ValueFactory::GetStringValue("d");
-  // setup column id's
-  key_column_ids[0] = 0;
-  key_column_ids[1] = 1;
-  // setup expr's
-  expr_types[0] = EXPRESSION_TYPE_COMPARE_GREATERTHAN;
-  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
-  locations = index->Scan(values, key_column_ids, expr_types, direction);
-  if (index_key_type == NON_UNIQUE_KEY) {
-    EXPECT_EQ(locations.size(), 0);
-  } else if (index_key_type == UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
-    EXPECT_EQ(locations.size(), 0);
-  }
-
+//  LaunchParallelTest(1, DeleteTest, index.get(), pool, scale_factor);
+//
+//  index->Debug();
+//
+//  locations = index->ScanKey(key0.get());
+//  EXPECT_EQ(locations.size(), 0);
+//
+//  locations = index->ScanKey(key1.get());
+//  if (index_key_type == NON_UNIQUE_KEY) {
+//    EXPECT_EQ(locations.size(), 2);
+//  } else if (index_key_type == UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
+//    EXPECT_EQ(locations.size(), 1);
+//  }
+//
+//  locations = index->ScanKey(key2.get());
+//  EXPECT_EQ(locations.size(), 1);
+//  EXPECT_EQ(locations[0].block, item1.block);
+//
+//  // setup values
+//  values[0] = ValueFactory::GetIntegerValue(100);
+//  values[1] = ValueFactory::GetStringValue("b");
+//  // setup column id's
+//  key_column_ids[0] = 0;
+//  key_column_ids[1] = 1;
+//  // setup expr's
+//  expr_types[0] = EXPRESSION_TYPE_COMPARE_EQUAL;
+//  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
+//  locations = index->Scan(values, key_column_ids, expr_types, direction);
+//  if (index_key_type == NON_UNIQUE_KEY) {
+//    EXPECT_EQ(locations.size(), 2);
+//  } else if (index_key_type == UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
+//    EXPECT_EQ(locations.size(), 1);
+//  }
+//
+//  // THIS TEST IS FOR BWTREE ONLY. Not implemented for btree
+//  std::vector<ItemPointer> reverse_locations = index->Scan(
+//      values, key_column_ids, expr_types, SCAN_DIRECTION_TYPE_BACKWARD);
+//  if (index_key_type == NON_UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
+//    EXPECT_EQ(locations.size(), 2);
+//    EXPECT_EQ(locations[0].block, reverse_locations[1].block);
+//    EXPECT_EQ(locations[0].offset, reverse_locations[1].offset);
+//    EXPECT_EQ(locations[1].block, reverse_locations[0].block);
+//    EXPECT_EQ(locations[1].offset, reverse_locations[0].offset);
+//  } else if (index_key_type == UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
+//    EXPECT_EQ(locations.size(), 1);
+//  }
+//
+//  // setup values
+//  values[0] = ValueFactory::GetIntegerValue(100);
+//  values[1] = ValueFactory::GetStringValue("c");
+//  // setup column id's
+//  key_column_ids[0] = 0;
+//  key_column_ids[1] = 1;
+//  // setup expr's
+//  expr_types[0] = EXPRESSION_TYPE_COMPARE_EQUAL;
+//  expr_types[1] = EXPRESSION_TYPE_COMPARE_NOTEQUAL;
+//  locations = index->Scan(values, key_column_ids, expr_types, direction);
+//  if (index_key_type == NON_UNIQUE_KEY) {
+//    EXPECT_EQ(locations.size(), 2);
+//  } else if (index_key_type == UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
+//    EXPECT_EQ(locations.size(), 1);
+//  }
+//
+//  // setup values
+//  values[0] = ValueFactory::GetIntegerValue(100);
+//  values[1] = ValueFactory::GetStringValue("d");
+//  // setup column id's
+//  key_column_ids[0] = 0;
+//  key_column_ids[1] = 1;
+//  // setup expr's
+//  expr_types[0] = EXPRESSION_TYPE_COMPARE_GREATERTHAN;
+//  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
+//  locations = index->Scan(values, key_column_ids, expr_types, direction);
+//  if (index_key_type == NON_UNIQUE_KEY) {
+//    EXPECT_EQ(locations.size(), 0);
+//  } else if (index_key_type == UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
+//    EXPECT_EQ(locations.size(), 0);
+//  }
+//
   delete tuple_schema;
 }
 
 TEST(IndexTests, DeleteTest) {
-  for (unsigned int i = 0; i < index_types.size(); i++) {
-    DeleteTestHelper(index_types[i]);
-  }
+//  for (unsigned int i = 0; i < index_types.size(); i++) {
+    DeleteTestHelper(index_types[1]);
+//  }
 }
 
-TEST(IndexTests, MultiThreadedTest) {
-  auto pool = TestingHarness::GetInstance().GetTestingPool();
-  std::vector<ItemPointer> locations;
+//TEST(IndexTests, MultiThreadedTest) {
+//  auto pool = TestingHarness::GetInstance().GetTestingPool();
+//  std::vector<ItemPointer> locations;
+//
+//  // INDEX
+//  std::unique_ptr<index::Index> index(BuildIndex(NON_UNIQUE_KEY));
+//
+//  // Parallel Test
+//  size_t num_threads = 1;
+//  size_t scale_factor = 10000;
+//  LaunchParallelTest(num_threads, InsertTest, index.get(), pool, scale_factor);
+//
+//  locations = index->ScanAllKeys();
+//  EXPECT_EQ(locations.size(), 9 * num_threads * scale_factor);
+//
+//  std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
+//  std::unique_ptr<storage::Tuple> keynonce(
+//      new storage::Tuple(key_schema, true));
+//  std::unique_ptr<storage::Tuple> key1(new storage::Tuple(key_schema, true));
+//  std::unique_ptr<storage::Tuple> key2(new storage::Tuple(key_schema, true));
+//
+//  keynonce->SetValue(0, ValueFactory::GetIntegerValue(1000), pool);
+//  keynonce->SetValue(1, ValueFactory::GetStringValue("f"), pool);
+//
+//  key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+//  key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
+//  key1->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+//  key1->SetValue(1, ValueFactory::GetStringValue("b"), pool);
+//  key2->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+//  key2->SetValue(1, ValueFactory::GetStringValue("c"), pool);
+//
+//  locations = index->ScanKey(keynonce.get());
+//  EXPECT_EQ(locations.size(), 0);
+//
+//  locations = index->ScanKey(key1.get());
+//  EXPECT_EQ(locations.size(), 5 * num_threads);
+//  EXPECT_EQ(locations[0].block, item0.block);
+//
+//  // TEST SCAN
+//  std::vector<peloton::Value> values(2);
+//  std::vector<oid_t> key_column_ids(2);
+//  std::vector<ExpressionType> expr_types(2);
+//  ScanDirectionType direction = SCAN_DIRECTION_TYPE_FORWARD;
+//
+//  // setup values
+//  values[0] = ValueFactory::GetIntegerValue(100);
+//  values[1] = ValueFactory::GetStringValue("b");
+//  // setup column id's
+//  key_column_ids[0] = 0;
+//  key_column_ids[1] = 1;
+//  // setup expr's
+//  expr_types[0] = EXPRESSION_TYPE_COMPARE_EQUAL;
+//  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
+//  locations = index->Scan(values, key_column_ids, expr_types, direction);
+//  // assume non_unique_key
+//  EXPECT_EQ(locations.size(), 5 * num_threads);
+//
+//  // setup values
+//  values[0] = ValueFactory::GetIntegerValue(99);
+//  values[1] = ValueFactory::GetStringValue("d");
+//  // setup column id's
+//  key_column_ids[0] = 0;
+//  key_column_ids[1] = 1;
+//  // setup expr's
+//  expr_types[0] = EXPRESSION_TYPE_COMPARE_GREATERTHAN;
+//  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
+//  locations = index->Scan(values, key_column_ids, expr_types, direction);
+//  // assume non_unique_key
+//  EXPECT_EQ(locations.size(), 1 * num_threads * scale_factor);
+//
+//  // DELETE
+//  //  LaunchParallelTest(num_threads, DeleteTest, index.get(), pool,
+//  //  scale_factor);
+//  //
+//  //  locations = index->ScanKey(key0.get());
+//  //  EXPECT_EQ(locations.size(), 0);
+//  //
+//  //  locations = index->ScanKey(key1.get());
+//  //  EXPECT_EQ(locations.size(), 2 * num_threads);
+//  //
+//  //  locations = index->ScanKey(key2.get());
+//  //  EXPECT_EQ(locations.size(), 1 * num_threads);
+//  //
+//  //  // setup values
+//  //  values[0] = ValueFactory::GetIntegerValue(100);
+//  //  values[1] = ValueFactory::GetStringValue("b");
+//  //  // setup column id's
+//  //  key_column_ids[0] = 0;
+//  //  key_column_ids[1] = 1;
+//  //  // setup expr's
+//  //  expr_types[0] = EXPRESSION_TYPE_COMPARE_EQUAL;
+//  //  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
+//  //  locations = index->Scan(values, key_column_ids, expr_types, direction);
+//  //  EXPECT_EQ(locations.size(), 2 * num_threads);
+//  //
+//  //  // setup values
+//  //  values[0] = ValueFactory::GetIntegerValue(100);
+//  //  values[1] = ValueFactory::GetStringValue("c");
+//  //  // setup column id's
+//  //  key_column_ids[0] = 0;
+//  //  key_column_ids[1] = 1;
+//  //  // setup expr's
+//  //  expr_types[0] = EXPRESSION_TYPE_COMPARE_EQUAL;
+//  //  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
+//  //  locations = index->Scan(values, key_column_ids, expr_types, direction);
+//  //  EXPECT_EQ(locations.size(), 1 * num_threads);
+//  //
+//  //  // setup values
+//  //  values[0] = ValueFactory::GetIntegerValue(99);
+//  //  values[1] = ValueFactory::GetStringValue("c");
+//  //  // setup column id's
+//  //  key_column_ids[0] = 0;
+//  //  key_column_ids[1] = 1;
+//  //  // setup expr's
+//  //  expr_types[0] = EXPRESSION_TYPE_COMPARE_GREATERTHAN;
+//  //  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
+//  //  locations = index->Scan(values, key_column_ids, expr_types, direction);
+//  //  EXPECT_EQ(locations.size(), 1 * num_threads * scale_factor);
+//  //
+//  //  delete tuple_schema;
+//}
 
-  // INDEX
-  std::unique_ptr<index::Index> index(BuildIndex(NON_UNIQUE_KEY));
-
-  // Parallel Test
-  size_t num_threads = 1;
-  size_t scale_factor = 10000;
-  LaunchParallelTest(num_threads, InsertTest, index.get(), pool, scale_factor);
-
-  locations = index->ScanAllKeys();
-  EXPECT_EQ(locations.size(), 9 * num_threads * scale_factor);
-
-  std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
-  std::unique_ptr<storage::Tuple> keynonce(
-      new storage::Tuple(key_schema, true));
-  std::unique_ptr<storage::Tuple> key1(new storage::Tuple(key_schema, true));
-  std::unique_ptr<storage::Tuple> key2(new storage::Tuple(key_schema, true));
-
-  keynonce->SetValue(0, ValueFactory::GetIntegerValue(1000), pool);
-  keynonce->SetValue(1, ValueFactory::GetStringValue("f"), pool);
-
-  key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
-  key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
-  key1->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
-  key1->SetValue(1, ValueFactory::GetStringValue("b"), pool);
-  key2->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
-  key2->SetValue(1, ValueFactory::GetStringValue("c"), pool);
-
-  locations = index->ScanKey(keynonce.get());
-  EXPECT_EQ(locations.size(), 0);
-
-  locations = index->ScanKey(key1.get());
-  EXPECT_EQ(locations.size(), 5 * num_threads);
-  EXPECT_EQ(locations[0].block, item0.block);
-
-  // TEST SCAN
-  std::vector<peloton::Value> values(2);
-  std::vector<oid_t> key_column_ids(2);
-  std::vector<ExpressionType> expr_types(2);
-  ScanDirectionType direction = SCAN_DIRECTION_TYPE_FORWARD;
-
-  // setup values
-  values[0] = ValueFactory::GetIntegerValue(100);
-  values[1] = ValueFactory::GetStringValue("b");
-  // setup column id's
-  key_column_ids[0] = 0;
-  key_column_ids[1] = 1;
-  // setup expr's
-  expr_types[0] = EXPRESSION_TYPE_COMPARE_EQUAL;
-  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
-  locations = index->Scan(values, key_column_ids, expr_types, direction);
-  // assume non_unique_key
-  EXPECT_EQ(locations.size(), 5 * num_threads);
-
-  // setup values
-  values[0] = ValueFactory::GetIntegerValue(99);
-  values[1] = ValueFactory::GetStringValue("d");
-  // setup column id's
-  key_column_ids[0] = 0;
-  key_column_ids[1] = 1;
-  // setup expr's
-  expr_types[0] = EXPRESSION_TYPE_COMPARE_GREATERTHAN;
-  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
-  locations = index->Scan(values, key_column_ids, expr_types, direction);
-  // assume non_unique_key
-  EXPECT_EQ(locations.size(), 1 * num_threads * scale_factor);
-
-  // DELETE
-  LaunchParallelTest(num_threads, DeleteTest, index.get(), pool, scale_factor);
-
-  locations = index->ScanKey(key0.get());
-  EXPECT_EQ(locations.size(), 0);
-
-  locations = index->ScanKey(key1.get());
-  EXPECT_EQ(locations.size(), 2 * num_threads);
-
-  locations = index->ScanKey(key2.get());
-  EXPECT_EQ(locations.size(), 1 * num_threads);
-
-  // setup values
-  values[0] = ValueFactory::GetIntegerValue(100);
-  values[1] = ValueFactory::GetStringValue("b");
-  // setup column id's
-  key_column_ids[0] = 0;
-  key_column_ids[1] = 1;
-  // setup expr's
-  expr_types[0] = EXPRESSION_TYPE_COMPARE_EQUAL;
-  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
-  locations = index->Scan(values, key_column_ids, expr_types, direction);
-  EXPECT_EQ(locations.size(), 2 * num_threads);
-
-  // setup values
-  values[0] = ValueFactory::GetIntegerValue(100);
-  values[1] = ValueFactory::GetStringValue("c");
-  // setup column id's
-  key_column_ids[0] = 0;
-  key_column_ids[1] = 1;
-  // setup expr's
-  expr_types[0] = EXPRESSION_TYPE_COMPARE_EQUAL;
-  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
-  locations = index->Scan(values, key_column_ids, expr_types, direction);
-  EXPECT_EQ(locations.size(), 1 * num_threads);
-
-  // setup values
-  values[0] = ValueFactory::GetIntegerValue(99);
-  values[1] = ValueFactory::GetStringValue("c");
-  // setup column id's
-  key_column_ids[0] = 0;
-  key_column_ids[1] = 1;
-  // setup expr's
-  expr_types[0] = EXPRESSION_TYPE_COMPARE_GREATERTHAN;
-  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
-  locations = index->Scan(values, key_column_ids, expr_types, direction);
-  EXPECT_EQ(locations.size(), 1 * num_threads * scale_factor);
-
-  delete tuple_schema;
-}*/
-
+/*
 TEST(IndexTests, SingleThreadedSplitTest) {
   auto pool = TestingHarness::GetInstance().GetTestingPool();
   std::vector<ItemPointer> locations;
@@ -732,7 +707,7 @@ TEST(IndexTests, SingleThreadedSplitTest) {
   EXPECT_EQ(locations.size(), 1 * num_threads);
 
   // DELETE
-  /*LaunchParallelTest(num_threads, DeleteTest, index.get(), pool,
+  LaunchParallelTest(num_threads, DeleteTest, index.get(), pool,
   scale_factor);
 
   locations = index->ScanKey(key0.get());
@@ -778,310 +753,359 @@ TEST(IndexTests, SingleThreadedSplitTest) {
   expr_types[0] = EXPRESSION_TYPE_COMPARE_GREATERTHAN;
   expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
   locations = index->Scan(values, key_column_ids, expr_types, direction);
-  EXPECT_EQ(locations.size(), 1 * num_threads);*/
+  EXPECT_EQ(locations.size(), 1 * num_threads);
 
   delete tuple_schema;
+<<<<<<< Updated upstream
 }
-
+*/
 /*============================================================================
  * WHITE BOX TEST SPECIFIC TO BWTREE
  *===========================================================================*/
 
-TEST(IndexTests, BWTreeMappingTableTest) {
-  // the values of the templates dont really matter;
-  int size_to_test = 1025;
-  auto initial_nodes =
-      new index::BWTreeNode<TestKeyType, TestValueType,
-                            TestComparatorType> *[size_to_test];
-  for (int i = 0; i < size_to_test; i++) {
-    initial_nodes[i] = reinterpret_cast<
-        index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *>(
-        new int(52));
-  }
-  auto LPIDs = new index::LPID[size_to_test];
-  index::MappingTable<TestKeyType, TestValueType, TestComparatorType> map;
-  for (int i = 0; i < size_to_test; i++) {
-    LPIDs[i] = map.InstallPage(initial_nodes[i]);
-  }
-  for (int i = 0; i < size_to_test; i++) {
-    EXPECT_EQ(initial_nodes[i], map.GetNode(LPIDs[i]));
-    ;
-  }
-  auto swapped_nodes =
-      new index::BWTreeNode<TestKeyType, TestValueType,
-                            TestComparatorType> *[size_to_test];
-  for (int i = 0; i < size_to_test; i++) {
-    if (i % 2) {
-      swapped_nodes[i] = reinterpret_cast<
-          index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *>(
-          new int(52));
-      map.SwapNode(LPIDs[i], initial_nodes[i], swapped_nodes[i]);
-    }
-  }
+//TEST(IndexTests, BWTreeMappingTableTest) {
+//  // the values of the templates dont really matter;
+//  int size_to_test = 1025;
+//  auto initial_nodes =
+//      new index::BWTreeNode<TestKeyType, TestValueType,
+//                            TestComparatorType> *[size_to_test];
+//  for (int i = 0; i < size_to_test; i++) {
+//    initial_nodes[i] = reinterpret_cast<
+//        index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *>(
+//        new int(52));
+//  }
+//  auto LPIDs = new index::LPID[size_to_test];
+//  index::MappingTable<TestKeyType, TestValueType, TestComparatorType> map;
+//  for (int i = 0; i < size_to_test; i++) {
+//    LPIDs[i] = map.InstallPage(initial_nodes[i]);
+//  }
+//  for (int i = 0; i < size_to_test; i++) {
+//    EXPECT_EQ(initial_nodes[i], map.GetNode(LPIDs[i]));
+//    ;
+//  }
+//  auto swapped_nodes =
+//      new index::BWTreeNode<TestKeyType, TestValueType,
+//                            TestComparatorType> *[size_to_test];
+//  for (int i = 0; i < size_to_test; i++) {
+//    if (i % 2) {
+//      swapped_nodes[i] = reinterpret_cast<
+//          index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *>(
+//          new int(52));
+//      map.SwapNode(LPIDs[i], initial_nodes[i], swapped_nodes[i]);
+//    }
+//  }
+//
+//  for (int i = 0; i < size_to_test; i++) {
+//    if (i % 2) {
+//      EXPECT_EQ(swapped_nodes[i], map.GetNode(LPIDs[i]));
+//    } else {
+//      EXPECT_EQ(initial_nodes[i], map.GetNode(LPIDs[i]));
+//    };
+//  }
+//  delete[] LPIDs;
+//  delete[] initial_nodes;
+//  delete[] swapped_nodes;
+//}
 
-  for (int i = 0; i < size_to_test; i++) {
-    if (i % 2) {
-      EXPECT_EQ(swapped_nodes[i], map.GetNode(LPIDs[i]));
-    } else {
-      EXPECT_EQ(initial_nodes[i], map.GetNode(LPIDs[i]));
-    };
-  }
-  delete[] LPIDs;
-  delete[] initial_nodes;
-  delete[] swapped_nodes;
-}
+/*============================================================================
+ * WHITE BOX TEST SPECIFIC TO BWTREE
+ *===========================================================================*/
+//
+//TEST(IndexTests, BWTreeMappingTableTest) {
+//  // the values of the templates dont really matter;
+//  int size_to_test = 1025;
+//  auto initial_nodes =
+//      new index::BWTreeNode<TestKeyType, TestValueType,
+//                            TestComparatorType> *[size_to_test];
+//  for (int i = 0; i < size_to_test; i++) {
+//    initial_nodes[i] = reinterpret_cast<
+//        index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *>(
+//        new int(52));
+//  }
+//  auto LPIDs = new index::LPID[size_to_test];
+//  index::MappingTable<TestKeyType, TestValueType, TestComparatorType> map;
+//  for (int i = 0; i < size_to_test; i++) {
+//    LPIDs[i] = map.InstallPage(initial_nodes[i]);
+//  }
+//  for (int i = 0; i < size_to_test; i++) {
+//    EXPECT_EQ(initial_nodes[i], map.GetNode(LPIDs[i]));
+//    ;
+//  }
+//  auto swapped_nodes =
+//      new index::BWTreeNode<TestKeyType, TestValueType,
+//                            TestComparatorType> *[size_to_test];
+//  for (int i = 0; i < size_to_test; i++) {
+//    if (i % 2) {
+//      swapped_nodes[i] = reinterpret_cast<
+//          index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *>(
+//          new int(52));
+//      map.SwapNode(LPIDs[i], initial_nodes[i], swapped_nodes[i]);
+//    }
+//  }
+//
+//  for (int i = 0; i < size_to_test; i++) {
+//    if (i % 2) {
+//      EXPECT_EQ(swapped_nodes[i], map.GetNode(LPIDs[i]));
+//    } else {
+//      EXPECT_EQ(initial_nodes[i], map.GetNode(LPIDs[i]));
+//    };
+//  }
+//  delete[] LPIDs;
+//  delete[] initial_nodes;
+//  delete[] swapped_nodes;
+//}
+//
+//index::LNodeStateBuilder<TestKeyType, TestValueType, TestComparatorType> *
+//BuildLNodeStateBuilder(
+//    peloton::VarlenPool *pool, INDEX_KEY_TYPE index_key_type,
+//    index::BWTree<TestKeyType, TestValueType, TestComparatorType> *map) {
+//  std::pair<TestKeyType, TestValueType> item_locations[LPAGE_ARITY];
+//  std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
+//  std::unique_ptr<storage::Tuple> key1(new storage::Tuple(key_schema, true));
+//  std::unique_ptr<storage::Tuple> key2(new storage::Tuple(key_schema, true));
+//  std::unique_ptr<storage::Tuple> key3(new storage::Tuple(key_schema, true));
+//
+//  key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+//  key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
+//  key1->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+//  key1->SetValue(1, ValueFactory::GetStringValue("b"), pool);
+//  key2->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+//  key2->SetValue(1, ValueFactory::GetStringValue("c"), pool);
+//  key3->SetValue(0, ValueFactory::GetIntegerValue(400), pool);
+//  key3->SetValue(1, ValueFactory::GetStringValue("d"), pool);
+//  TestKeyType index_key0;
+//  TestKeyType index_key1;
+//  TestKeyType index_key2;
+//  TestKeyType index_key3;
+//
+//  index_key0.SetFromKey(key0.get());
+//  index_key1.SetFromKey(key1.get());
+//  index_key2.SetFromKey(key2.get());
+//  index_key3.SetFromKey(key3.get());
+//
+//  oid_t size;
+//  if (index_key_type == NON_UNIQUE_KEY) {
+//    item_locations[0] =
+//        std::pair<TestKeyType, TestValueType>(index_key0, item0);
+//    item_locations[1] =
+//        std::pair<TestKeyType, TestValueType>(index_key0, item1);
+//    item_locations[2] =
+//        std::pair<TestKeyType, TestValueType>(index_key0, item2);
+//    item_locations[3] =
+//        std::pair<TestKeyType, TestValueType>(index_key1, item0);
+//    item_locations[4] =
+//        std::pair<TestKeyType, TestValueType>(index_key1, item2);
+//    item_locations[5] =
+//        std::pair<TestKeyType, TestValueType>(index_key1, item1);
+//    item_locations[6] =
+//        std::pair<TestKeyType, TestValueType>(index_key2, item2);
+//    item_locations[7] =
+//        std::pair<TestKeyType, TestValueType>(index_key3, item2);
+//
+//    size = 8;
+//  } else {
+//    item_locations[0] =
+//        std::pair<TestKeyType, TestValueType>(index_key0, item0);
+//    item_locations[1] =
+//        std::pair<TestKeyType, TestValueType>(index_key1, item1);
+//    item_locations[2] =
+//        std::pair<TestKeyType, TestValueType>(index_key2, item2);
+//    item_locations[3] =
+//        std::pair<TestKeyType, TestValueType>(index_key3, item2);
+//    size = 4;
+//  }
+//
+//  index::LNodeStateBuilder<TestKeyType, TestValueType, TestComparatorType> *
+//      builder = new index::LNodeStateBuilder<TestKeyType, TestValueType,
+//                                             TestComparatorType>(
+//          INVALID_LPID, INVALID_LPID, item_locations, size, map);
+//  return builder;
+//}
+//
+//void ScanKeyHelper(
+//    const TestKeyType &index_key0, INDEX_KEY_TYPE index_key_type,
+//    index::LPage<TestKeyType, TestValueType, TestComparatorType> *lpage) {
+//  // TEST SCAN KEY
+//  std::vector<TestValueType> locations;
+//  lpage->ScanKey(index_key0, locations);
+//
+//  if (index_key_type == NON_UNIQUE_KEY) {
+//    EXPECT_EQ(locations.size(), 3);
+//  } else {
+//    EXPECT_EQ(locations.size(), 1);
+//  }
+//  return;
+//}
+//
+// void ScanAllKeysHelper(
+//    INDEX_KEY_TYPE index_key_type,
+//    index::LPage<TestKeyType, TestValueType, TestComparatorType> *lpage) {
+//  // TEST SCAN ALL KEYS
+//  std::vector<TestValueType> locations;
+//  lpage->ScanAllKeys(locations);
+//
+//  if (index_key_type == NON_UNIQUE_KEY) {
+//    EXPECT_EQ(locations.size(), 8);
+//  } else {
+//    EXPECT_EQ(locations.size(), 4);
+//  }
+//}
+//// TEST SCAN
+//void ScanHelper(
+//    INDEX_KEY_TYPE index_key_type,
+//    index::LPage<TestKeyType, TestValueType, TestComparatorType> *lpage,
+//    VarlenPool *pool) {
+//  std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
+//  std::unique_ptr<storage::Tuple> key1(new storage::Tuple(key_schema, true));
+//  std::unique_ptr<storage::Tuple> key2(new storage::Tuple(key_schema, true));
+//  key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+//  key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
+//  key1->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+//  key1->SetValue(1, ValueFactory::GetStringValue("b"), pool);
+//  key2->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+//  key2->SetValue(1, ValueFactory::GetStringValue("c"), pool);
+//  TestKeyType index_key0;
+//  TestKeyType index_key1;
+//  TestKeyType index_key2;
+//  index_key0.SetFromKey(key0.get());
+//  index_key1.SetFromKey(key1.get());
+//  index_key2.SetFromKey(key2.get());
+//
+//  std::vector<TestValueType> locations;
+//  std::vector<peloton::Value> values(2);
+//  std::vector<oid_t> key_column_ids(2);
+//  std::vector<ExpressionType> expr_types(2);
+//  ScanDirectionType direction = SCAN_DIRECTION_TYPE_FORWARD;
+//  // TestValueType last_val_non_unique, last_val_unique;
+//
+//  // setup values
+//  values[0] = ValueFactory::GetIntegerValue(100);
+//  values[1] = ValueFactory::GetStringValue("a");
+//  // setup column id's
+//  key_column_ids[0] = 0;
+//  key_column_ids[1] = 1;
+//  // setup expr's
+//  expr_types[0] = (EXPRESSION_TYPE_COMPARE_EQUAL);
+//  expr_types[1] = (EXPRESSION_TYPE_COMPARE_EQUAL);
+//  locations.clear();
+//  lpage->Scan(values, key_column_ids, expr_types, direction, locations,
+//              &index_key0);
+//  if (index_key_type == NON_UNIQUE_KEY) {
+//    EXPECT_EQ(locations.size(), 3);
+//  } else {
+//    EXPECT_EQ(locations.size(), 1);
+//  }
+//
+//  values[0] = ValueFactory::GetIntegerValue(100);
+//  values[1] = ValueFactory::GetStringValue("a");
+//  // setup column id's
+//  key_column_ids[0] = 0;
+//  key_column_ids[1] = 1;
+//  // setup expr's, col1 == 100 && col 2 != 'a'
+//  expr_types[0] = EXPRESSION_TYPE_COMPARE_EQUAL;
+//  expr_types[1] = EXPRESSION_TYPE_COMPARE_NOTEQUAL;
+//  locations.clear();
+//
+//  // Construct the lower bound key tuple
+//  std::unique_ptr<storage::Tuple> start_key;
+//  start_key.reset(new storage::Tuple(
+//      BuildIndexMetadata(index_key_type)->GetKeySchema(), true));
+//  start_key->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+//  start_key->SetValue(1, Value::GetMinValue(VALUE_TYPE_VARCHAR), pool);
+//  TestKeyType index_key_low;
+//  index_key_low.SetFromKey(start_key.get());
+//
+//  lpage->Scan(values, key_column_ids, expr_types, direction, locations,
+//              &index_key_low);
+//  if (index_key_type == NON_UNIQUE_KEY) {
+//    EXPECT_EQ(locations.size(), 4);
+//    // last_val_non_unique = locations[3];
+//  } else {
+//    // EXPECT_EQ(locations.size(), 2);
+//    // last_val_unique =locations[1];
+//  }
+//
+//  // col1 > 100 && col 2 != 'a'
+//  values[0] = ValueFactory::GetIntegerValue(100);
+//  values[1] = ValueFactory::GetStringValue("a");
+//  // setup column id's
+//  key_column_ids[0] = 0;
+//  key_column_ids[1] = 1;
+//  expr_types[0] = EXPRESSION_TYPE_COMPARE_GREATERTHAN;
+//  expr_types[1] = EXPRESSION_TYPE_COMPARE_NOTEQUAL;
+//  locations.clear();
+//  lpage->Scan(values, key_column_ids, expr_types, direction, locations,
+//              nullptr);
+//  if (index_key_type == NON_UNIQUE_KEY) {
+//    EXPECT_EQ(locations.size(), 1);
+//  } else {
+//    EXPECT_EQ(locations.size(), 1);
+//  }
+//}
 
-index::LNodeStateBuilder<TestKeyType, TestValueType, TestComparatorType> *
-BuildLNodeStateBuilder(
-    peloton::VarlenPool *pool, INDEX_KEY_TYPE index_key_type,
-    index::BWTree<TestKeyType, TestValueType, TestComparatorType> *map) {
-  std::pair<TestKeyType, TestValueType> item_locations[LPAGE_ARITY];
-  std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
-  std::unique_ptr<storage::Tuple> key1(new storage::Tuple(key_schema, true));
-  std::unique_ptr<storage::Tuple> key2(new storage::Tuple(key_schema, true));
-  std::unique_ptr<storage::Tuple> key3(new storage::Tuple(key_schema, true));
-
-  key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
-  key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
-  key1->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
-  key1->SetValue(1, ValueFactory::GetStringValue("b"), pool);
-  key2->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
-  key2->SetValue(1, ValueFactory::GetStringValue("c"), pool);
-  key3->SetValue(0, ValueFactory::GetIntegerValue(400), pool);
-  key3->SetValue(1, ValueFactory::GetStringValue("d"), pool);
-  TestKeyType index_key0;
-  TestKeyType index_key1;
-  TestKeyType index_key2;
-  TestKeyType index_key3;
-
-  index_key0.SetFromKey(key0.get());
-  index_key1.SetFromKey(key1.get());
-  index_key2.SetFromKey(key2.get());
-  index_key3.SetFromKey(key3.get());
-
-  oid_t size;
-  if (index_key_type == NON_UNIQUE_KEY) {
-    item_locations[0] =
-        std::pair<TestKeyType, TestValueType>(index_key0, item0);
-    item_locations[1] =
-        std::pair<TestKeyType, TestValueType>(index_key0, item1);
-    item_locations[2] =
-        std::pair<TestKeyType, TestValueType>(index_key0, item2);
-    item_locations[3] =
-        std::pair<TestKeyType, TestValueType>(index_key1, item0);
-    item_locations[4] =
-        std::pair<TestKeyType, TestValueType>(index_key1, item2);
-    item_locations[5] =
-        std::pair<TestKeyType, TestValueType>(index_key1, item1);
-    item_locations[6] =
-        std::pair<TestKeyType, TestValueType>(index_key2, item2);
-    item_locations[7] =
-        std::pair<TestKeyType, TestValueType>(index_key3, item2);
-
-    size = 8;
-  } else {
-    item_locations[0] =
-        std::pair<TestKeyType, TestValueType>(index_key0, item0);
-    item_locations[1] =
-        std::pair<TestKeyType, TestValueType>(index_key1, item1);
-    item_locations[2] =
-        std::pair<TestKeyType, TestValueType>(index_key2, item2);
-    item_locations[3] =
-        std::pair<TestKeyType, TestValueType>(index_key3, item2);
-    size = 4;
-  }
-
-  index::LNodeStateBuilder<TestKeyType, TestValueType, TestComparatorType> *
-      builder = new index::LNodeStateBuilder<TestKeyType, TestValueType,
-                                             TestComparatorType>(
-          INVALID_LPID, INVALID_LPID, item_locations, size, map);
-  return builder;
-}
-
-void ScanKeyHelper(
-    const TestKeyType &index_key0, INDEX_KEY_TYPE index_key_type,
-    index::LPage<TestKeyType, TestValueType, TestComparatorType> *lpage) {
-  // TEST SCAN KEY
-  std::vector<TestValueType> locations;
-  lpage->ScanKey(index_key0, locations);
-
-  if (index_key_type == NON_UNIQUE_KEY) {
-    EXPECT_EQ(locations.size(), 3);
-  } else {
-    EXPECT_EQ(locations.size(), 1);
-  }
-  return;
-}
-
-void ScanAllKeysHelper(
-    INDEX_KEY_TYPE index_key_type,
-    index::LPage<TestKeyType, TestValueType, TestComparatorType> *lpage) {
-  // TEST SCAN ALL KEYS
-  std::vector<TestValueType> locations;
-  lpage->ScanAllKeys(locations);
-
-  if (index_key_type == NON_UNIQUE_KEY) {
-    EXPECT_EQ(locations.size(), 8);
-  } else {
-    EXPECT_EQ(locations.size(), 4);
-  }
-}
-// TEST SCAN
-void ScanHelper(
-    INDEX_KEY_TYPE index_key_type,
-    index::LPage<TestKeyType, TestValueType, TestComparatorType> *lpage,
-    VarlenPool *pool) {
-  std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
-  std::unique_ptr<storage::Tuple> key1(new storage::Tuple(key_schema, true));
-  std::unique_ptr<storage::Tuple> key2(new storage::Tuple(key_schema, true));
-  key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
-  key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
-  key1->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
-  key1->SetValue(1, ValueFactory::GetStringValue("b"), pool);
-  key2->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
-  key2->SetValue(1, ValueFactory::GetStringValue("c"), pool);
-  TestKeyType index_key0;
-  TestKeyType index_key1;
-  TestKeyType index_key2;
-  index_key0.SetFromKey(key0.get());
-  index_key1.SetFromKey(key1.get());
-  index_key2.SetFromKey(key2.get());
-
-  std::vector<TestValueType> locations;
-  std::vector<peloton::Value> values(2);
-  std::vector<oid_t> key_column_ids(2);
-  std::vector<ExpressionType> expr_types(2);
-  ScanDirectionType direction = SCAN_DIRECTION_TYPE_FORWARD;
-  // TestValueType last_val_non_unique, last_val_unique;
-
-  // setup values
-  values[0] = ValueFactory::GetIntegerValue(100);
-  values[1] = ValueFactory::GetStringValue("a");
-  // setup column id's
-  key_column_ids[0] = 0;
-  key_column_ids[1] = 1;
-  // setup expr's
-  expr_types[0] = (EXPRESSION_TYPE_COMPARE_EQUAL);
-  expr_types[1] = (EXPRESSION_TYPE_COMPARE_EQUAL);
-  locations.clear();
-  lpage->Scan(values, key_column_ids, expr_types, direction, locations,
-              &index_key0);
-  if (index_key_type == NON_UNIQUE_KEY) {
-    EXPECT_EQ(locations.size(), 3);
-  } else {
-    EXPECT_EQ(locations.size(), 1);
-  }
-
-  values[0] = ValueFactory::GetIntegerValue(100);
-  values[1] = ValueFactory::GetStringValue("a");
-  // setup column id's
-  key_column_ids[0] = 0;
-  key_column_ids[1] = 1;
-  // setup expr's, col1 == 100 && col 2 != 'a'
-  expr_types[0] = EXPRESSION_TYPE_COMPARE_EQUAL;
-  expr_types[1] = EXPRESSION_TYPE_COMPARE_NOTEQUAL;
-  locations.clear();
-
-  // Construct the lower bound key tuple
-  std::unique_ptr<storage::Tuple> start_key;
-  start_key.reset(new storage::Tuple(
-      BuildIndexMetadata(index_key_type)->GetKeySchema(), true));
-  start_key->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
-  start_key->SetValue(1, Value::GetMinValue(VALUE_TYPE_VARCHAR), pool);
-  TestKeyType index_key_low;
-  index_key_low.SetFromKey(start_key.get());
-
-  lpage->Scan(values, key_column_ids, expr_types, direction, locations,
-              &index_key_low);
-  if (index_key_type == NON_UNIQUE_KEY) {
-    EXPECT_EQ(locations.size(), 4);
-    // last_val_non_unique = locations[3];
-  } else {
-    // EXPECT_EQ(locations.size(), 2);
-    // last_val_unique =locations[1];
-  }
-
-  // col1 > 100 && col 2 != 'a'
-  values[0] = ValueFactory::GetIntegerValue(100);
-  values[1] = ValueFactory::GetStringValue("a");
-  // setup column id's
-  key_column_ids[0] = 0;
-  key_column_ids[1] = 1;
-  expr_types[0] = EXPRESSION_TYPE_COMPARE_GREATERTHAN;
-  expr_types[1] = EXPRESSION_TYPE_COMPARE_NOTEQUAL;
-  locations.clear();
-  lpage->Scan(values, key_column_ids, expr_types, direction, locations,
-              nullptr);
-  if (index_key_type == NON_UNIQUE_KEY) {
-    EXPECT_EQ(locations.size(), 1);
-  } else {
-    EXPECT_EQ(locations.size(), 1);
-  }
-}
-
-void LPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
-  auto pool = TestingHarness::GetInstance().GetTestingPool();
-  index::BWTree<TestKeyType, TestValueType, TestComparatorType> *map =
-      BuildBWTree(index_key_type);
-  index::LNodeStateBuilder<TestKeyType, TestValueType, TestComparatorType> *
-      builder = BuildLNodeStateBuilder(pool, index_key_type, map);
-  index::LPage<TestKeyType, TestValueType, TestComparatorType> *lpage =
-      reinterpret_cast<
-          index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
-          builder->GetPage());
-
-  std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
-  key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
-  key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
-  TestKeyType index_key0;
-  index_key0.SetFromKey(key0.get());
-
-  // TEST SCAN KEY
-  ScanKeyHelper(index_key0, index_key_type, lpage);
-
-  // TEST SCAN ALL KEYS
-  ScanAllKeysHelper(index_key_type, lpage);
-
-  // TEST SCAN
-  ScanHelper(index_key_type, lpage, pool);
-
-  delete builder;
-  delete lpage;
-  delete map;
-}
-
-void IPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
-  auto pool = TestingHarness::GetInstance().GetTestingPool();
-  index::BWTree<TestKeyType, TestValueType, TestComparatorType> *map =
-      BuildBWTree(index_key_type);
-  index::LNodeStateBuilder<TestKeyType, TestValueType, TestComparatorType> *
-      builder = BuildLNodeStateBuilder(pool, index_key_type, map);
-  index::LPage<TestKeyType, TestValueType, TestComparatorType> *lpage =
-      reinterpret_cast<
-          index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
-          builder->GetPage());
-
-  // TODO TEST SCAN KEY
-
-  // TODO TEST SCAN ALL KEYS
-
-  // TODO TEST SCAN
-  delete map;
-  delete builder;
-  delete lpage;
-}
-
-TEST(IndexTests, LPageScanTest) {
-  for (unsigned int i = 0; i < index_types.size(); i++) {
-    LPageScanTestHelper(index_types[i]);
-  }
-}
-
-TEST(IndexTests, IPageScanTest) {
-  for (unsigned int i = 0; i < index_types.size(); i++) {
-    IPageScanTestHelper(index_types[i]);
-  }
-}
+//void LPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
+//  auto pool = TestingHarness::GetInstance().GetTestingPool();
+//  index::BWTree<TestKeyType, TestValueType, TestComparatorType> *map =
+//      BuildBWTree(index_key_type);
+//  index::LNodeStateBuilder<TestKeyType, TestValueType, TestComparatorType> *
+//      builder = BuildLNodeStateBuilder(pool, index_key_type, map);
+//  index::LPage<TestKeyType, TestValueType, TestComparatorType> *lpage =
+//      reinterpret_cast<
+//          index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
+//          builder->GetPage());
+//
+//  std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
+//  key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+//  key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
+//  TestKeyType index_key0;
+//  index_key0.SetFromKey(key0.get());
+//
+//  // TEST SCAN KEY
+//  ScanKeyHelper(index_key0, index_key_type, lpage);
+//
+//  // TEST SCAN ALL KEYS
+//  ScanAllKeysHelper(index_key_type, lpage);
+//
+//  // TEST SCAN
+//  ScanHelper(index_key_type, lpage, pool);
+//
+//  delete builder;
+//  delete lpage;
+//  delete map;
+//}
+//
+//void IPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
+//  auto pool = TestingHarness::GetInstance().GetTestingPool();
+//  index::BWTree<TestKeyType, TestValueType, TestComparatorType> *map =
+//      BuildBWTree(index_key_type);
+//  index::LNodeStateBuilder<TestKeyType, TestValueType, TestComparatorType> *
+//      builder = BuildLNodeStateBuilder(pool, index_key_type, map);
+//  index::LPage<TestKeyType, TestValueType, TestComparatorType> *lpage =
+//      reinterpret_cast<
+//          index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
+//          builder->GetPage());
+//
+//  // TODO TEST SCAN KEY
+//
+//  // TODO TEST SCAN ALL KEYS
+//
+//  // TODO TEST SCAN
+//  delete map;
+//  delete builder;
+//  delete lpage;
+//}
+//
+// TEST(IndexTests, LPageScanTest) {
+//  for (unsigned int i = 0; i < index_types.size(); i++) {
+//    LPageScanTestHelper(index_types[i]);
+//  }
+//}
+//
+// TEST(IndexTests, IPageScanTest) {
+//  for (unsigned int i = 0; i < index_types.size(); i++) {
+//    IPageScanTestHelper(index_types[i]);
+//  }
+//}
 
 /*void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
   auto pool = TestingHarness::GetInstance().GetTestingPool();

@@ -44,14 +44,15 @@ bool BWTreeIndex<KeyType, ValueType, KeyComparator,
                  KeyEqualityChecker>::InsertEntry(const storage::Tuple *key,
 
                                                   const ItemPointer location) {
-  Debug();
   std::cout << "InsertEntry invoked, key_type: " << this->HasUniqueKeys()
             << std::endl;
   KeyType index_key;
   index_key.SetFromKey(key);
   ValueType value(location);
   LOG_INFO("Inside BWTreeIndex InsertEntry");
-  return container.InsertEntry(index_key, value);
+  auto result = container.InsertEntry(index_key, value);
+  //container.Debug();
+  return result;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator,
@@ -60,12 +61,14 @@ bool BWTreeIndex<KeyType, ValueType, KeyComparator,
                  KeyEqualityChecker>::DeleteEntry(const storage::Tuple *key,
 
                                                   const ItemPointer location) {
-  std::cout << "DeleteEntry invoked, key_type: " << this->HasUniqueKeys()
-            << std::endl;
+//  std::cout << "DeleteEntry invoked, key_type: " << this->HasUniqueKeys()
+//            << std::endl;
   KeyType index_key;
   index_key.SetFromKey(key);
   ValueType value(location);
-  return container.DeleteEntry(index_key, value);
+  auto result = container.DeleteEntry(index_key, value);
+  container.Debug();
+  return result;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator,
