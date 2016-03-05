@@ -47,7 +47,7 @@ enum BWTreeNodeType {
 #define INVALID_LPID ULLONG_MAX
 
 #define LPAGE_DELTA_CHAIN_LIMIT 5
-#define IPAGE_DELTA_CHAIN_LIMIT 5
+#define IPAGE_DELTA_CHAIN_LIMIT 0
 
 #define EPOCH_PAGE_SIZE 256
 #define MAX_ACTIVE_EPOCHS 2
@@ -178,7 +178,7 @@ class INodeStateBuilder
 
   void RemoveLastChild();
 
-//  void SeparateFromKey(KeyType separator_key, LPID split_new_page_id);
+  //  void SeparateFromKey(KeyType separator_key, LPID split_new_page_id);
 
   void ScanAllKeys(std::vector<ValueType> &result);
 
@@ -1046,10 +1046,10 @@ class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
                    __attribute__((unused)) LPID my_lpid,
                    __attribute__((unused)) LPID parent) {
     // if the key falls out of responsible range, retry
-    if (!this->infinity &&
-        this->map->CompareKey(key, this->right_most_key) > 0) {
-      return false;
-    }
+    //    if (!this->infinity &&
+    //        this->map->CompareKey(key, this->right_most_key) > 0) {
+    //      return false;
+    //    }
 
     LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
         new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
@@ -1066,10 +1066,10 @@ class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
                    __attribute__((unused)) ValueType location, LPID my_lpid,
                    __attribute__((unused)) LPID parent) {
     // if the key falls out of responsible range, retry
-    if (!this->infinity &&
-        this->map->CompareKey(key, this->right_most_key) > 0) {
-      return false;
-    }
+    //    if (!this->infinity &&
+    //        this->map->CompareKey(key, this->right_most_key) > 0) {
+    //      return false;
+    //    }
     LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
         new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
             this->map, this, key, location, this->right_most_key,
@@ -1190,7 +1190,7 @@ class IPageUpdateDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
         max_key_right_split_node_(max_key_right_split_node),
         left_split_node_lpid_(left_split_node_lpid),
         right_split_node_lpid_(right_split_node_lpid),
-		right_node_is_infinity_(right_node_is_infinity),
+        right_node_is_infinity_(right_node_is_infinity),
         is_delete_(is_delete) {
     LOG_INFO("Inside IPageUpdateDelta Constructor");
   };
