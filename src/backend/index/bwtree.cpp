@@ -81,21 +81,6 @@ void INodeStateBuilder<KeyType, ValueType, KeyComparator>::RemoveChild(
   }
 }
 
-// template <typename KeyType, typename ValueType, class KeyComparator>
-// void INodeStateBuilder<KeyType, ValueType, KeyComparator>::SeparateFromKey(
-//    KeyType separator_key, LPID split_new_page_id) {
-//  assert(children_ != nullptr);
-//  int index = this->map->BinarySearch(separator_key, children_, this->size);
-//  assert(index < this->size && index >= 0);
-//  // assume we include the key at the split page
-//  // decrement size
-//  this->size = index + 1;
-//  // update separator info
-//  this->is_separated = true;
-//  this->separator_key = separator_key;
-//  this->split_new_page_id = split_new_page_id;
-//}
-
 template <typename KeyType, typename ValueType, class KeyComparator>
 void INodeStateBuilder<KeyType, ValueType, KeyComparator>::ScanAllKeys(
     std::vector<ValueType> &result) {
@@ -604,7 +589,7 @@ std::string IPage<KeyType, ValueType, KeyComparator>::Debug(int depth,
   } else {
     info += blank + "IPage - ";
   }
-  info += " inf: " + std::to_string(this->infinity) + " right_most_key: " +
+  info += " should_split: " + std::to_string(this->should_split_) + " inf: " + std::to_string(this->infinity) + " right_most_key: " +
           this->map->ToString(this->right_most_key) + " size: " +
           std::to_string(size_) + "\n" + blank;
   for (oid_t i = 0; i < size_; i++) {
@@ -693,11 +678,8 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
 
     BWTreeNode<KeyType, ValueType, KeyComparator> *parentHardPtr;
     IPageUpdateDelta<KeyType, ValueType, KeyComparator> *parentUpdateDelta;
-    // TODO this needs to be in a loop
     do {
       parentHardPtr = this->map->GetMappingTable()->GetNode(parent);
-
-      // TODO Replace INVALID_LPID by the appropriate data
       parentUpdateDelta =
           new IPageUpdateDelta<KeyType, ValueType, KeyComparator>(
               this->map, parentHardPtr, maxLeftSplitNodeKey,
@@ -843,6 +825,11 @@ IPageSplitDelta<KeyType, ValueType, KeyComparator>::BuildNodeState(
 
   builder->SetInfinity(false);
   builder->SetRightMostKey(modified_key_);
+
+  //TODO remove this logging in the future
+  auto page = builder->GetPage();
+  LOG_INFO("B\n %s", page->Debug(5, INVALID_LPID).c_str());
+  delete page;
   assert(builder != nullptr);
   return builder;
 }
@@ -864,7 +851,7 @@ std::string IPageSplitDelta<TEMPLATE_TYPE>::Debug(int depth, LPID self) {
           " inf: " + std::to_string(this->infinity) + " index: " +
           std::to_string(modified_index_) + " key: " +
           this->map->ToString(modified_key_) + ", " +
-          std::to_string(modified_val_) + "\n";
+          std::to_string(modified_val_) + " right_lpid: " + std::to_string(this->modified_val_) +  "\n";
   return info + this->modified_node->Debug(depth, INVALID_LPID);
 }
 
@@ -984,7 +971,7 @@ std::string LPageSplitDelta<KeyType, ValueType, KeyComparator>::Debug(
           std::to_string(split_completed_) + " index: " +
           std::to_string(modified_key_index_) + " key: " +
           this->map->ToString(modified_key_) + ", " +
-          std::to_string(right_split_page_lpid_) + "\n";
+          std::to_string(right_split_page_lpid_)+ " right_lpid: " + std::to_string(this->right_split_page_lpid_) + "\n";
   return info + this->modified_node->Debug(depth, INVALID_LPID);
 }
 
@@ -1142,6 +1129,12 @@ NodeStateBuilder<KeyType, ValueType, KeyComparator> *IPageUpdateDelta<
                                        left_split_node_lpid_);
     builder->AddChild(left_pair);
   }
+
+  //TODO remove this logging
+  auto page = builder->GetPage();
+  LOG_INFO("B\n %s", page->Debug(5, INVALID_LPID).c_str());
+  delete page;
+
   return builder;
 };
 
@@ -1164,7 +1157,11 @@ std::string IPageUpdateDelta<KeyType, ValueType, KeyComparator>::Debug(
           std::to_string(left_split_node_lpid_) + "\t" + "right: " +
           this->map->ToString(max_key_right_split_node_) + ", " +
           std::to_string(right_split_node_lpid_) + "\n";
-  return info + this->modified_node->Debug(depth, INVALID_LPID);
+  info += this->modified_node->Debug(depth, INVALID_LPID);
+  info += this->map->GetMappingTable()
+        ->GetNode(right_split_node_lpid_)
+        ->Debug(depth + 1, right_split_node_lpid_);
+  return info;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator>
