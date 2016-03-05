@@ -589,7 +589,7 @@ IPage<KeyType, ValueType, KeyComparator>::BuildNodeState(int max_index) {
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *builder;
   // build node state for IPage
   builder = new INodeStateBuilder<KeyType, ValueType, KeyComparator>(
-      children_, max_index == -1 ? size_ : max_index, this->map,
+      children_, max_index == -1 ? size_ : max_index +1 , this->map,
       this->right_most_key, this->infinity);
   return builder;
 };
@@ -1113,9 +1113,13 @@ NodeStateBuilder<KeyType, ValueType, KeyComparator> *IPageUpdateDelta<
                                           right_split_node_lpid_);
       builder->AddChild(right_pair);
     }
-    std::pair<KeyType, LPID> left_pair(max_key_left_split_node_,
-                                       left_split_node_lpid_);
-    builder->AddChild(left_pair);
+    int index = this->map->BinarySearch(max_key_left_split_node_, builder->children_, builder->size-1);
+    if (index < 0 || builder->size-1 == 0 || (index == 0 && this->map->CompareKey(builder->children_[0].first, max_key_left_split_node_))){
+    	std::pair<KeyType, LPID> left_pair(max_key_left_split_node_,
+    	                                       left_split_node_lpid_);
+    	builder->AddChild(left_pair);
+    }
+
   }
   return builder;
 };

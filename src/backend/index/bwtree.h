@@ -63,6 +63,9 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 class IPage;
 
 template <typename KeyType, typename ValueType, class KeyComparator>
+class IPageUpdateDelta;
+
+template <typename KeyType, typename ValueType, class KeyComparator>
 class LPage;
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -144,6 +147,7 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 class INodeStateBuilder
     : public NodeStateBuilder<KeyType, ValueType, KeyComparator> {
   friend class IPage<KeyType, ValueType, KeyComparator>;
+  friend class IPageUpdateDelta<KeyType, ValueType, KeyComparator>;
 
  private:
   // IPage children nodes
@@ -568,6 +572,7 @@ class BWTree {
       complete = GetMappingTable()
                      ->GetNode(child_lpid)
                      ->DeleteEntry(key, location, child_lpid, child_lpid);
+
       epoch_manager_.ReleaseEpoch(epochNum);
     }
     return true;
