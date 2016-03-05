@@ -249,13 +249,12 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::ScanKey(
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
 bool BWTree<KeyType, ValueType, KeyComparator>::InsertEntry(
-    __attribute__((unused)) KeyType key,
-    __attribute__((unused)) ValueType location) {
-  // just call InsertEntry on root
+    KeyType key, ValueType location) {
   // return false;
   LPID child_lpid;
-
+  LOG_INFO("\nBWTree::InsertEntry, %s", this->ToString(key).c_str());
   bool complete = false;
+  // just call InsertEntry on root
   while (!complete) {
     auto epochNum = epoch_manager_.GetCurrentEpoch();
     child_lpid = root_;
@@ -605,12 +604,14 @@ std::string IPage<KeyType, ValueType, KeyComparator>::Debug(int depth,
   } else {
     info += blank + "IPage - ";
   }
-  info += "size: " + std::to_string(size_) + "\n" + blank;
+  info += " inf: " + std::to_string(this->infinity) + " right_most_key: " +
+          this->map->ToString(this->right_most_key) + " size: " +
+          std::to_string(size_) + "\n" + blank;
   for (oid_t i = 0; i < size_; i++) {
     std::pair<KeyType, LPID> pair = this->children_[i];
     info += this->map->ToString(pair.first) + "," +
             std::to_string(pair.second) + "\t";
-    if (i % 5 == 1) {
+    if (i % 5 == 4) {
       info += "\n" + blank;
     }
   }
@@ -844,7 +845,28 @@ IPageSplitDelta<KeyType, ValueType, KeyComparator>::BuildNodeState(
   builder->SetRightMostKey(modified_key_);
   assert(builder != nullptr);
   return builder;
-};
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+std::string IPageSplitDelta<TEMPLATE_TYPE>::Debug(int depth, LPID self) {
+  std::string blank = this->map->GetStringPrefix("  ", depth) + " ";
+  std::string info;
+  if (self != INVALID_LPID) {
+    std::string prefix = this->map->GetStringPrefix("==", depth);
+    info += (prefix + " IPageSplitDelta - ");
+    info += "LPID: " + std::to_string(self) + " ";
+  } else {
+    info += blank + "IPageSplitDelta - ";
+  }
+
+  //"split_completed_: " + std::to_string(split_completed_) +
+  info += " right_most_key: " + this->map->ToString(this->right_most_key) +
+          " inf: " + std::to_string(this->infinity) + " index: " +
+          std::to_string(modified_index_) + " key: " +
+          this->map->ToString(modified_key_) + ", " +
+          std::to_string(modified_val_) + "\n";
+  return info + this->modified_node->Debug(depth, INVALID_LPID);
+}
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 void IPageSplitDelta<KeyType, ValueType, KeyComparator>::ScanKey(
@@ -957,7 +979,9 @@ std::string LPageSplitDelta<KeyType, ValueType, KeyComparator>::Debug(
     info += blank + "LPageSplitDelta - ";
   }
 
-  info += "split_completed_: " + std::to_string(split_completed_) + " index: " +
+  info += " right_most_key: " + this->map->ToString(this->right_most_key) +
+          " inf: " + std::to_string(this->infinity) + "split_completed_: " +
+          std::to_string(split_completed_) + " index: " +
           std::to_string(modified_key_index_) + " key: " +
           this->map->ToString(modified_key_) + ", " +
           std::to_string(right_split_page_lpid_) + "\n";
@@ -980,6 +1004,7 @@ bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
         ->InsertEntry(key, location, right_split_page_lpid_, parent);
   }
 
+  // TODO Is this flag useful??
   if (!this->split_completed_) {
     LOG_INFO("Returning early because split in progress");
     return false;
@@ -1136,7 +1161,9 @@ std::string IPageUpdateDelta<KeyType, ValueType, KeyComparator>::Debug(
   } else {
     info += blank + "IPageUpdateDelta - ";
   }
-  info += "is_delete: " + std::to_string(is_delete_) + " left: " +
+  info += " inf: " + std::to_string(this->infinity) + " right_most_key: " +
+          this->map->ToString(this->right_most_key) + "is_delete: " +
+          std::to_string(is_delete_) + " left: " +
           this->map->ToString(max_key_left_split_node_) + ", " +
           std::to_string(left_split_node_lpid_) + "\t" + "right: " +
           this->map->ToString(max_key_right_split_node_) + ", " +
@@ -1278,7 +1305,9 @@ std::string LPageUpdateDelta<KeyType, ValueType, KeyComparator>::Debug(
   } else {
     info += blank + "LPageUpdateDelta - ";
   }
-  info += "is_delete: " + std::to_string(is_delete_) + " " +
+  info += " inf: " + std::to_string(this->infinity) + " right_most_key: " +
+          this->map->ToString(this->right_most_key) + "is_delete: " +
+          std::to_string(is_delete_) + " " +
           this->map->ToString(modified_key_) + ", " +
           this->map->ToString(modified_val_) + "\n";
   return info + this->modified_node->Debug(depth, INVALID_LPID);
@@ -1328,23 +1357,19 @@ std::string LPage<KeyType, ValueType, KeyComparator>::Debug(int depth,
   } else {
     info += blank + "LPage - ";
   }
-  info += "size: " + std::to_string(size_) + " right_sib: " +
-          std::to_string(right_sib_) + "\n" + blank;
+  info += " inf: " + std::to_string(this->infinity) + " right_most_key: " +
+          this->map->ToString(this->right_most_key) + " size: " +
+          std::to_string(size_) + " right_sib: " + std::to_string(right_sib_) +
+          "\n" + blank;
   for (oid_t i = 0; i < size_; i++) {
     std::pair<KeyType, ValueType> pair = this->locations_[i];
     info += this->map->ToString(pair.first) + "," +
             this->map->ToString(pair.second) + "\t";
-    if (i % 5 == 1) {
+    if (i % 5 == 4) {
       info += "\n" + blank;
     }
   }
   info += "\n";
-  // We temporarily do this because of duplicate keys across pages
-  if (right_sib_ != INVALID_LPID) {
-    BWTreeNode<KeyType, ValueType, KeyComparator> *child =
-        this->map->GetMappingTable()->GetNode(right_sib_);
-    info += child->Debug(depth, right_sib_);
-  }
   return info;
 }
 

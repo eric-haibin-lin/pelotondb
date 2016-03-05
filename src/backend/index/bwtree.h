@@ -41,17 +41,18 @@ enum BWTreeNodeType {
 #define IPAGE_ARITY 256
 #define LPAGE_ARITY 256
 
-#define LPAGE_SPLIT_THRESHOLD 64
-#define IPAGE_SPLIT_THRESHOLD 64
+#define LPAGE_SPLIT_THRESHOLD 3
+#define IPAGE_SPLIT_THRESHOLD 3
 
 #define INVALID_LPID ULLONG_MAX
 
-#define LPAGE_DELTA_CHAIN_LIMIT 5
+#define LPAGE_DELTA_CHAIN_LIMIT 2
 #define IPAGE_DELTA_CHAIN_LIMIT 0
 
 #define EPOCH_PAGE_SIZE 256
 #define MAX_ACTIVE_EPOCHS 2
 #define EPOCH_LENGTH_MILLIS 40
+#define TEMPLATE_TYPE KeyType, ValueType, KeyComparator
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTree;
@@ -950,6 +951,8 @@ class IPageSplitDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
       int max_index);
+
+  std::string Debug(int depth, LPID self);
 
  private:
   // This key excluded in left child, included in the right child
