@@ -887,10 +887,10 @@ bool IPageSplitDelta<KeyType, ValueType, KeyComparator>::DeleteEntry(
     KeyType key, ValueType location, LPID self, LPID parent) {
   // This function will just call delete entry on the appropriate child
 
-  //	if (!this->infinity && this->map->CompareKey(key, this->right_most_key)
-  //> 0) {
-  //	    return false;
-  //	  }
+  	if (!this->infinity && this->map->CompareKey(key, this->right_most_key)
+  > 0) {
+  	    return false;
+  	  }
   if (this->map->CompareKey(key, modified_key_) >
       0)  // this key is greater than split key
   {
@@ -905,10 +905,10 @@ bool IPageSplitDelta<KeyType, ValueType, KeyComparator>::DeleteEntry(
 template <typename KeyType, typename ValueType, class KeyComparator>
 bool IPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
     KeyType key, ValueType location, LPID self, LPID parent) {
-  //	if (!this->infinity && this->map->CompareKey(key, this->right_most_key)
-  //> 0) {
-  //	    return false;
-  //	  }
+  	if (!this->infinity && this->map->CompareKey(key, this->right_most_key)
+  > 0) {
+  	    return false;
+  	  }
   // This function will just call delete entry on the appropriate child
   if (this->map->CompareKey(key, modified_key_) >
       0)  // this key is greater than split key
@@ -992,10 +992,10 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
     KeyType key, ValueType location, LPID self, LPID parent) {
   // if the key falls out of responsible range, retry
-  //  if (!this->infinity && this->map->CompareKey(key, this->right_most_key) >
-  //  0) {
-  //    return false;
-  //  }
+    if (!this->infinity && this->map->CompareKey(key, this->right_most_key) >
+    0) {
+      return false;
+    }
 
   // this key is greater than modified_key_
   if (this->map->CompareKey(key, modified_key_) == 1) {
@@ -1038,10 +1038,10 @@ bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::DeleteEntry(
     KeyType key, ValueType location, LPID self,
     __attribute__((unused)) LPID parent) {
   // if the key falls out of responsible range, retry
-  //  if (!this->infinity && this->map->CompareKey(key, this->right_most_key) >
-  //  0) {
-  //    return false;
-  //  }
+    if (!this->infinity && this->map->CompareKey(key, this->right_most_key) >
+    0) {
+      return false;
+    }
 
   // this key is greater than modified_key_
   if (this->map->CompareKey(key, modified_key_) == 1) {
@@ -1053,16 +1053,18 @@ bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::DeleteEntry(
   BWTreeNode<KeyType, ValueType, KeyComparator> *old_child_node_hard_ptr =
       this->modified_node;
 
+  if (!this->split_completed_) {
+      LOG_INFO("Returning early because split in progress");
+      return false;
+    }
+
   if (old_child_node_hard_ptr->GetDeltaChainLen() + 1 >
       LPAGE_DELTA_CHAIN_LIMIT) {
     this->map->CompressDeltaChain(self, this, this);
     return false;
   }
 
-  if (!this->split_completed_) {
-    LOG_INFO("Returning early because split in progress");
-    return false;
-  }
+
 
   LOG_INFO("LPageSplitDelta inserting delete delta below itself");
   LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
@@ -1174,10 +1176,10 @@ std::string IPageUpdateDelta<KeyType, ValueType, KeyComparator>::Debug(
 template <typename KeyType, typename ValueType, class KeyComparator>
 bool IPageUpdateDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
     KeyType key, ValueType location, LPID self, LPID parent) {
-  //	if (!this->infinity && this->map->CompareKey(key, this->right_most_key)
-  //> 0) {
-  //	    return false;
-  //	  }
+  	if (!this->infinity && this->map->CompareKey(key, this->right_most_key)
+  > 0) {
+  	    return false;
+  	  }
   LOG_INFO("Inside IPageUpdateDelta InsertEntry");
   if (this->map->CompareKey(key, max_key_left_split_node_) <=
       0)  // should go to the underlying Ipage
@@ -1396,10 +1398,10 @@ bool LPage<KeyType, ValueType, KeyComparator>::InsertEntry(KeyType key,
   }
   LOG_INFO("Inside LPage InsertEntry. It's size is %d", (int)this->size_);
   // if the key falls out of responsible range, retry
-  //  if (!this->infinity && this->map->CompareKey(key, this->right_most_key) >
-  //  0) {
-  //    return false;
-  //  }
+    if (!this->infinity && this->map->CompareKey(key, this->right_most_key) >
+    0) {
+      return false;
+    }
   LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
       new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
           this->map, this, key, location, this->right_most_key, this->infinity);
@@ -1423,10 +1425,10 @@ bool LPage<KeyType, ValueType, KeyComparator>::DeleteEntry(KeyType key,
     if (!splitSuccess) return false;
   }
   // if the key falls out of responsible range, retry
-  //  if (!this->infinity && this->map->CompareKey(key, this->right_most_key) >
-  //  0) {
-  //    return false;
-  //  }
+    if (!this->infinity && this->map->CompareKey(key, this->right_most_key) >
+    0) {
+      return false;
+    }
   LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
       new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
           this->map, this, key, location, this->right_most_key, this->infinity);

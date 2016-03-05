@@ -44,7 +44,7 @@ bool BWTreeIndex<KeyType, ValueType, KeyComparator,
                  KeyEqualityChecker>::InsertEntry(const storage::Tuple *key,
 
                                                   const ItemPointer location) {
-  Debug();
+//  Debug();
   std::cout << "InsertEntry invoked, key_type: " << this->HasUniqueKeys()
             << std::endl;
   KeyType index_key;

@@ -1054,10 +1054,10 @@ class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
                    __attribute__((unused)) LPID my_lpid,
                    __attribute__((unused)) LPID parent) {
     // if the key falls out of responsible range, retry
-    //    if (!this->infinity &&
-    //        this->map->CompareKey(key, this->right_most_key) > 0) {
-    //      return false;
-    //    }
+        if (!this->infinity &&
+            this->map->CompareKey(key, this->right_most_key) > 0) {
+          return false;
+        }
 
     LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
         new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
@@ -1074,10 +1074,10 @@ class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
                    __attribute__((unused)) ValueType location, LPID my_lpid,
                    __attribute__((unused)) LPID parent) {
     // if the key falls out of responsible range, retry
-    //    if (!this->infinity &&
-    //        this->map->CompareKey(key, this->right_most_key) > 0) {
-    //      return false;
-    //    }
+        if (!this->infinity &&
+            this->map->CompareKey(key, this->right_most_key) > 0) {
+          return false;
+        }
     LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
         new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
             this->map, this, key, location, this->right_most_key,
