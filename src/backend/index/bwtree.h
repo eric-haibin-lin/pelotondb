@@ -172,9 +172,13 @@ class INodeStateBuilder
    * found. Otherwise overwrite the pair with the same key */
   void AddChild(std::pair<KeyType, LPID> &new_pair);
 
+  void ReplaceLastChild(LPID &inf_LPID);
+
   void RemoveChild(KeyType &key_to_remove);
 
-  void SeparateFromKey(KeyType separator_key, LPID split_new_page_id);
+  void RemoveLastChild();
+
+//  void SeparateFromKey(KeyType separator_key, LPID split_new_page_id);
 
   void ScanAllKeys(std::vector<ValueType> &result);
 
@@ -350,7 +354,7 @@ class MappingTable {
 
   // assumes that LPID is valid
   BWTreeNode<KeyType, ValueType, KeyComparator> *GetNode(LPID id) {
-    LOG_INFO("getting node for LPID: %lu frommapping table", id);
+    LOG_INFO("getting node for LPID: %lu from mapping table", id);
     latch_.AquireRead();
     auto ret = mapping_table_[id];
     latch_.ReleaseRead();
@@ -1176,7 +1180,8 @@ class IPageUpdateDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
   IPageUpdateDelta(BWTree<KeyType, ValueType, KeyComparator> *map,
                    BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
                    KeyType max_key_left_split_node,
-                   KeyType max_key_right_split_node, LPID left_split_node_lpid,
+                   KeyType max_key_right_split_node,
+                   bool right_node_is_infinity, LPID left_split_node_lpid,
                    LPID right_split_node_lpid, bool is_delete,
                    KeyType right_most_key, bool infinity)
       : IPageDelta<KeyType, ValueType, KeyComparator>(map, modified_node,
@@ -1185,6 +1190,7 @@ class IPageUpdateDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
         max_key_right_split_node_(max_key_right_split_node),
         left_split_node_lpid_(left_split_node_lpid),
         right_split_node_lpid_(right_split_node_lpid),
+		right_node_is_infinity_(right_node_is_infinity),
         is_delete_(is_delete) {
     LOG_INFO("Inside IPageUpdateDelta Constructor");
   };
@@ -1213,6 +1219,7 @@ class IPageUpdateDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
   // two members
   LPID left_split_node_lpid_, right_split_node_lpid_;
 
+  bool right_node_is_infinity_;
   // Whether it's a delete delta
   bool is_delete_ = false;
 };
