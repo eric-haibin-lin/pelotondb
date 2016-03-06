@@ -162,12 +162,12 @@ void BasicTestHelper(INDEX_KEY_TYPE index_key_type) {
   locations = index->Scan(values, key_column_ids, expr_types, direction);
   EXPECT_EQ(locations.size(), 0);
 
-  //index->Debug();
+  // index->Debug();
 
   // DELETE
   index->DeleteEntry(key0.get(), item0);
 
-  //index->Debug();
+  // index->Debug();
 
   locations = index->ScanKey(key0.get());
   EXPECT_EQ(locations.size(), 0);
@@ -191,11 +191,11 @@ void BasicTestHelper(INDEX_KEY_TYPE index_key_type) {
   delete tuple_schema;
 }
 
-//TEST(IndexTests, BasicUniqueTest) {
+// TEST(IndexTests, BasicUniqueTest) {
 //    BasicTestHelper(UNIQUE_KEY);
 //}
 //
-//TEST(IndexTests, BasicNonUniqueTest) {
+// TEST(IndexTests, BasicNonUniqueTest) {
 //    BasicTestHelper(NON_UNIQUE_KEY);
 //}
 
@@ -356,95 +356,100 @@ void DeleteTestHelper(INDEX_KEY_TYPE index_key_type) {
 
   index->Debug();
 
-//  LaunchParallelTest(1, DeleteTest, index.get(), pool, scale_factor);
-//
-//  index->Debug();
-//
-//  locations = index->ScanKey(key0.get());
-//  EXPECT_EQ(locations.size(), 0);
-//
-//  locations = index->ScanKey(key1.get());
-//  if (index_key_type == NON_UNIQUE_KEY) {
-//    EXPECT_EQ(locations.size(), 2);
-//  } else if (index_key_type == UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
-//    EXPECT_EQ(locations.size(), 1);
-//  }
-//
-//  locations = index->ScanKey(key2.get());
-//  EXPECT_EQ(locations.size(), 1);
-//  EXPECT_EQ(locations[0].block, item1.block);
-//
-//  // setup values
-//  values[0] = ValueFactory::GetIntegerValue(100);
-//  values[1] = ValueFactory::GetStringValue("b");
-//  // setup column id's
-//  key_column_ids[0] = 0;
-//  key_column_ids[1] = 1;
-//  // setup expr's
-//  expr_types[0] = EXPRESSION_TYPE_COMPARE_EQUAL;
-//  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
-//  locations = index->Scan(values, key_column_ids, expr_types, direction);
-//  if (index_key_type == NON_UNIQUE_KEY) {
-//    EXPECT_EQ(locations.size(), 2);
-//  } else if (index_key_type == UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
-//    EXPECT_EQ(locations.size(), 1);
-//  }
-//
-//  // THIS TEST IS FOR BWTREE ONLY. Not implemented for btree
-//  std::vector<ItemPointer> reverse_locations = index->Scan(
-//      values, key_column_ids, expr_types, SCAN_DIRECTION_TYPE_BACKWARD);
-//  if (index_key_type == NON_UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
-//    EXPECT_EQ(locations.size(), 2);
-//    EXPECT_EQ(locations[0].block, reverse_locations[1].block);
-//    EXPECT_EQ(locations[0].offset, reverse_locations[1].offset);
-//    EXPECT_EQ(locations[1].block, reverse_locations[0].block);
-//    EXPECT_EQ(locations[1].offset, reverse_locations[0].offset);
-//  } else if (index_key_type == UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
-//    EXPECT_EQ(locations.size(), 1);
-//  }
-//
-//  // setup values
-//  values[0] = ValueFactory::GetIntegerValue(100);
-//  values[1] = ValueFactory::GetStringValue("c");
-//  // setup column id's
-//  key_column_ids[0] = 0;
-//  key_column_ids[1] = 1;
-//  // setup expr's
-//  expr_types[0] = EXPRESSION_TYPE_COMPARE_EQUAL;
-//  expr_types[1] = EXPRESSION_TYPE_COMPARE_NOTEQUAL;
-//  locations = index->Scan(values, key_column_ids, expr_types, direction);
-//  if (index_key_type == NON_UNIQUE_KEY) {
-//    EXPECT_EQ(locations.size(), 2);
-//  } else if (index_key_type == UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
-//    EXPECT_EQ(locations.size(), 1);
-//  }
-//
-//  // setup values
-//  values[0] = ValueFactory::GetIntegerValue(100);
-//  values[1] = ValueFactory::GetStringValue("d");
-//  // setup column id's
-//  key_column_ids[0] = 0;
-//  key_column_ids[1] = 1;
-//  // setup expr's
-//  expr_types[0] = EXPRESSION_TYPE_COMPARE_GREATERTHAN;
-//  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
-//  locations = index->Scan(values, key_column_ids, expr_types, direction);
-//  if (index_key_type == NON_UNIQUE_KEY) {
-//    EXPECT_EQ(locations.size(), 0);
-//  } else if (index_key_type == UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
-//    EXPECT_EQ(locations.size(), 0);
-//  }
-//
+  //  LaunchParallelTest(1, DeleteTest, index.get(), pool, scale_factor);
+  //
+  //  index->Debug();
+  //
+  //  locations = index->ScanKey(key0.get());
+  //  EXPECT_EQ(locations.size(), 0);
+  //
+  //  locations = index->ScanKey(key1.get());
+  //  if (index_key_type == NON_UNIQUE_KEY) {
+  //    EXPECT_EQ(locations.size(), 2);
+  //  } else if (index_key_type == UNIQUE_KEY && index_type ==
+  //  INDEX_TYPE_BWTREE) {
+  //    EXPECT_EQ(locations.size(), 1);
+  //  }
+  //
+  //  locations = index->ScanKey(key2.get());
+  //  EXPECT_EQ(locations.size(), 1);
+  //  EXPECT_EQ(locations[0].block, item1.block);
+  //
+  //  // setup values
+  //  values[0] = ValueFactory::GetIntegerValue(100);
+  //  values[1] = ValueFactory::GetStringValue("b");
+  //  // setup column id's
+  //  key_column_ids[0] = 0;
+  //  key_column_ids[1] = 1;
+  //  // setup expr's
+  //  expr_types[0] = EXPRESSION_TYPE_COMPARE_EQUAL;
+  //  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
+  //  locations = index->Scan(values, key_column_ids, expr_types, direction);
+  //  if (index_key_type == NON_UNIQUE_KEY) {
+  //    EXPECT_EQ(locations.size(), 2);
+  //  } else if (index_key_type == UNIQUE_KEY && index_type ==
+  //  INDEX_TYPE_BWTREE) {
+  //    EXPECT_EQ(locations.size(), 1);
+  //  }
+  //
+  //  // THIS TEST IS FOR BWTREE ONLY. Not implemented for btree
+  //  std::vector<ItemPointer> reverse_locations = index->Scan(
+  //      values, key_column_ids, expr_types, SCAN_DIRECTION_TYPE_BACKWARD);
+  //  if (index_key_type == NON_UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
+  //    EXPECT_EQ(locations.size(), 2);
+  //    EXPECT_EQ(locations[0].block, reverse_locations[1].block);
+  //    EXPECT_EQ(locations[0].offset, reverse_locations[1].offset);
+  //    EXPECT_EQ(locations[1].block, reverse_locations[0].block);
+  //    EXPECT_EQ(locations[1].offset, reverse_locations[0].offset);
+  //  } else if (index_key_type == UNIQUE_KEY && index_type ==
+  //  INDEX_TYPE_BWTREE) {
+  //    EXPECT_EQ(locations.size(), 1);
+  //  }
+  //
+  //  // setup values
+  //  values[0] = ValueFactory::GetIntegerValue(100);
+  //  values[1] = ValueFactory::GetStringValue("c");
+  //  // setup column id's
+  //  key_column_ids[0] = 0;
+  //  key_column_ids[1] = 1;
+  //  // setup expr's
+  //  expr_types[0] = EXPRESSION_TYPE_COMPARE_EQUAL;
+  //  expr_types[1] = EXPRESSION_TYPE_COMPARE_NOTEQUAL;
+  //  locations = index->Scan(values, key_column_ids, expr_types, direction);
+  //  if (index_key_type == NON_UNIQUE_KEY) {
+  //    EXPECT_EQ(locations.size(), 2);
+  //  } else if (index_key_type == UNIQUE_KEY && index_type ==
+  //  INDEX_TYPE_BWTREE) {
+  //    EXPECT_EQ(locations.size(), 1);
+  //  }
+  //
+  //  // setup values
+  //  values[0] = ValueFactory::GetIntegerValue(100);
+  //  values[1] = ValueFactory::GetStringValue("d");
+  //  // setup column id's
+  //  key_column_ids[0] = 0;
+  //  key_column_ids[1] = 1;
+  //  // setup expr's
+  //  expr_types[0] = EXPRESSION_TYPE_COMPARE_GREATERTHAN;
+  //  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
+  //  locations = index->Scan(values, key_column_ids, expr_types, direction);
+  //  if (index_key_type == NON_UNIQUE_KEY) {
+  //    EXPECT_EQ(locations.size(), 0);
+  //  } else if (index_key_type == UNIQUE_KEY && index_type ==
+  //  INDEX_TYPE_BWTREE) {
+  //    EXPECT_EQ(locations.size(), 0);
+  //  }
+  //
   delete tuple_schema;
 }
 
-TEST(IndexTests, DeleteTest) {
+// TEST(IndexTests, DeleteTest) {
 //  for (unsigned int i = 0; i < index_types.size(); i++) {
-    DeleteTestHelper(index_types[1]);
+//  DeleteTestHelper(index_types[1]);
 //  }
-}
+//}
 
-//TEST(IndexTests, MultiThreadedTest) {
+// TEST(IndexTests, MultiThreadedTest) {
 //  auto pool = TestingHarness::GetInstance().GetTestingPool();
 //  std::vector<ItemPointer> locations;
 //
@@ -454,7 +459,8 @@ TEST(IndexTests, DeleteTest) {
 //  // Parallel Test
 //  size_t num_threads = 1;
 //  size_t scale_factor = 10000;
-//  LaunchParallelTest(num_threads, InsertTest, index.get(), pool, scale_factor);
+//  LaunchParallelTest(num_threads, InsertTest, index.get(), pool,
+//  scale_factor);
 //
 //  locations = index->ScanAllKeys();
 //  EXPECT_EQ(locations.size(), 9 * num_threads * scale_factor);
@@ -763,7 +769,7 @@ TEST(IndexTests, SingleThreadedSplitTest) {
  * WHITE BOX TEST SPECIFIC TO BWTREE
  *===========================================================================*/
 
-//TEST(IndexTests, BWTreeMappingTableTest) {
+// TEST(IndexTests, BWTreeMappingTableTest) {
 //  // the values of the templates dont really matter;
 //  int size_to_test = 1025;
 //  auto initial_nodes =
@@ -789,7 +795,8 @@ TEST(IndexTests, SingleThreadedSplitTest) {
 //  for (int i = 0; i < size_to_test; i++) {
 //    if (i % 2) {
 //      swapped_nodes[i] = reinterpret_cast<
-//          index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *>(
+//          index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType>
+//          *>(
 //          new int(52));
 //      map.SwapNode(LPIDs[i], initial_nodes[i], swapped_nodes[i]);
 //    }
@@ -811,7 +818,7 @@ TEST(IndexTests, SingleThreadedSplitTest) {
  * WHITE BOX TEST SPECIFIC TO BWTREE
  *===========================================================================*/
 //
-//TEST(IndexTests, BWTreeMappingTableTest) {
+// TEST(IndexTests, BWTreeMappingTableTest) {
 //  // the values of the templates dont really matter;
 //  int size_to_test = 1025;
 //  auto initial_nodes =
@@ -837,7 +844,8 @@ TEST(IndexTests, SingleThreadedSplitTest) {
 //  for (int i = 0; i < size_to_test; i++) {
 //    if (i % 2) {
 //      swapped_nodes[i] = reinterpret_cast<
-//          index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *>(
+//          index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType>
+//          *>(
 //          new int(52));
 //      map.SwapNode(LPIDs[i], initial_nodes[i], swapped_nodes[i]);
 //    }
@@ -855,8 +863,8 @@ TEST(IndexTests, SingleThreadedSplitTest) {
 //  delete[] swapped_nodes;
 //}
 //
-//index::LNodeStateBuilder<TestKeyType, TestValueType, TestComparatorType> *
-//BuildLNodeStateBuilder(
+// index::LNodeStateBuilder<TestKeyType, TestValueType, TestComparatorType> *
+// BuildLNodeStateBuilder(
 //    peloton::VarlenPool *pool, INDEX_KEY_TYPE index_key_type,
 //    index::BWTree<TestKeyType, TestValueType, TestComparatorType> *map) {
 //  std::pair<TestKeyType, TestValueType> item_locations[LPAGE_ARITY];
@@ -922,7 +930,7 @@ TEST(IndexTests, SingleThreadedSplitTest) {
 //  return builder;
 //}
 //
-//void ScanKeyHelper(
+// void ScanKeyHelper(
 //    const TestKeyType &index_key0, INDEX_KEY_TYPE index_key_type,
 //    index::LPage<TestKeyType, TestValueType, TestComparatorType> *lpage) {
 //  // TEST SCAN KEY
@@ -951,7 +959,7 @@ TEST(IndexTests, SingleThreadedSplitTest) {
 //  }
 //}
 //// TEST SCAN
-//void ScanHelper(
+// void ScanHelper(
 //    INDEX_KEY_TYPE index_key_type,
 //    index::LPage<TestKeyType, TestValueType, TestComparatorType> *lpage,
 //    VarlenPool *pool) {
@@ -1043,7 +1051,7 @@ TEST(IndexTests, SingleThreadedSplitTest) {
 //  }
 //}
 
-//void LPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
+// void LPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
 //  auto pool = TestingHarness::GetInstance().GetTestingPool();
 //  index::BWTree<TestKeyType, TestValueType, TestComparatorType> *map =
 //      BuildBWTree(index_key_type);
@@ -1074,7 +1082,7 @@ TEST(IndexTests, SingleThreadedSplitTest) {
 //  delete map;
 //}
 //
-//void IPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
+// void IPageScanTestHelper(INDEX_KEY_TYPE index_key_type) {
 //  auto pool = TestingHarness::GetInstance().GetTestingPool();
 //  index::BWTree<TestKeyType, TestValueType, TestComparatorType> *map =
 //      BuildBWTree(index_key_type);
@@ -1201,31 +1209,31 @@ void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
       baseNode;
   prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
                                      TestComparatorType>(
-      map, prev, index_key0, item0, dummy_key_type, true);
+      map, prev, index_key0, item0, dummy_key_type, true, INVALID_LPID);
   prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
                                      TestComparatorType>(
-      map, prev, index_key1, item1, dummy_key_type, true);
+      map, prev, index_key1, item1, dummy_key_type, true, INVALID_LPID);
   prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
                                      TestComparatorType>(
-      map, prev, index_key1, item2, dummy_key_type, true);
+      map, prev, index_key1, item2, dummy_key_type, true, INVALID_LPID);
   prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
                                      TestComparatorType>(
-      map, prev, index_key1, item1, dummy_key_type, true);
+      map, prev, index_key1, item1, dummy_key_type, true, INVALID_LPID);
   prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
                                      TestComparatorType>(
-      map, prev, index_key1, item1, dummy_key_type, true);
+      map, prev, index_key1, item1, dummy_key_type, true, INVALID_LPID);
   prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
                                      TestComparatorType>(
-      map, prev, index_key1, item0, dummy_key_type, true);
+      map, prev, index_key1, item0, dummy_key_type, true, INVALID_LPID);
   prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
                                      TestComparatorType>(
-      map, prev, index_key2, item1, dummy_key_type, true);
+      map, prev, index_key2, item1, dummy_key_type, true, INVALID_LPID);
   prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
                                      TestComparatorType>(
-      map, prev, index_key3, item1, dummy_key_type, true);
+      map, prev, index_key3, item1, dummy_key_type, true, INVALID_LPID);
   prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
                                      TestComparatorType>(
-      map, prev, index_key4, item1, dummy_key_type, true);
+      map, prev, index_key4, item1, dummy_key_type, true, INVALID_LPID);
   locations.clear();
   prev->ScanKey(index_key0, locations);
   EXPECT_EQ(locations.size(), 1);
@@ -1277,6 +1285,8 @@ void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
   index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *
       new_base_node = map->GetMappingTable()->GetNode(lpid);
 
+  new_base_node->BWTreeCheck();
+
   index::LPage<TestKeyType, TestValueType, TestComparatorType> *new_base_lpage =
       reinterpret_cast<
           index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
@@ -1296,17 +1306,19 @@ void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
   if (index_key_type == UNIQUE_KEY) {
     split_delta = new index::LPageSplitDelta<TestKeyType, TestValueType,
                                              TestComparatorType>(
-        map, new_base_node, index_key1, 2, right_split_id, dummy_key_type,
-        true);
+        map, new_base_node, index_key1, 2, right_split_id, dummy_key_type, true,
+        INVALID_LPID);
   } else {
     split_delta = new index::LPageSplitDelta<TestKeyType, TestValueType,
                                              TestComparatorType>(
-        map, new_base_node, index_key1, 4, right_split_id, dummy_key_type,
-        true);
+        map, new_base_node, index_key1, 4, right_split_id, dummy_key_type, true,
+        INVALID_LPID);
   }
 
   EXPECT_TRUE(map->CompressDeltaChain(lpid, new_base_node, split_delta));
   auto compressed_node = map->GetMappingTable()->GetNode(lpid);
+
+  compressed_node->BWTreeCheck();
 
   auto compressed_lnode = reinterpret_cast<
       index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
@@ -1363,23 +1375,25 @@ void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
 
     prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
                                        TestComparatorType>(
-        map, prev, index_key0, item0, dummy_key_type, true);
+        map, prev, index_key0, item0, dummy_key_type, true, INVALID_LPID);
     prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
                                        TestComparatorType>(
-        map, prev, index_key1, item1, dummy_key_type, true);
+        map, prev, index_key1, item1, dummy_key_type, true, INVALID_LPID);
     prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
                                        TestComparatorType>(
-        map, prev, index_key1, item2, dummy_key_type, true);
+        map, prev, index_key1, item2, dummy_key_type, true, INVALID_LPID);
     prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
                                        TestComparatorType>(
-        map, prev, index_key2, item1, dummy_key_type, true);
+        map, prev, index_key2, item1, dummy_key_type, true, INVALID_LPID);
 
     split_delta = new index::LPageSplitDelta<TestKeyType, TestValueType,
                                              TestComparatorType>(
-        map, prev, index_key2, 6, INVALID_LPID, dummy_key_type, true);
+        map, prev, index_key2, 6, INVALID_LPID, dummy_key_type, true,
+        INVALID_LPID);
 
     EXPECT_TRUE(map->CompressDeltaChain(lpid, new_base_lpage, split_delta));
     auto compressed_node = map->GetMappingTable()->GetNode(lpid);
+    compressed_node->BWTreeCheck();
 
     auto compressed_lnode = reinterpret_cast<
         index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
@@ -1427,23 +1441,25 @@ void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
 
     prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
                                        TestComparatorType>(
-        map, prev, index_key0, item0, dummy_key_type, true);
+        map, prev, index_key0, item0, dummy_key_type, true, INVALID_LPID);
     prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
                                        TestComparatorType>(
-        map, prev, index_key1, item1, dummy_key_type, true);
+        map, prev, index_key1, item1, dummy_key_type, true, INVALID_LPID);
     prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
                                        TestComparatorType>(
-        map, prev, index_key1, item2, dummy_key_type, true);
+        map, prev, index_key1, item2, dummy_key_type, true, INVALID_LPID);
     prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
                                        TestComparatorType>(
-        map, prev, index_key2, item1, dummy_key_type, true);
+        map, prev, index_key2, item1, dummy_key_type, true, INVALID_LPID);
 
     split_delta = new index::LPageSplitDelta<TestKeyType, TestValueType,
                                              TestComparatorType>(
-        map, prev, index_key2, 2, INVALID_LPID, dummy_key_type, true);
+        map, prev, index_key2, 2, INVALID_LPID, dummy_key_type, true,
+        INVALID_LPID);
 
     EXPECT_TRUE(map->CompressDeltaChain(lpid, new_base_lpage, split_delta));
     auto compressed_node = map->GetMappingTable()->GetNode(lpid);
+    compressed_node->BWTreeCheck();
 
     auto compressed_lnode = reinterpret_cast<
         index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
