@@ -1008,7 +1008,8 @@ class LPageDelta : public Delta<KeyType, ValueType, KeyComparator> {
              BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
              KeyType right_most_key, bool infinity, LPID right_sibling)
       : Delta<KeyType, ValueType, KeyComparator>(map, modified_node,
-                                                 right_most_key, infinity), right_sibling(right_sibling){};
+                                                 right_most_key, infinity),
+        right_sibling(right_sibling){};
 
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_LPAGE; };
 
@@ -1016,7 +1017,6 @@ class LPageDelta : public Delta<KeyType, ValueType, KeyComparator> {
 
  protected:
   LPID right_sibling = INVALID_LPID;
-
 };
 //===--------------------------------------------------------------------===//
 // LPageSplitDelta
@@ -1028,8 +1028,8 @@ class LPageSplitDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
                   BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
                   KeyType splitterKey, int modified_index, LPID rightSplitPage,
                   KeyType right_most_key, bool infinity, LPID right_sibling)
-      : LPageDelta<KeyType, ValueType, KeyComparator>(map, modified_node,
-                                                      right_most_key, infinity, right_sibling),
+      : LPageDelta<KeyType, ValueType, KeyComparator>(
+            map, modified_node, right_most_key, infinity, right_sibling),
         modified_key_(splitterKey),
         modified_key_index_(modified_index),
         right_split_page_lpid_(rightSplitPage),
@@ -1081,8 +1081,8 @@ class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
                    BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
                    KeyType key, ValueType value, KeyType right_most_key,
                    bool infinity, LPID right_sibling)
-      : LPageDelta<KeyType, ValueType, KeyComparator>(map, modified_node,
-                                                      right_most_key, infinity, right_sibling),
+      : LPageDelta<KeyType, ValueType, KeyComparator>(
+            map, modified_node, right_most_key, infinity, right_sibling),
         modified_key_(key),
         modified_val_(value) {
     LOG_INFO("Inside LPageUpdateDelta Constructor");
@@ -1113,9 +1113,8 @@ class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
     return status;
   };
 
-  bool DeleteEntry(KeyType key,
-                   ValueType location, LPID my_lpid,
-                   __attribute__((unused))  LPID parent) {
+  bool DeleteEntry(KeyType key, ValueType location, LPID my_lpid,
+                   __attribute__((unused)) LPID parent) {
     // if the key falls out of responsible range, retry
     if (!this->infinity &&
         this->map->CompareKey(key, this->right_most_key) > 0) {
@@ -1133,14 +1132,16 @@ class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
       delete new_delta;
       return false;
     }
-    //cascade delete
-    if (this->right_sibling != INVALID_LPID && this->map->CompareKey(key, this->right_most_key) == 0){
-        LOG_INFO("Cascading deleteEntry to right sib..");
+    // cascade delete
+    if (this->right_sibling != INVALID_LPID &&
+        this->map->CompareKey(key, this->right_most_key) == 0) {
+      LOG_INFO("Cascading deleteEntry to right sib..");
       do {
-       BWTreeNode<TEMPLATE_TYPE> *right_node = this->map->GetMappingTable()->GetNode(this->right_sibling);
-       status = right_node->DeleteEntry(key, location, this->right_sibling, INVALID_LPID);
-      }
-      while (!status);
+        BWTreeNode<TEMPLATE_TYPE> *right_node =
+            this->map->GetMappingTable()->GetNode(this->right_sibling);
+        status = right_node->DeleteEntry(key, location, this->right_sibling,
+                                         INVALID_LPID);
+      } while (!status);
     }
     return true;
   };
@@ -1158,8 +1159,8 @@ class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
 
   std::string Debug(int depth, LPID self);
 
-  //Temporarily declare the setter here. bad style
-  inline  void SetShouldSplit(bool should_split) {
+  // Temporarily declare the setter here. bad style
+  inline void SetShouldSplit(bool should_split) {
     this->should_split_ = should_split;
   }
 
@@ -1174,7 +1175,6 @@ class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
   bool is_delete_ = false;
 
   bool should_split_ = false;
-
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
