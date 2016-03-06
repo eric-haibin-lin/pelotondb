@@ -1527,6 +1527,65 @@ void LPageUpdateDelta<KeyType, ValueType, KeyComparator>::BWTreeCheck() {
   delete page;
 }
 
+template <typename KeyType, typename ValueType, class KeyComparator>
+bool LPageUpdateDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
+    KeyType key, ValueType location, LPID my_lpid,
+    __attribute__((unused)) LPID parent) {
+  // if the key falls out of responsible range, retry
+  if (!this->infinity && this->map->CompareKey(key, this->right_most_key) > 0) {
+    return false;
+  }
+
+  if (should_split_) {
+    this->map->CompressDeltaChain(my_lpid, this, this);
+    return false;
+  }
+
+  LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
+      new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
+          this->map, this, key, location, this->right_most_key, this->infinity,
+          this->right_sibling);
+  bool status = this->PerformDeltaInsert(my_lpid, new_delta);
+  if (!status) {
+    delete new_delta;
+  }
+  return status;
+};
+
+template <typename KeyType, typename ValueType, class KeyComparator>
+bool LPageUpdateDelta<KeyType, ValueType, KeyComparator>::DeleteEntry(
+    KeyType key, ValueType location, LPID my_lpid,
+    __attribute__((unused)) LPID parent) {
+  // if the key falls out of responsible range, retry
+  if (!this->infinity && this->map->CompareKey(key, this->right_most_key) > 0) {
+    return false;
+  }
+  LPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
+      new LPageUpdateDelta<KeyType, ValueType, KeyComparator>(
+          this->map, this, key, location, this->right_most_key, this->infinity,
+          this->right_sibling);
+
+  new_delta->SetDeleteFlag();
+  new_delta->SetShouldSplit(should_split_);
+  bool status = this->PerformDeltaInsert(my_lpid, new_delta);
+  if (!status) {
+    delete new_delta;
+    return false;
+  }
+  // cascade delete
+  if (this->right_sibling != INVALID_LPID &&
+      this->map->CompareKey(key, this->right_most_key) == 0) {
+    LOG_INFO("Cascading deleteEntry to right sib..");
+    do {
+      BWTreeNode<TEMPLATE_TYPE> *right_node =
+          this->map->GetMappingTable()->GetNode(this->right_sibling);
+      status = right_node->DeleteEntry(key, location, this->right_sibling,
+                                       INVALID_LPID);
+    } while (!status);
+  }
+  return true;
+};
+
 //===--------------------------------------------------------------------===//
 // LPageUpdateDelta Methods End
 //===--------------------------------------------------------------------===//
