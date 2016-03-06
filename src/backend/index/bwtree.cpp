@@ -539,11 +539,11 @@ bool IPage<KeyType, ValueType, KeyComparator>::AddINodeEntry(
 //	IPageSplitDelta<KeyType, ValueType, KeyComparator> *new_delta =
 //		      new IPageSplitDelta<KeyType, ValueType, KeyComparator>(
 //		          this->map, this, key, value, modified_index,
-//this->GetRightMostKey(),
+// this->GetRightMostKey(),
 //	              this->IsInifinity());
 //
 //		  bool status = this->map->GetMappingTable()->SwapNode(self, this,
-//new_delta);
+// new_delta);
 //
 //		  if (!status) {
 //		    LOG_INFO("LPage InsertEntry failed");
@@ -873,16 +873,14 @@ bool IPageSplitDelta<KeyType, ValueType, KeyComparator>::AddINodeEntry(
     return false;
   }
 
-  if (this->GetDeltaChainLen() + 1 >
-        IPAGE_DELTA_CHAIN_LIMIT) {
-      this->map->CompressDeltaChain(self, this, this);
-      return false;
-    }
-
   BWTreeNode<KeyType, ValueType, KeyComparator> *old_child_node_hard_ptr =
       this->modified_node;
 
-
+  if (old_child_node_hard_ptr->GetDeltaChainLen() + 1 >
+      IPAGE_DELTA_CHAIN_LIMIT) {
+    this->map->CompressDeltaChain(self, this, this);
+    return false;
+  }
 
   // This Delta must now be inserted BELOW this delta
   IPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
@@ -924,7 +922,7 @@ bool IPageSplitDelta<KeyType, ValueType, KeyComparator>::AddINodeEntry(
 //		  IPageSplitDelta<KeyType, ValueType, KeyComparator> *new_delta =
 //		  		      new IPageSplitDelta<KeyType, ValueType, KeyComparator>(
 //		  		          this->map, this, key, value, modified_index,
-//this->GetRightMostKey(),
+// this->GetRightMostKey(),
 //		  	              this->IsInifinity());
 //
 //		  bool status = __sync_bool_compare_and_swap(
@@ -1209,7 +1207,7 @@ bool IPageUpdateDelta<KeyType, ValueType, KeyComparator>::AddINodeEntry(
 //	IPageSplitDelta<KeyType, ValueType, KeyComparator> *new_delta =
 //		      new IPageSplitDelta<KeyType, ValueType, KeyComparator>(
 //		          this->map, this, key, value, modified_index,
-//this->GetRightMostKey(),
+// this->GetRightMostKey(),
 //	              this->IsInifinity());
 //
 //	bool status = this->PerformDeltaInsert(my_lpid, new_delta);
@@ -1228,6 +1226,7 @@ void IPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(
   bool greater_than_left_key =
       this->map->CompareKey(key, max_key_left_split_node_) > 0;
   bool not_greater_than_right_key =
+      this->IsInifinity() ||
       this->map->CompareKey(key, max_key_right_split_node_) <= 0;
 
   if (!is_delete_) {
