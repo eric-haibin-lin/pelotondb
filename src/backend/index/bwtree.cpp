@@ -862,13 +862,14 @@ bool IPageSplitDelta<KeyType, ValueType, KeyComparator>::AddINodeEntry(
     return false;
   }
 
-  if (this->GetDeltaChainLen() + 1 > IPAGE_DELTA_CHAIN_LIMIT) {
+  BWTreeNode<KeyType, ValueType, KeyComparator> *old_child_node_hard_ptr =
+      this->modified_node;
+
+  if (old_child_node_hard_ptr->GetDeltaChainLen() + 1 >
+      IPAGE_DELTA_CHAIN_LIMIT) {
     this->map->CompressDeltaChain(self, this, this);
     return false;
   }
-
-  BWTreeNode<KeyType, ValueType, KeyComparator> *old_child_node_hard_ptr =
-      this->modified_node;
 
   // This Delta must now be inserted BELOW this delta
   IPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta =
@@ -1231,6 +1232,7 @@ void IPageUpdateDelta<KeyType, ValueType, KeyComparator>::ScanKey(
   bool greater_than_left_key =
       this->map->CompareKey(key, max_key_left_split_node_) > 0;
   bool not_greater_than_right_key =
+      this->IsInifinity() ||
       this->map->CompareKey(key, max_key_right_split_node_) <= 0;
 
   if (!is_delete_) {
