@@ -443,13 +443,13 @@ void DeleteTestHelper(INDEX_KEY_TYPE index_key_type) {
   delete tuple_schema;
 }
 
-//TEST(IndexTests, DeleteTest) {
-//  //  for (unsigned int i = 0; i < index_types.size(); i++) {
+// TEST(IndexTests, DeleteTest) {
+//  for (unsigned int i = 0; i < index_types.size(); i++) {
 //  DeleteTestHelper(index_types[1]);
-//  //  }
+//  }
 //}
 
-//TEST(IndexTests, MultiThreadedTest) {
+// TEST(IndexTests, MultiThreadedTest) {
 //  auto pool = TestingHarness::GetInstance().GetTestingPool();
 //  std::vector<ItemPointer> locations;
 //
@@ -459,7 +459,8 @@ void DeleteTestHelper(INDEX_KEY_TYPE index_key_type) {
 //  // Parallel Test
 //  size_t num_threads = 1;
 //  size_t scale_factor = 10000;
-//  LaunchParallelTest(num_threads, InsertTest, index.get(), pool, scale_factor);
+//  LaunchParallelTest(num_threads, InsertTest, index.get(), pool,
+//  scale_factor);
 //
 //  locations = index->ScanAllKeys();
 //  EXPECT_EQ(locations.size(), 9 * num_threads * scale_factor);
@@ -811,6 +812,7 @@ TEST(IndexTests, BWTreeMappingTableTest) {
   delete[] swapped_nodes;
 }
 
+
 /*============================================================================
  * WHITE BOX TEST SPECIFIC TO BWTREE
  *===========================================================================*/
@@ -1111,7 +1113,6 @@ TEST(IndexTests, BWTreeMappingTableTest) {
 //    IPageScanTestHelper(index_types[i]);
 //  }
 //}
-
 void BWTreeIPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
   auto pool = TestingHarness::GetInstance().GetTestingPool();
   auto map = BuildBWTree(index_key_type);
@@ -1505,13 +1506,16 @@ TEST(IndexTests, BWTreeIPageDeltaConsilidationTest) {
   }
 }
 
-/*void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
+void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
   auto pool = TestingHarness::GetInstance().GetTestingPool();
   auto map = BuildBWTree(index_key_type);
   map->epoch_manager_.GetCurrentEpoch();
+  TestKeyType dummy_key_type;
   auto baseNode =
-      new index::LPage<TestKeyType, TestValueType, TestComparatorType>(map);
+      new index::LPage<TestKeyType, TestValueType, TestComparatorType>(
+          map, dummy_key_type, true);
   index::LPID lpid = map->GetMappingTable()->InstallPage(baseNode);
+
   std::vector<ItemPointer> locations;
   // Insert a bunch of keys based on scale itr
 
@@ -1590,35 +1594,37 @@ TEST(IndexTests, BWTreeIPageDeltaConsilidationTest) {
   baseNode->ScanKey(index_nonce, locations);
   EXPECT_EQ(locations.size(), 0);
   // perform many inserts
+
+  // First test many LPageUpdateDeltas on top of each other
   index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *prev =
       baseNode;
   prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
-                                     TestComparatorType>(map, prev, index_key0,
-                                                         item0);
+                                     TestComparatorType>(
+      map, prev, index_key0, item0, dummy_key_type, true, INVALID_LPID);
   prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
-                                     TestComparatorType>(map, prev, index_key1,
-                                                         item1);
+                                     TestComparatorType>(
+      map, prev, index_key1, item1, dummy_key_type, true, INVALID_LPID);
   prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
-                                     TestComparatorType>(map, prev, index_key1,
-                                                         item2);
+                                     TestComparatorType>(
+      map, prev, index_key1, item2, dummy_key_type, true, INVALID_LPID);
   prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
-                                     TestComparatorType>(map, prev, index_key1,
-                                                         item1);
+                                     TestComparatorType>(
+      map, prev, index_key1, item1, dummy_key_type, true, INVALID_LPID);
   prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
-                                     TestComparatorType>(map, prev, index_key1,
-                                                         item1);
+                                     TestComparatorType>(
+      map, prev, index_key1, item1, dummy_key_type, true, INVALID_LPID);
   prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
-                                     TestComparatorType>(map, prev, index_key1,
-                                                         item0);
+                                     TestComparatorType>(
+      map, prev, index_key1, item0, dummy_key_type, true, INVALID_LPID);
   prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
-                                     TestComparatorType>(map, prev, index_key2,
-                                                         item1);
+                                     TestComparatorType>(
+      map, prev, index_key2, item1, dummy_key_type, true, INVALID_LPID);
   prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
-                                     TestComparatorType>(map, prev, index_key3,
-                                                         item1);
+                                     TestComparatorType>(
+      map, prev, index_key3, item1, dummy_key_type, true, INVALID_LPID);
   prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
-                                     TestComparatorType>(map, prev, index_key4,
-                                                         item1);
+                                     TestComparatorType>(
+      map, prev, index_key4, item1, dummy_key_type, true, INVALID_LPID);
   locations.clear();
   prev->ScanKey(index_key0, locations);
   EXPECT_EQ(locations.size(), 1);
@@ -1666,18 +1672,44 @@ TEST(IndexTests, BWTreeIPageDeltaConsilidationTest) {
   prev->ScanKey(index_nonce, locations);
   EXPECT_EQ(locations.size(), 0);
 
-  // TODO destruct all prev
   index::LPID right_split_id = 1231921234;
   index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *
       new_base_node = map->GetMappingTable()->GetNode(lpid);
 
+  new_base_node->BWTreeCheck();
+
+  index::LPage<TestKeyType, TestValueType, TestComparatorType> *new_base_lpage =
+      reinterpret_cast<
+          index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
+          new_base_node);
+
+  LOG_INFO("After compressing, the size of the new LPage is %d",
+           (int)new_base_lpage->size_);
+  if (index_key_type == UNIQUE_KEY) {
+    EXPECT_EQ(new_base_lpage->size_, 5);
+  } else {
+    EXPECT_EQ(new_base_lpage->size_, 9);
+  }
+
+  // Now test a single SplitDelta on top of LPage
   index::LPageSplitDelta<TestKeyType, TestValueType, TestComparatorType> *
-      split_delta = new index::LPageSplitDelta<TestKeyType, TestValueType,
-                                               TestComparatorType>(
-          map, new_base_node, index_key2, 3, right_split_id);
+      split_delta;
+  if (index_key_type == UNIQUE_KEY) {
+    split_delta = new index::LPageSplitDelta<TestKeyType, TestValueType,
+                                             TestComparatorType>(
+        map, new_base_node, index_key1, 2, right_split_id, dummy_key_type, true,
+        INVALID_LPID);
+  } else {
+    split_delta = new index::LPageSplitDelta<TestKeyType, TestValueType,
+                                             TestComparatorType>(
+        map, new_base_node, index_key1, 4, right_split_id, dummy_key_type, true,
+        INVALID_LPID);
+  }
 
   EXPECT_TRUE(map->CompressDeltaChain(lpid, new_base_node, split_delta));
   auto compressed_node = map->GetMappingTable()->GetNode(lpid);
+
+  compressed_node->BWTreeCheck();
 
   auto compressed_lnode = reinterpret_cast<
       index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
@@ -1687,6 +1719,7 @@ TEST(IndexTests, BWTreeIPageDeltaConsilidationTest) {
   EXPECT_EQ(compressed_lnode->GetRightSiblingLPID(), right_split_id);
 
   EXPECT_NE(compressed_node, split_delta);
+  EXPECT_NE(compressed_node, new_base_node);
 
   // Set the right sibling pointer to nullptr in order to do scan
   compressed_lnode->right_sib_ = INVALID_LPID;
@@ -1695,16 +1728,20 @@ TEST(IndexTests, BWTreeIPageDeltaConsilidationTest) {
   EXPECT_EQ(locations.size(), 1);
   // TODO test for duplicate key case (key1)
   locations.clear();
+
   compressed_node->ScanKey(index_key1, locations);
   if (index_key_type == UNIQUE_KEY) {
     EXPECT_EQ(locations.size(), 1);
   } else {
     // TODO this is not implemented yet, put back later
-    EXPECT_EQ(locations.size(), 3);
+    EXPECT_EQ(locations.size(), 4);
   }
   locations.clear();
   compressed_node->ScanKey(index_key2, locations);
-  EXPECT_EQ(locations.size(), 0);
+  if (index_key_type == UNIQUE_KEY)
+    EXPECT_EQ(locations.size(), 1);
+  else
+    EXPECT_EQ(locations.size(), 0);
   locations.clear();
   compressed_node->ScanKey(index_key3, locations);
   EXPECT_EQ(locations.size(), 0);
@@ -1715,16 +1752,151 @@ TEST(IndexTests, BWTreeIPageDeltaConsilidationTest) {
   compressed_node->ScanKey(index_nonce, locations);
   EXPECT_EQ(locations.size(), 0);
 
-  delete map;
-}*/
+  // Now test several update deltas below a single split delta
+  if (index_key_type == NON_UNIQUE_KEY) {
+    prev = new_base_lpage;
 
-/*TEST(IndexTests, BWTreeLPageDeltaConsilidationTest) {
+    new_base_lpage->right_sib_ = INVALID_LPID;
+    new_base_lpage->right_most_key = index_key4;
+    right_split_id = new_base_lpage->GetRightSiblingLPID();
+
+    lpid = map->GetMappingTable()->InstallPage(new_base_lpage);
+    LOG_INFO("Again, reiterating, size of the new base page is %d",
+             (int)new_base_lpage->size_);
+
+    prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                       TestComparatorType>(
+        map, prev, index_key0, item0, dummy_key_type, true, INVALID_LPID);
+    prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                       TestComparatorType>(
+        map, prev, index_key1, item1, dummy_key_type, true, INVALID_LPID);
+    prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                       TestComparatorType>(
+        map, prev, index_key1, item2, dummy_key_type, true, INVALID_LPID);
+    prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                       TestComparatorType>(
+        map, prev, index_key2, item1, dummy_key_type, true, INVALID_LPID);
+
+    split_delta = new index::LPageSplitDelta<TestKeyType, TestValueType,
+                                             TestComparatorType>(
+        map, prev, index_key2, 6, INVALID_LPID, dummy_key_type, true,
+        INVALID_LPID);
+
+    EXPECT_TRUE(map->CompressDeltaChain(lpid, new_base_lpage, split_delta));
+    auto compressed_node = map->GetMappingTable()->GetNode(lpid);
+    compressed_node->BWTreeCheck();
+
+    auto compressed_lnode = reinterpret_cast<
+        index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
+        compressed_node);
+
+    // Make sure the consolidation update the right sibling pointer
+    EXPECT_EQ(compressed_lnode->GetRightSiblingLPID(), right_split_id);
+
+    EXPECT_NE(compressed_node, split_delta);
+    EXPECT_NE(compressed_node, new_base_node);
+
+    // std::cout << compressed_lnode->Debug(1, lpid);
+    EXPECT_EQ(compressed_lnode->size_, 11);
+
+    locations.clear();
+    compressed_lnode->ScanKey(index_key0, locations);
+    EXPECT_EQ(locations.size(), 2);
+    locations.clear();
+    compressed_lnode->ScanKey(index_key1, locations);
+    EXPECT_EQ(locations.size(), 7);
+    locations.clear();
+    compressed_lnode->ScanKey(index_key2, locations);
+    EXPECT_EQ(locations.size(), 2);
+    locations.clear();
+    compressed_lnode->ScanKey(index_key3, locations);
+    EXPECT_EQ(locations.size(), 0);
+    locations.clear();
+    compressed_lnode->ScanKey(index_key4, locations);
+    EXPECT_EQ(locations.size(), 0);
+
+    std::cout << compressed_lnode->Debug(1, lpid);
+
+    // Now must check stuff about responsibility
+    EXPECT_EQ(map->CompareKey(compressed_lnode->right_most_key, index_key2), 0);
+  } else {
+    prev = new_base_lpage;
+
+    new_base_lpage->right_sib_ = INVALID_LPID;
+    new_base_lpage->right_most_key = index_key4;
+    right_split_id = new_base_lpage->GetRightSiblingLPID();
+
+    lpid = map->GetMappingTable()->InstallPage(new_base_lpage);
+    LOG_INFO("Again, reiterating, size of the new base page is %d",
+             (int)new_base_lpage->size_);
+
+    prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                       TestComparatorType>(
+        map, prev, index_key0, item0, dummy_key_type, true, INVALID_LPID);
+    prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                       TestComparatorType>(
+        map, prev, index_key1, item1, dummy_key_type, true, INVALID_LPID);
+    prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                       TestComparatorType>(
+        map, prev, index_key1, item2, dummy_key_type, true, INVALID_LPID);
+    prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                       TestComparatorType>(
+        map, prev, index_key2, item1, dummy_key_type, true, INVALID_LPID);
+
+    split_delta = new index::LPageSplitDelta<TestKeyType, TestValueType,
+                                             TestComparatorType>(
+        map, prev, index_key2, 2, INVALID_LPID, dummy_key_type, true,
+        INVALID_LPID);
+
+    EXPECT_TRUE(map->CompressDeltaChain(lpid, new_base_lpage, split_delta));
+    auto compressed_node = map->GetMappingTable()->GetNode(lpid);
+    compressed_node->BWTreeCheck();
+
+    auto compressed_lnode = reinterpret_cast<
+        index::LPage<TestKeyType, TestValueType, TestComparatorType> *>(
+        compressed_node);
+
+    // Make sure the consolidation update the right sibling pointer
+    EXPECT_EQ(compressed_lnode->GetRightSiblingLPID(), right_split_id);
+
+    EXPECT_NE(compressed_node, split_delta);
+    EXPECT_NE(compressed_node, new_base_node);
+
+    // std::cout << compressed_lnode->Debug(1, lpid);
+    EXPECT_EQ(compressed_lnode->size_, 3);
+
+    locations.clear();
+    compressed_lnode->ScanKey(index_key0, locations);
+    EXPECT_EQ(locations.size(), 1);
+    locations.clear();
+    compressed_lnode->ScanKey(index_key1, locations);
+    EXPECT_EQ(locations.size(), 1);
+    locations.clear();
+    compressed_lnode->ScanKey(index_key2, locations);
+    EXPECT_EQ(locations.size(), 1);
+    locations.clear();
+    compressed_lnode->ScanKey(index_key3, locations);
+    EXPECT_EQ(locations.size(), 0);
+    locations.clear();
+    compressed_lnode->ScanKey(index_key4, locations);
+    EXPECT_EQ(locations.size(), 0);
+
+    std::cout << compressed_lnode->Debug(1, lpid);
+
+    // Now must check stuff about responsibility
+    EXPECT_EQ(map->CompareKey(compressed_lnode->right_most_key, index_key2), 0);
+  }
+
+  delete map;
+}
+
+TEST(IndexTests, BWTreeLPageDeltaConsilidationTest) {
   for (unsigned int i = 0; i < index_types.size(); i++) {
-    BWTreeLPageDeltaConsilidationTestHelper(index_types[1]);
+    BWTreeLPageDeltaConsilidationTestHelper(index_types[i]);
   }
 }
 
-TEST(IndexTests, BWTreeLPageSplitTest) {
+/*TEST(IndexTests, BWTreeLPageSplitTest) {
   auto pool = TestingHarness::GetInstance().GetTestingPool();
   auto map = BuildBWTree(UNIQUE_KEY);
 
