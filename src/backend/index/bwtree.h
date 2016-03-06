@@ -590,6 +590,8 @@ class BWTree {
 
   void Debug();
 
+  void BWTreeCheck();
+
  public:
   // whether unique key is required
   bool unique_keys;
@@ -647,6 +649,10 @@ class BWTree {
       return -1;
     }
     return 1;
+  }
+
+  inline bool KeyNotGreaterThan(KeyType key, KeyType right_most_key, bool inf) {
+    return inf || CompareKey(key, right_most_key) <= 0;
   }
 
   // compress delta chain
@@ -765,6 +771,8 @@ class BWTreeNode {
            "\n";
   }
 
+  virtual void BWTreeCheck() = 0;
+
   // Each sub-class will have to implement this function to return their type
   virtual BWTreeNodeType GetTreeNodeType() const = 0;
 
@@ -809,7 +817,6 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
                                                       infinity) {
     size_ = 1;
     should_split_ = false;
-    // children_ = new std::pair<KeyType, LPID>();
   };
 
   IPage(BWTree<KeyType, ValueType, KeyComparator> *map,
@@ -863,6 +870,8 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_IPAGE; };
 
   std::string Debug(int depth, LPID self);
+
+  void BWTreeCheck();
 
   // get the index of the child at next level, which contains the given key
   int GetChild(KeyType key, std::pair<KeyType, LPID> *children, oid_t len);
@@ -986,6 +995,8 @@ class IPageSplitDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
 
   std::string Debug(int depth, LPID self);
 
+  void BWTreeCheck();
+
  private:
   // This key excluded in left child, included in the right child
   KeyType modified_key_;
@@ -1050,6 +1061,8 @@ class LPageSplitDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
       int max_index);
 
   std::string Debug(int depth, LPID self);
+
+  void BWTreeCheck();
 
   BWTreeNode<KeyType, ValueType, KeyComparator> *GetModifiedNode() {
     return this->modified_node;
@@ -1159,7 +1172,8 @@ class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
 
   std::string Debug(int depth, LPID self);
 
-  // Temporarily declare the setter here. bad style
+  void BWTreeCheck();
+
   inline void SetShouldSplit(bool should_split) {
     this->should_split_ = should_split;
   }
@@ -1281,6 +1295,8 @@ class IPageUpdateDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
 
   std::string Debug(int depth, LPID self);
 
+  void BWTreeCheck();
+
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_IPAGE; };
 
   BWTreeNode<KeyType, ValueType, KeyComparator> *GetModifiedNode() {
@@ -1359,6 +1375,8 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   void ScanKey(KeyType key, std::vector<ValueType> &result);
 
   std::string Debug(int depth, LPID self);
+
+  void BWTreeCheck();
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
       int max_index);

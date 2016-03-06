@@ -200,6 +200,8 @@ class Index {
 
   virtual void Debug() {}
 
+  virtual void BWTreeCheck() {}
+
  protected:
   Index(IndexMetadata *schema);
 

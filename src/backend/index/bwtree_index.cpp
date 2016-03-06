@@ -51,7 +51,8 @@ bool BWTreeIndex<KeyType, ValueType, KeyComparator,
   ValueType value(location);
   LOG_INFO("Inside BWTreeIndex InsertEntry");
   auto result = container.InsertEntry(index_key, value);
-  // container.Debug();
+  container.Debug();
+  container.BWTreeCheck();
   return result;
 }
 
@@ -157,6 +158,13 @@ template <typename KeyType, typename ValueType, class KeyComparator,
 void BWTreeIndex<KeyType, ValueType, KeyComparator,
                  KeyEqualityChecker>::Debug() {
   this->container.Debug();
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator,
+          class KeyEqualityChecker>
+void BWTreeIndex<KeyType, ValueType, KeyComparator,
+                 KeyEqualityChecker>::BWTreeCheck() {
+  this->container.BWTreeCheck();
 }
 
 // Explicit template instantiation

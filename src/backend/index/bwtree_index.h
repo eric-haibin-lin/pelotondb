@@ -66,6 +66,8 @@ class BWTreeIndex : public Index {
 
   void Debug();
 
+  void BWTreeCheck();
+
  protected:
   // container
   MapType container;
