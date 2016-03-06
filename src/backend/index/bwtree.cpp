@@ -937,41 +937,6 @@ bool IPageSplitDelta<KeyType, ValueType, KeyComparator>::AddINodeEntry(
   return status;
 }
 
-// template <typename KeyType, typename ValueType, class KeyComparator>
-// bool IPageSplitDelta<KeyType, ValueType,
-// KeyComparator>::AddINodeSplit(KeyType key, LPID value, int modified_index){
-//
-//
-//	 if (!this->split_completed_) {
-//		    LOG_INFO("Returning early because split in progress");
-//		    return false;
-//		  }
-//
-//		  BWTreeNode<KeyType, ValueType, KeyComparator> *old_child_node_hard_ptr
-//=
-//		      this->modified_node;
-//
-//		  if (old_child_node_hard_ptr->GetDeltaChainLen() + 1 >
-//		      IPAGE_DELTA_CHAIN_LIMIT) {
-//		    this->map->CompressDeltaChain(self, this, this);
-//		    return false;
-//		  }
-//
-//		  // This Delta must now be inserted BELOW this delta
-//		  IPageSplitDelta<KeyType, ValueType, KeyComparator> *new_delta =
-//		  		      new IPageSplitDelta<KeyType, ValueType, KeyComparator>(
-//		  		          this->map, this, key, value, modified_index,
-// this->GetRightMostKey(),
-//		  	              this->IsInifinity());
-//
-//		  bool status = __sync_bool_compare_and_swap(
-//		      &(this->modified_node), old_child_node_hard_ptr, new_delta);
-//		  if (!status) {
-//		    delete new_delta;
-//		  }
-//		  return status;
-//}
-
 template <typename KeyType, typename ValueType, class KeyComparator>
 NodeStateBuilder<KeyType, ValueType, KeyComparator> *
 IPageSplitDelta<KeyType, ValueType, KeyComparator>::BuildNodeState(
@@ -980,7 +945,10 @@ IPageSplitDelta<KeyType, ValueType, KeyComparator>::BuildNodeState(
   INodeStateBuilder<KeyType, ValueType, KeyComparator> *builder =
       reinterpret_cast<INodeStateBuilder<KeyType, ValueType, KeyComparator> *>(
           this->modified_node->BuildNodeState(modified_index_));
-
+  int index =
+      this->map->BinarySearch(modified_key_, builder->children_, builder->size);
+  assert(index > 0);
+  builder->size = index + 1;
   builder->SetInfinity(false);
   builder->SetRightMostKey(modified_key_);
   assert(builder != nullptr);
@@ -1422,6 +1390,8 @@ void IPageUpdateDelta<KeyType, ValueType, KeyComparator>::BWTreeCheck() {
 template <typename KeyType, typename ValueType, class KeyComparator>
 bool IPageUpdateDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
     KeyType key, ValueType location, LPID self, LPID parent) {
+  assert(this->GetDeltaChainLen() <= this->GetDeltaChainLimit());
+  LOG_INFO("Delta chain len: %d", this->GetDeltaChainLen());
   if (!this->infinity && this->map->CompareKey(key, this->right_most_key) > 0) {
     return false;
   }

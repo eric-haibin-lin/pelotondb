@@ -67,6 +67,9 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 class IPageUpdateDelta;
 
 template <typename KeyType, typename ValueType, class KeyComparator>
+class IPageSplitDelta;
+
+template <typename KeyType, typename ValueType, class KeyComparator>
 class LPage;
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -149,6 +152,7 @@ class INodeStateBuilder
     : public NodeStateBuilder<KeyType, ValueType, KeyComparator> {
   friend class IPage<KeyType, ValueType, KeyComparator>;
   friend class IPageUpdateDelta<KeyType, ValueType, KeyComparator>;
+  friend class IPageSplitDelta<KeyType, ValueType, KeyComparator>;
 
  private:
   // IPage children nodes
