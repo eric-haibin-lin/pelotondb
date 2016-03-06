@@ -51,8 +51,10 @@ bool BWTreeIndex<KeyType, ValueType, KeyComparator,
   ValueType value(location);
   LOG_INFO("Inside BWTreeIndex InsertEntry");
   auto result = container.InsertEntry(index_key, value);
-  container.Debug();
-  container.BWTreeCheck();
+  //
+  //	container.Debug();
+  //	container.BWTreeCheck();
+
   return result;
 }
 
