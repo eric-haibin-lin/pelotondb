@@ -1072,6 +1072,7 @@ void LPageSplitDelta<KeyType, ValueType, KeyComparator>::ScanKey(
     // Scan the modified node
     auto builder = this->BuildNodeState(-1);
     builder->ScanKey(key, result);
+    delete builder;
   }
 };
 

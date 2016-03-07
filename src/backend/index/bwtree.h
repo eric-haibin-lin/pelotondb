@@ -38,18 +38,18 @@ enum BWTreeNodeType {
   TYPE_OTHER = 2,
 };
 
-#define IPAGE_ARITY 256
-#define LPAGE_ARITY 256
+#define IPAGE_ARITY 1024
+#define LPAGE_ARITY 1024
 
-#define LPAGE_SPLIT_THRESHOLD 3
-#define IPAGE_SPLIT_THRESHOLD 3
+#define LPAGE_SPLIT_THRESHOLD 1000
+#define IPAGE_SPLIT_THRESHOLD 1000
 
 #define INVALID_LPID ULLONG_MAX
 
-#define LPAGE_DELTA_CHAIN_LIMIT 2
+#define LPAGE_DELTA_CHAIN_LIMIT 5
 #define IPAGE_DELTA_CHAIN_LIMIT 2
 
-#define EPOCH_PAGE_SIZE 5
+#define EPOCH_PAGE_SIZE 1024
 #define MAX_ACTIVE_EPOCHS 2
 #define EPOCH_LENGTH_MILLIS 1000
 #define TEMPLATE_TYPE KeyType, ValueType, KeyComparator
@@ -686,9 +686,7 @@ class BWTree {
                                                  new_node_ptr);
     // if we didn't failed to install we should clean up the page we created
     if (completed) {
-      // TODO add this back when other memory problems fixed
-
-      //      this->epoch_manager_.AddNodeToEpoch(old_node_ptr);
+      this->epoch_manager_.AddNodeToEpoch(old_node_ptr);
     } else {
       // if we failed we should clean up the new page
       delete new_node_ptr;
@@ -949,6 +947,9 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
              new_delta->GetDeltaChainLen());
     if (new_delta->GetDeltaChainLen() > this->GetDeltaChainLimit()) {
       status = this->map->CompressDeltaChain(my_lpid, this, new_delta);
+      if (status) {
+        delete new_delta;
+      }
     } else {
       status = this->map->GetMappingTable()->SwapNode(my_lpid, this, new_delta);
     }
