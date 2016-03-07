@@ -704,9 +704,10 @@ void IPage<KeyType, ValueType, KeyComparator>::BWTreeCheck() {
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator>
-bool IPage<typename KeyType, typename ValueType,
-           class KeyComparator>::DeleteEntry(KeyType key, ValueType location,
-                                             LPID self, LPID parent) {
+bool IPage<KeyType, ValueType, KeyComparator>::DeleteEntry(KeyType key,
+                                                           ValueType location,
+                                                           LPID self,
+                                                           LPID parent) {
   if (should_split_) {
     SplitNodes(self, parent);
     return false;
