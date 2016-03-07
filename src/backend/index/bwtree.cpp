@@ -704,6 +704,21 @@ void IPage<KeyType, ValueType, KeyComparator>::BWTreeCheck() {
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator>
+bool IPage<typename KeyType, typename ValueType,
+           class KeyComparator>::DeleteEntry(KeyType key, ValueType location,
+                                             LPID self, LPID parent) {
+  if (should_split_) {
+    SplitNodes(self, parent);
+    return false;
+  }
+  int child_index = GetChild(key, children_, size_);
+  LPID child_lpid = this->children_[child_index].second;
+  return this->map->GetMappingTable()
+      ->GetNode(child_lpid)
+      ->DeleteEntry(key, location, child_lpid, self);
+};
+
+template <typename KeyType, typename ValueType, class KeyComparator>
 // get the index of the child at next level, which contains the given key
 int IPage<KeyType, ValueType, KeyComparator>::GetChild(
     KeyType key, std::pair<KeyType, LPID> *children, oid_t len) {

@@ -855,17 +855,7 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   bool InsertEntry(KeyType key, ValueType location, LPID self, LPID parent);
 
-  bool DeleteEntry(KeyType key, ValueType location, LPID self, LPID parent) {
-    if (should_split_) {
-      SplitNodes(self, parent);
-      return false;
-    }
-    int child_index = GetChild(key, children_, size_);
-    LPID child_lpid = this->children_[child_index].second;
-    return this->map->GetMappingTable()
-        ->GetNode(child_lpid)
-        ->DeleteEntry(key, location, child_lpid, self);
-  };
+  bool DeleteEntry(KeyType key, ValueType location, LPID self, LPID parent);
 
   void Scan(const std::vector<Value> &values,
             const std::vector<oid_t> &key_column_ids,
