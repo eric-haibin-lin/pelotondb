@@ -49,9 +49,9 @@ enum BWTreeNodeType {
 #define LPAGE_DELTA_CHAIN_LIMIT 2
 #define IPAGE_DELTA_CHAIN_LIMIT 2
 
-#define EPOCH_PAGE_SIZE 256
+#define EPOCH_PAGE_SIZE 5
 #define MAX_ACTIVE_EPOCHS 2
-#define EPOCH_LENGTH_MILLIS 40
+#define EPOCH_LENGTH_MILLIS 1000
 #define TEMPLATE_TYPE KeyType, ValueType, KeyComparator
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -392,14 +392,13 @@ class EpochManager {
     for (int i = 0; i < MAX_ACTIVE_EPOCHS; i++) {
       first_pages_[i] = new EpochPage<KeyType, ValueType, KeyComparator>();
     }
-    //    pthread_create(&management_pthread_, nullptr, &epoch_management,
-    //    this);
+    pthread_create(&management_pthread_, nullptr, &epoch_management, this);
   }
 
   ~EpochManager() {
     destructor_called_ = true;
     LOG_INFO("set destructor called flag");
-    //    pthread_join(management_pthread_, nullptr);
+    pthread_join(management_pthread_, nullptr);
   }
 
   unsigned long GetCurrentEpoch() {
@@ -418,9 +417,12 @@ class EpochManager {
     auto curr_epoch = current_epoch_;
     auto write_pos = __sync_fetch_and_add(&epoch_size_[curr_epoch], 1);
     // find correct page
+    LOG_INFO("write_pos is %d", (int)write_pos);
+
     auto curr_page = first_pages_[curr_epoch];
-    for (int i = 0; i < (write_pos / EPOCH_PAGE_SIZE) + 1; i++) {
-      LOG_INFO("Epoch Page Full, getting child page");
+    for (int i = 0; i < (write_pos / EPOCH_PAGE_SIZE); i++) {
+      // LOG_INFO("Epoch Page Full, getting child page");
+      LOG_INFO("At page number: %d", (int)i);
       if (curr_page->next_page == nullptr) {
         EpochPage<KeyType, ValueType, KeyComparator> *new_page =
             new EpochPage<KeyType, ValueType, KeyComparator>();
@@ -431,7 +433,7 @@ class EpochManager {
       }
       curr_page = curr_page->next_page;
     }
-    curr_page->pointers[write_pos] = node_to_destroy;
+    curr_page->pointers[write_pos % EPOCH_PAGE_SIZE] = node_to_destroy;
   }
 
  private:
@@ -493,7 +495,7 @@ class EpochManager {
     }
     // we are exiting collect all garbage
     // we assume no threads are currently adding_stuff
-    LOG_INFO("Epoch Management Thread cleaing up remaining garbage");
+    LOG_INFO("Epoch Management Thread cleaning up remaining garbage");
     for (int i = 0; i < MAX_ACTIVE_EPOCHS; i++) {
       CollectGarbageForPage(manager->first_pages_[i]);
     }
@@ -556,7 +558,6 @@ class BWTree {
   };
 
   ~BWTree() { delete mapping_table_; }
-
   // get the index of the first occurrence of the given key
   template <typename PairSecond>
 
@@ -780,9 +781,7 @@ class BWTreeNode {
   // Each sub-class will have to implement this function to return their type
   virtual BWTreeNodeType GetTreeNodeType() const = 0;
 
-  virtual ~BWTreeNode(){
-
-  };
+  virtual ~BWTreeNode(){};
 
   inline int GetDeltaChainLen() {
     LOG_INFO("Got delta chain len %d", delta_chain_len_);
@@ -837,7 +836,9 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     should_split_ = size_ > IPAGE_SPLIT_THRESHOLD;
   };
 
-  ~IPage(){};
+  ~IPage(){
+      // LOG_INFO("Destroying an IPage");
+  };
 
   bool AddINodeEntry(LPID self, KeyType max_key_left_split_node,
                      KeyType max_key_right_split_node,
@@ -917,7 +918,10 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   void ScanKey(KeyType key, std::vector<ValueType> &result);
 
   virtual ~Delta() {
+    // LOG_INFO("Inside Delta Destructor");
     if (this->clean_up_children_) {
+      // LOG_INFO("Have to clean up children, passing along the delete below");
+      this->modified_node->SetCleanUpChildren();
       delete modified_node;
     }
   };
@@ -1308,7 +1312,9 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     }
   };
 
-  ~LPage(){};
+  ~LPage(){
+      // LOG_INFO("Destroying an LPage");
+  };
 
   bool InsertEntry(KeyType key, ValueType location, LPID self, LPID parent);
 

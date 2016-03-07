@@ -35,6 +35,7 @@ namespace test {
 
 catalog::Schema *key_schema = nullptr;
 catalog::Schema *tuple_schema = nullptr;
+index::IndexMetadata *metadata_ptr;
 
 ItemPointer item0(120, 5);
 ItemPointer item1(120, 7);
@@ -86,6 +87,7 @@ index::IndexMetadata *BuildIndexMetadata(INDEX_KEY_TYPE index_key_type) {
       "test_index", 125, index_type, INDEX_CONSTRAINT_TYPE_DEFAULT,
       tuple_schema, key_schema, unique_keys);
 
+  metadata_ptr = index_metadata;
   return index_metadata;
 }
 
@@ -195,9 +197,7 @@ void BasicTestHelper(INDEX_KEY_TYPE index_key_type) {
 //    BasicTestHelper(UNIQUE_KEY);
 //}
 //
-// TEST(IndexTests, BasicNonUniqueTest) {
-//    BasicTestHelper(NON_UNIQUE_KEY);
-//}
+TEST(IndexTests, BasicNonUniqueTest) { BasicTestHelper(NON_UNIQUE_KEY); }
 
 // INSERT HELPER FUNCTION
 // Loop based on scale factor
@@ -441,6 +441,163 @@ void DeleteTestHelper(INDEX_KEY_TYPE index_key_type) {
   //  }
   //
   delete tuple_schema;
+}
+
+TEST(IndexTests, EpochManagerTest) {
+  auto pool = TestingHarness::GetInstance().GetTestingPool();
+  auto map = BuildBWTree(NON_UNIQUE_KEY);
+
+  index::EpochManager<TestKeyType, TestValueType,
+                      TestComparatorType> *epoch_manager_ =
+      new index::EpochManager<TestKeyType, TestValueType, TestComparatorType>;
+
+  int curr_epoch = epoch_manager_->GetCurrentEpoch();
+  LOG_INFO("Current epoch is %d", (int)curr_epoch);
+  std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
+  std::unique_ptr<storage::Tuple> key1(new storage::Tuple(key_schema, true));
+  std::unique_ptr<storage::Tuple> key2(new storage::Tuple(key_schema, true));
+  std::unique_ptr<storage::Tuple> key3(new storage::Tuple(key_schema, true));
+  std::unique_ptr<storage::Tuple> key4(new storage::Tuple(key_schema, true));
+
+  key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+  key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
+  key1->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+  key1->SetValue(1, ValueFactory::GetStringValue("b"), pool);
+  key2->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+  key2->SetValue(1, ValueFactory::GetStringValue("c"), pool);
+  key3->SetValue(0, ValueFactory::GetIntegerValue(400), pool);
+  key3->SetValue(1, ValueFactory::GetStringValue("d"), pool);
+  key4->SetValue(0, ValueFactory::GetIntegerValue(500), pool);
+  key4->SetValue(1, ValueFactory::GetStringValue("e"), pool);
+
+  TestKeyType index_key0;
+  TestKeyType index_key1;
+  TestKeyType index_key2;
+  TestKeyType index_key3;
+  TestKeyType index_key4;
+
+  index_key0.SetFromKey(key0.get());
+  index_key1.SetFromKey(key1.get());
+  index_key2.SetFromKey(key2.get());
+  index_key3.SetFromKey(key3.get());
+  index_key4.SetFromKey(key4.get());
+
+  for (int i = 0; i < 100; i++) {
+    auto baseNode =
+        new index::LPage<TestKeyType, TestValueType, TestComparatorType>(
+            map, index_key4, true);
+
+    index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *prev =
+        baseNode;
+    prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                       TestComparatorType>(
+        map, prev, index_key0, item0, index_key4, true, INVALID_LPID);
+    prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                       TestComparatorType>(
+        map, prev, index_key1, item1, index_key4, true, INVALID_LPID);
+    prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                       TestComparatorType>(
+        map, prev, index_key1, item2, index_key4, true, INVALID_LPID);
+    prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                       TestComparatorType>(
+        map, prev, index_key1, item1, index_key4, true, INVALID_LPID);
+    prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                       TestComparatorType>(
+        map, prev, index_key1, item1, index_key4, true, INVALID_LPID);
+    prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                       TestComparatorType>(
+        map, prev, index_key1, item0, index_key4, true, INVALID_LPID);
+    prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                       TestComparatorType>(
+        map, prev, index_key2, item1, index_key4, true, INVALID_LPID);
+    prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                       TestComparatorType>(
+        map, prev, index_key3, item1, index_key4, true, INVALID_LPID);
+    prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                       TestComparatorType>(
+        map, prev, index_key4, item1, index_key4, true, INVALID_LPID);
+
+    epoch_manager_->AddNodeToEpoch(prev);
+  }
+
+  epoch_manager_->ReleaseEpoch(curr_epoch);
+
+  delete epoch_manager_;
+
+  LOG_INFO("Sleeping..");
+  std::this_thread::sleep_for(std::chrono::milliseconds(EPOCH_LENGTH_MILLIS));
+
+  LOG_INFO("Woke up.. Nodes should hopefully have been cleaned up");
+  //
+
+  delete map->GetMappingTable()->GetNode(0);
+  delete map->GetMappingTable()->GetNode(1);
+  delete metadata_ptr;
+
+  // delete key_schema;
+
+  delete tuple_schema;
+  delete map;
+
+  //	  LOG_INFO("Now Trying to test multiple epochs without deleting the
+  //epoch manager");
+
+  //	  delete map;
+
+  //	  epoch_manager_
+  //	  	  = new index::EpochManager<TestKeyType, TestValueType,
+  //TestComparatorType>;
+  //
+  //	  auto baseNode =
+  //			  new index::LPage<TestKeyType, TestValueType,
+  //TestComparatorType>(
+  //					  map, index_key4, true);
+  //
+  //	  index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType>
+  //*prev =
+  //			  baseNode;
+  //	  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+  //			  TestComparatorType>(
+  //					  map, prev, index_key0, item0, index_key4, true,
+  //INVALID_LPID);
+  //	  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+  //			  TestComparatorType>(
+  //					  map, prev, index_key1, item1, index_key4, true,
+  //INVALID_LPID);
+  //	  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+  //			  TestComparatorType>(
+  //					  map, prev, index_key1, item2, index_key4, true,
+  //INVALID_LPID);
+  //	  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+  //			  TestComparatorType>(
+  //					  map, prev, index_key1, item1, index_key4, true,
+  //INVALID_LPID);
+  //	  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+  //			  TestComparatorType>(
+  //					  map, prev, index_key1, item1, index_key4, true,
+  //INVALID_LPID);
+  //	  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+  //			  TestComparatorType>(
+  //					  map, prev, index_key1, item0, index_key4, true,
+  //INVALID_LPID);
+  //	  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+  //			  TestComparatorType>(
+  //					  map, prev, index_key2, item1, index_key4, true,
+  //INVALID_LPID);
+  //	  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+  //			  TestComparatorType>(
+  //					  map, prev, index_key3, item1, index_key4, true,
+  //INVALID_LPID);
+  //	  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
+  //			  TestComparatorType>(
+  //					  map, prev, index_key4, item1, index_key4, true,
+  //INVALID_LPID);
+  //
+  //	  LOG_INFO("Sleeping..");
+  //	 	  std::this_thread::sleep_for(
+  //	 	           std::chrono::milliseconds(EPOCH_LENGTH_MILLIS));
+  ////hopefully
+  //
 }
 
 // TEST(IndexTests, DeleteTest) {
@@ -768,6 +925,7 @@ TEST(IndexTests, SingleThreadedSplitTest) {
  * WHITE BOX TEST SPECIFIC TO BWTREE
  *===========================================================================*/
 
+/*
 TEST(IndexTests, BWTreeMappingTableTest) {
   // the values of the templates dont really matter;
   int size_to_test = 1025;
@@ -811,7 +969,7 @@ TEST(IndexTests, BWTreeMappingTableTest) {
   delete[] initial_nodes;
   delete[] swapped_nodes;
 }
-
+*/
 
 /*============================================================================
  * WHITE BOX TEST SPECIFIC TO BWTREE
@@ -1113,6 +1271,7 @@ TEST(IndexTests, BWTreeMappingTableTest) {
 //    IPageScanTestHelper(index_types[i]);
 //  }
 //}
+/*
 void BWTreeIPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
   auto pool = TestingHarness::GetInstance().GetTestingPool();
   auto map = BuildBWTree(index_key_type);
@@ -1499,12 +1658,13 @@ void BWTreeIPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
             4006);
   delete map;
 }
-
+*/
+/*
 TEST(IndexTests, BWTreeIPageDeltaConsilidationTest) {
   for (unsigned int i = 0; i < index_types.size(); i++) {
     BWTreeIPageDeltaConsilidationTestHelper(index_types[1]);
   }
-}
+}*/
 
 void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
   auto pool = TestingHarness::GetInstance().GetTestingPool();
@@ -1889,12 +2049,14 @@ void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
 
   delete map;
 }
+/*
 
 TEST(IndexTests, BWTreeLPageDeltaConsilidationTest) {
   for (unsigned int i = 0; i < index_types.size(); i++) {
     BWTreeLPageDeltaConsilidationTestHelper(index_types[i]);
   }
 }
+*/
 
 /*TEST(IndexTests, BWTreeLPageSplitTest) {
   auto pool = TestingHarness::GetInstance().GetTestingPool();
