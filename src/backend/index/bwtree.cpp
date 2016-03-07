@@ -666,41 +666,41 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 void IPage<KeyType, ValueType, KeyComparator>::BWTreeCheck() {
   LOG_INFO("IPage::BWTreeCheck");
 
-  for (oid_t i = 0; i < size_; i++) {
-    std::pair<KeyType, LPID> pair = this->children_[i];
-    KeyType key = pair.first;
-    // 1. check responsibility
-    if (i + 1 < size_) {
-      assert(this->map->KeyNotGreaterThan(key, this->right_most_key,
-                                          this->infinity));
-    }
-    // 2. check increasing
-    if (i + 2 < size_) {
-      assert(this->map->CompareKey(key, this->children_[i + 1].first) < 0);
-    }
-    // 3. check child's responsibility
-    LPID child_id = pair.second;
-    BWTreeNode<TEMPLATE_TYPE> *child =
-        this->map->GetMappingTable()->GetNode(child_id);
-    BWTreeNode<TEMPLATE_TYPE> *page = child->BuildNodeState(-1)->GetPage();
-    auto child_right_most_key = page->GetRightMostKey();
-    // auto child_inf = page->IsInifinity();
-    if (i < size_ - 1) {
-      assert(this->map->CompareKey(child_right_most_key, key) == 0);
-    } else {
-      assert(this->map->KeyNotGreaterThan(
-          child_right_most_key, this->right_most_key, this->infinity));
-    }
-  }
+  /* for (oid_t i = 0; i < size_; i++) {
+     std::pair<KeyType, LPID> pair = this->children_[i];
+     KeyType key = pair.first;
+     // 1. check responsibility
+     if (i + 1 < size_) {
+       assert(this->map->KeyNotGreaterThan(key, this->right_most_key,
+                                           this->infinity));
+     }
+     // 2. check increasing
+     if (i + 2 < size_) {
+       assert(this->map->CompareKey(key, this->children_[i + 1].first) < 0);
+     }
+     // 3. check child's responsibility
+     LPID child_id = pair.second;
+     BWTreeNode<TEMPLATE_TYPE> *child =
+         this->map->GetMappingTable()->GetNode(child_id);
+     BWTreeNode<TEMPLATE_TYPE> *page = child->BuildNodeState(-1)->GetPage();
+     auto child_right_most_key = page->GetRightMostKey();
+     // auto child_inf = page->IsInifinity();
+     if (i < size_ - 1) {
+       assert(this->map->CompareKey(child_right_most_key, key) == 0);
+     } else {
+       assert(this->map->KeyNotGreaterThan(
+           child_right_most_key, this->right_most_key, this->infinity));
+     }
+   }
 
-  for (oid_t i = 0; i < size_; i++) {
-    std::pair<KeyType, LPID> pair = this->children_[i];
-    // 4. check children
-    LPID child_id = pair.second;
-    BWTreeNode<TEMPLATE_TYPE> *child =
-        this->map->GetMappingTable()->GetNode(child_id);
-    child->BWTreeCheck();
-  }
+   for (oid_t i = 0; i < size_; i++) {
+     std::pair<KeyType, LPID> pair = this->children_[i];
+     // 4. check children
+     LPID child_id = pair.second;
+     BWTreeNode<TEMPLATE_TYPE> *child =
+         this->map->GetMappingTable()->GetNode(child_id);
+     child->BWTreeCheck();
+   }*/
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -1650,7 +1650,7 @@ std::string LPage<KeyType, ValueType, KeyComparator>::Debug(int depth,
 template <typename KeyType, typename ValueType, class KeyComparator>
 void LPage<KeyType, ValueType, KeyComparator>::BWTreeCheck() {
   LOG_INFO("LPage::BWTreeCheck");
-  for (oid_t i = 0; i < size_; i++) {
+  /*for (oid_t i = 0; i < size_; i++) {
     KeyType key = this->locations_[i].first;
     // 1. check responsibility
     if (i + 1 < size_) {
@@ -1661,7 +1661,7 @@ void LPage<KeyType, ValueType, KeyComparator>::BWTreeCheck() {
     if (i + 2 < size_) {
       assert(this->map->CompareKey(key, this->locations_[i + 1].first) <= 0);
     }
-  }
+  }*/
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator>
