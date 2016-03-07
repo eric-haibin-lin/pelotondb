@@ -758,7 +758,7 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
   if (swapSuccess == false) {
     LOG_INFO("This SwapNode attempt for split failed");
     delete splitDelta;
-    delete newIpage;
+    // delete newIpage;
     return;
   }
 
@@ -1809,7 +1809,7 @@ bool LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self,
   if (swapSuccess == false) {
     LOG_INFO("This SwapNode attempt for split failed");
     delete splitDelta;
-    delete newLpage;
+    // delete newLpage;
     // What should we do on failure? This means that someone else succeeded in
     // doing the
     // atomic half split. Now if try and install our own Insert / Delete /
