@@ -191,6 +191,8 @@ void BasicTestHelper(INDEX_KEY_TYPE index_key_type) {
   assert(locations.size() == 0);
 
   delete tuple_schema;
+
+  //  delete values;
 }
 
 // TEST(IndexTests, BasicUniqueTest) {
@@ -442,6 +444,7 @@ void DeleteTestHelper(INDEX_KEY_TYPE index_key_type) {
   //
   delete tuple_schema;
 }
+/*
 
 TEST(IndexTests, EpochManagerTest) {
   auto pool = TestingHarness::GetInstance().GetTestingPool();
@@ -554,7 +557,7 @@ TEST(IndexTests, EpochManagerTest) {
   //					  map, index_key4, true);
   //
   //	  index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType>
-  //*prev =
+  //      *prev =
   //			  baseNode;
   //	  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
   //			  TestComparatorType>(
@@ -599,6 +602,7 @@ TEST(IndexTests, EpochManagerTest) {
   ////hopefully
   //
 }
+*/
 
 // TEST(IndexTests, DeleteTest) {
 //  for (unsigned int i = 0; i < index_types.size(); i++) {
@@ -1665,7 +1669,7 @@ TEST(IndexTests, BWTreeIPageDeltaConsilidationTest) {
     BWTreeIPageDeltaConsilidationTestHelper(index_types[1]);
   }
 }*/
-
+/*
 void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
   auto pool = TestingHarness::GetInstance().GetTestingPool();
   auto map = BuildBWTree(index_key_type);
@@ -2048,7 +2052,7 @@ void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
   }
 
   delete map;
-}
+}*/
 /*
 
 TEST(IndexTests, BWTreeLPageDeltaConsilidationTest) {

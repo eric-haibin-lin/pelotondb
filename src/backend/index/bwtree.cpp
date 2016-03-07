@@ -684,7 +684,7 @@ void IPage<KeyType, ValueType, KeyComparator>::BWTreeCheck() {
         this->map->GetMappingTable()->GetNode(child_id);
     BWTreeNode<TEMPLATE_TYPE> *page = child->BuildNodeState(-1)->GetPage();
     auto child_right_most_key = page->GetRightMostKey();
-    auto child_inf = page->IsInifinity();
+    // auto child_inf = page->IsInifinity();
     if (i < size_ - 1) {
       assert(this->map->CompareKey(child_right_most_key, key) == 0);
     } else {

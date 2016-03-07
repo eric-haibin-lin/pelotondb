@@ -313,10 +313,20 @@ class MappingTable {
   MappingTable() {
     LOG_INFO("Constructing Mapping Table with initial capacity %d",
              mapping_table_cap_);
-    mapping_table_ =
-        new BWTreeNode<KeyType, ValueType, KeyComparator> *[mapping_table_cap_];
+    mapping_table_ = new BWTreeNode<KeyType, ValueType,
+                                    KeyComparator> *[mapping_table_cap_]();
   };
-  ~MappingTable() { delete[] mapping_table_; }
+
+  ~MappingTable() {
+    for (int i = 0; i < this->mapping_table_cap_; i++) {
+      if (mapping_table_[i] != nullptr) {
+        mapping_table_[i]->SetCleanUpChildren();
+        delete mapping_table_[i];
+      }
+    }
+    delete[] mapping_table_;
+  }
+
   LPID InstallPage(BWTreeNode<KeyType, ValueType, KeyComparator> *node) {
     LOG_INFO("Installing page in mapping table");
     LPID newLPID = __sync_fetch_and_add(&next_LPID_, 1);
@@ -335,7 +345,7 @@ class MappingTable {
                mapping_table_cap_, new_mapping_table_cap);
       auto new_mapping_table =
           new BWTreeNode<KeyType, ValueType,
-                         KeyComparator> *[new_mapping_table_cap];
+                         KeyComparator> *[new_mapping_table_cap]();
       memcpy(new_mapping_table, mapping_table_,
              mapping_table_cap_ *
                  sizeof(new BWTreeNode<KeyType, ValueType, KeyComparator> *));
