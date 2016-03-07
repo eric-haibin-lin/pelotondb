@@ -690,8 +690,6 @@ void IPage<KeyType, ValueType, KeyComparator>::BWTreeCheck() {
     } else {
       assert(this->map->KeyNotGreaterThan(
           child_right_most_key, this->right_most_key, this->infinity));
-      assert(this->map->KeyNotGreaterThan(this->right_most_key,
-                                          child_right_most_key, child_inf));
     }
   }
 
@@ -1316,26 +1314,28 @@ NodeStateBuilder<KeyType, ValueType, KeyComparator> *IPageUpdateDelta<
   assert(builder != nullptr);
   // delete delta
   if (is_delete_) {
-    if (right_node_is_infinity_) {
+    if (right_node_is_infinity_ ||
+        this->map->CompareKey(this->GetRightMostKey(),
+                              max_key_right_split_node_) == 0) {
       builder->RemoveLastChild();
     } else {
       builder->RemoveChild(max_key_right_split_node_);
     }
   } else {
     // insert delta
-    if (right_node_is_infinity_) {
+    if (right_node_is_infinity_ ||
+        this->map->CompareKey(this->GetRightMostKey(),
+                              max_key_right_split_node_) == 0) {
       builder->ReplaceLastChild(right_split_node_lpid_);
     } else {
       std::pair<KeyType, LPID> right_pair(max_key_right_split_node_,
                                           right_split_node_lpid_);
       builder->AddChild(right_pair);
     }
-    int index = this->map->BinarySearch(max_key_left_split_node_,
-                                        builder->children_, builder->size - 1);
-    if (index < 0 || builder->size - 1 == 0 ||
-        (index == 0 &&
-         this->map->CompareKey(builder->children_[0].first,
-                               max_key_left_split_node_))) {
+    if (this->map->CompareKey(this->GetRightMostKey(),
+                              max_key_left_split_node_) == 0) {
+      builder->ReplaceLastChild(right_split_node_lpid_);
+    } else {
       std::pair<KeyType, LPID> left_pair(max_key_left_split_node_,
                                          left_split_node_lpid_);
       builder->AddChild(left_pair);
