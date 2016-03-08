@@ -44,6 +44,9 @@ enum BWTreeNodeType {
 #define LPAGE_SPLIT_THRESHOLD 1000
 #define IPAGE_SPLIT_THRESHOLD 1000
 
+#define IPAGE_MERGE_THRESHOLD 7
+#define LPAGE_MERGE_THRESHOLD 7
+
 #define INVALID_LPID ULLONG_MAX
 
 #define LPAGE_DELTA_CHAIN_LIMIT 5
@@ -607,6 +610,11 @@ class BWTree {
 
   void BWTreeCheck();
 
+  bool Cleanup() {
+    GetMappingTable()->GetNode(root_)->Cleanup();
+    return true;
+  }
+
  public:
   // whether unique key is required
   bool unique_keys;
@@ -800,6 +808,10 @@ class BWTreeNode {
 
   inline KeyType GetRightMostKey() { return this->right_most_key; }
 
+  virtual bool Cleanup() { return true; }
+
+  oid_t GetSize() { return 0; }
+
  protected:
   // the handler to the mapping table
   BWTree<KeyType, ValueType, KeyComparator> *map;
@@ -882,6 +894,200 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   std::pair<KeyType, LPID> *GetChildren() { return children_; }
 
   void SplitNodes(LPID self, LPID parent);
+
+  bool Cleanup() {
+    int left_size, right_size;
+    BWTreeNode<KeyType, ValueType, KeyComparator> *left_node, *right_node;
+    LPage<KeyType, ValueType, KeyComparator> *left_lnode, *right_lnode;
+    IPage<KeyType, ValueType, KeyComparator> *left_inode, *right_inode;
+    LPID left_lpid, right_lpid;
+    int i;
+    LOG_INFO("Cleanup invoked");
+    std::pair<KeyType, LPID> new_children[IPAGE_ARITY];
+    int new_children_size = 0;
+    //
+    //    for (int i = 0; i < this->size_; i++) {
+    //      this->map->GetMappingTable()
+    //          ->GetNode(this->children_[i].second)
+    //          ->Cleanup();
+    //    }
+
+    if (size_ >= 2)  // merges possible
+    {
+      LOG_INFO("Merge possible, size_ = %d", (int)size_);
+      switch (this->map->GetMappingTable()
+                  ->GetNode(this->children_[0].second)
+                  ->GetTreeNodeType()) {
+        case TYPE_LPAGE:
+          LOG_INFO("Children are LPages");
+          for (i = 0; i < this->size_ - 1; i++) {
+            left_lpid = this->children_[i].second;
+            right_lpid = this->children_[i + 1].second;
+
+            LOG_INFO("Left lpid is %d, right lpid is %d", (int)left_lpid,
+                     (int)right_lpid);
+
+            left_node = this->map->GetMappingTable()->GetNode(left_lpid);
+            right_node = this->map->GetMappingTable()->GetNode(right_lpid);
+
+            left_lnode =
+                reinterpret_cast<LPage<KeyType, ValueType, KeyComparator> *>(
+                    left_node);
+            right_lnode =
+                reinterpret_cast<LPage<KeyType, ValueType, KeyComparator> *>(
+                    right_node);
+
+            left_size = left_lnode->GetSizeForCleanup();
+            right_size = right_lnode->GetSizeForCleanup();
+
+            LOG_INFO("Left Lnode size is %d", (int)left_size);
+            LOG_INFO("Right Lnode size is %d", (int)right_size);
+
+            if (left_size + right_size < LPAGE_MERGE_THRESHOLD) {
+              LOG_INFO("Can merge!");
+              LPage<KeyType, ValueType, KeyComparator> *new_merged_lpage =
+                  new LPage<KeyType, ValueType, KeyComparator>(
+                      this->map, right_lnode->GetRightMostKey(),
+                      right_lnode->IsInifinity());
+
+              std::vector<std::pair<KeyType, ValueType>> left_node_list;
+              std::vector<std::pair<KeyType, ValueType>> right_node_list;
+
+              left_lnode->GetLocationsList(left_node_list);
+              right_lnode->GetLocationsList(right_node_list);
+
+              int new_lpage_size = 0;
+              for (int index = 0; index < left_node_list.size(); index++)
+                new_merged_lpage->GetLocationsArray()[new_lpage_size++] =
+                    left_node_list[index];
+
+              for (int index = 0; index < right_node_list.size(); index++)
+                new_merged_lpage->GetLocationsArray()[new_lpage_size++] =
+                    right_node_list[index];
+
+              new_merged_lpage->SetSize(new_lpage_size);
+
+              // now set the right sibling of this newly created LPage
+              new_merged_lpage->SetRightSiblingLPID(
+                  right_lnode->GetRightMostSibling());
+
+              LOG_INFO("Size of new merged lpage is %d", (int)new_lpage_size);
+              LOG_INFO("It's right most sibling is %d",
+                       (int)new_merged_lpage->GetRightSiblingLPID());
+
+              new_children[new_children_size].first =
+                  right_lnode->GetRightMostKey();
+              new_children[new_children_size].second = left_lpid;
+              new_children_size++;
+
+              assert(this->map->GetMappingTable()->SwapNode(
+                  left_lpid, left_lnode, new_merged_lpage));
+              // TODO delete in chain, the two old lpages
+              // TODO reclaim right lpid!
+              i++;  // skip the merged node!
+
+            } else {
+              new_children[new_children_size].first =
+                  left_lnode->GetRightMostKey();
+              new_children[new_children_size].second = left_lpid;
+              new_children_size++;
+            }
+          }
+          break;
+
+        case TYPE_IPAGE:
+          LOG_INFO("Children are IPages");
+          for (i = 0; i < this->size_ - 1; i++) {
+            left_lpid = this->children_[i].second;
+            right_lpid = this->children_[i + 1].second;
+
+            LOG_INFO("Left lpid is %d", (int)left_lpid);
+            LOG_INFO("Right lpid is %d", (int)right_lpid);
+
+            left_node = this->map->GetMappingTable()->GetNode(left_lpid);
+
+            right_node = this->map->GetMappingTable()->GetNode(right_lpid);
+
+            left_inode =
+                reinterpret_cast<IPage<KeyType, ValueType, KeyComparator> *>(
+                    left_node);
+            right_inode =
+                reinterpret_cast<IPage<KeyType, ValueType, KeyComparator> *>(
+                    right_node);
+
+            left_size = left_inode->GetSize();
+            right_size = right_inode->GetSize();
+
+            LOG_INFO("Left size is %d", (int)left_size);
+            LOG_INFO("Right size is %d", (int)right_size);
+
+            if (left_size + right_size < IPAGE_MERGE_THRESHOLD) {
+              LOG_INFO("Can Merge!");
+              IPage<KeyType, ValueType, KeyComparator> *new_merged_ipage =
+                  new IPage<KeyType, ValueType, KeyComparator>(
+                      this->map, right_inode->GetRightMostKey(),
+                      right_inode->IsInifinity());
+
+              int new_ipage_size = 0;
+              for (int index = 0; index < left_inode->size_; index++)
+                new_merged_ipage->children_[new_ipage_size++] =
+                    left_inode->children_[index];
+
+              for (int index = 0; index < right_inode->size_; index++)
+                new_merged_ipage->children_[new_ipage_size++] =
+                    right_inode->children_[index];
+
+              new_merged_ipage->size_ = new_ipage_size;
+              LOG_INFO("New IPage size is %d", (int)new_merged_ipage->size_);
+
+              new_children[new_children_size].first =
+                  right_inode->GetRightMostKey();
+              new_children[new_children_size].second = left_lpid;
+              new_children_size++;
+              LOG_INFO("New children size is %d", (int)new_children_size);
+
+              assert(this->map->GetMappingTable()->SwapNode(
+                  left_lpid, left_inode, new_merged_ipage));
+
+              delete left_inode;
+              delete right_inode;
+              i++;  // skip the merged node!
+              // TODO mark the right_lpid as available!
+
+            } else {
+              new_children[new_children_size].first =
+                  left_inode->GetRightMostKey();
+              new_children[new_children_size].second = left_lpid;
+              new_children_size++;
+            }
+          }
+          break;
+
+        default:
+          LOG_INFO(
+              "Compression at some place has not been done! Can't merge. "
+              "Self-Destruct...");
+          assert(1 == 0);
+          break;
+      }
+      if (i == size_ - 1)
+        new_children[new_children_size++] = children_[size_ - 1];
+
+      LOG_INFO("All merges done! Size of new children array is %d",
+               (int)new_children_size);
+      for (int i = 0; i < new_children_size; i++) {
+        this->children_[i] = new_children[i];
+      }
+      this->size_ = new_children_size;
+    }
+
+    return true;
+  }
+
+  oid_t GetSize() {
+    LOG_INFO("Inside GetSize");
+    return this->size_;
+  }
 
  private:
   std::pair<KeyType, LPID> children_[IPAGE_ARITY];
@@ -1317,6 +1523,31 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
       // LOG_INFO("Destroying an LPage");
   };
 
+  void GetLocationsList(
+      std::vector<std::pair<KeyType, ValueType>> &children_list) {
+    for (int i = 0; i < size_; i++) {
+      children_list.push_back(locations_[i]);
+    }
+
+    LPID right_sibling_lpid = right_sib_;
+    BWTreeNode<KeyType, ValueType, KeyComparator> *next_node;
+    LPage<KeyType, ValueType, KeyComparator> *next_lpage;
+
+    while (right_sibling_lpid != INVALID_LPID) {
+      next_node = this->map->GetMappingTable()->GetNode(right_sibling_lpid);
+      next_lpage = reinterpret_cast<LPage<KeyType, ValueType, KeyComparator> *>(
+          next_node);
+
+      if (this->map->CompareKey(next_lpage->GetRightMostKey(),
+                                this->right_most_key) != 0)
+        break;
+      for (int i = 0; i < next_lpage->GetSize(); i++) {
+        children_list.push_back(next_lpage->locations_[i]);
+      }
+      right_sibling_lpid = next_lpage->right_sib_;
+    }
+  }
+
   bool InsertEntry(KeyType key, ValueType location, LPID self, LPID parent);
 
   bool DeleteEntry(KeyType key, ValueType location, LPID self, LPID parent);
@@ -1348,11 +1579,52 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   inline LPID GetRightSiblingLPID() { return right_sib_; }
 
+  void SetRightSiblingLPID(LPID new_right_sib) { right_sib_ = new_right_sib; }
+
   std::pair<KeyType, ValueType> *GetLocationsArray() { return locations_; }
 
   void SetSize(int size) { size_ = size; }
 
   int GetSize() { return size_; }
+
+  int GetSizeForCleanup() {
+    int total_size;
+    total_size = size_;
+    LPID right_sibling_lpid = right_sib_;
+
+    BWTreeNode<KeyType, ValueType, KeyComparator> *next_node;
+    LPage<KeyType, ValueType, KeyComparator> *next_lpage;
+
+    while (right_sibling_lpid != INVALID_LPID) {
+      next_node = this->map->GetMappingTable()->GetNode(right_sibling_lpid);
+      next_lpage = reinterpret_cast<LPage<KeyType, ValueType, KeyComparator> *>(
+          next_node);
+      if (this->map->CompareKey(next_lpage->GetRightMostKey(),
+                                this->right_most_key) != 0)
+        break;
+      total_size += next_lpage->GetSize();
+      right_sibling_lpid = next_lpage->right_sib_;
+    }
+    return total_size;
+  }
+
+  LPID GetRightMostSibling() {
+    LPID curr_right_sibling_lpid;
+    curr_right_sibling_lpid = right_sib_;
+    LPage<KeyType, ValueType, KeyComparator> *sibling;
+
+    while (curr_right_sibling_lpid != INVALID_LPID) {
+      sibling = reinterpret_cast<LPage<KeyType, ValueType, KeyComparator> *>(
+          this->map->GetMappingTable()->GetNode(curr_right_sibling_lpid));
+
+      if (this->map->CompareKey(this->right_most_key,
+                                sibling->right_most_key) == 0)
+        curr_right_sibling_lpid = sibling->right_sib_;
+      else
+        break;
+    }
+    return curr_right_sibling_lpid;
+  }
 
  private:
   // return a vector of indices of the matched slots
