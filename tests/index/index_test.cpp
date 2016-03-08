@@ -203,8 +203,14 @@ void BasicTestHelper(INDEX_KEY_TYPE index_key_type) {
   EXPECT_EQ(locations.size(), 0);
   assert(locations.size() == 0);
 
+  // Test the mem foot print
   footprint += sizeof(
       index::LPageUpdateDelta<TestKeyType, TestValueType, TestComparatorType>);
+  EXPECT_EQ(index->GetMemoryFootprint(), footprint);
+
+  index->Cleanup();
+  footprint -= 2 * sizeof(index::LPageUpdateDelta<TestKeyType, TestValueType,
+                                                  TestComparatorType>);
   EXPECT_EQ(index->GetMemoryFootprint(), footprint);
 
   delete tuple_schema;
@@ -296,10 +302,14 @@ void DeleteTestHelper(INDEX_KEY_TYPE index_key_type) {
 
   // INDEX
   std::unique_ptr<index::Index> index(BuildIndex(index_key_type));
+  size_t footprint_before_insert = index->GetMemoryFootprint();
 
   // Single threaded test
   size_t scale_factor = 200;
   LaunchParallelTest(1, InsertTest, index.get(), pool, scale_factor);
+
+  size_t footprint_after_insert = index->GetMemoryFootprint();
+  EXPECT_EQ(footprint_after_insert > footprint_before_insert, true);
 
   // Checks
   std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
@@ -313,13 +323,11 @@ void DeleteTestHelper(INDEX_KEY_TYPE index_key_type) {
   key2->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
   key2->SetValue(1, ValueFactory::GetStringValue("c"), pool);
 
-  index->Debug();
-
   // Test insert
   locations = index->ScanKey(key0.get());
   EXPECT_EQ(locations.size(), 1);
 
-  int key1_count = 9;
+  int key1_count = 5;
 
   locations = index->ScanKey(key1.get());
   if (index_key_type == NON_UNIQUE_KEY) {
@@ -372,96 +380,94 @@ void DeleteTestHelper(INDEX_KEY_TYPE index_key_type) {
   locations = index->Scan(values, key_column_ids, expr_types, direction);
   EXPECT_EQ(locations.size(), 1 * scale_factor);
 
-  index->Debug();
+  LaunchParallelTest(1, DeleteTest, index.get(), pool, scale_factor);
 
-  //  LaunchParallelTest(1, DeleteTest, index.get(), pool, scale_factor);
-  //
-  //  index->Debug();
-  //
-  //  locations = index->ScanKey(key0.get());
-  //  EXPECT_EQ(locations.size(), 0);
-  //
-  //  locations = index->ScanKey(key1.get());
-  //  if (index_key_type == NON_UNIQUE_KEY) {
-  //    EXPECT_EQ(locations.size(), 2);
-  //  } else if (index_key_type == UNIQUE_KEY && index_type ==
-  //  INDEX_TYPE_BWTREE) {
-  //    EXPECT_EQ(locations.size(), 1);
-  //  }
-  //
-  //  locations = index->ScanKey(key2.get());
-  //  EXPECT_EQ(locations.size(), 1);
-  //  EXPECT_EQ(locations[0].block, item1.block);
-  //
-  //  // setup values
-  //  values[0] = ValueFactory::GetIntegerValue(100);
-  //  values[1] = ValueFactory::GetStringValue("b");
-  //  // setup column id's
-  //  key_column_ids[0] = 0;
-  //  key_column_ids[1] = 1;
-  //  // setup expr's
-  //  expr_types[0] = EXPRESSION_TYPE_COMPARE_EQUAL;
-  //  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
-  //  locations = index->Scan(values, key_column_ids, expr_types, direction);
-  //  if (index_key_type == NON_UNIQUE_KEY) {
-  //    EXPECT_EQ(locations.size(), 2);
-  //  } else if (index_key_type == UNIQUE_KEY && index_type ==
-  //  INDEX_TYPE_BWTREE) {
-  //    EXPECT_EQ(locations.size(), 1);
-  //  }
-  //
-  //  // THIS TEST IS FOR BWTREE ONLY. Not implemented for btree
-  //  std::vector<ItemPointer> reverse_locations = index->Scan(
-  //      values, key_column_ids, expr_types, SCAN_DIRECTION_TYPE_BACKWARD);
-  //  if (index_key_type == NON_UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
-  //    EXPECT_EQ(locations.size(), 2);
-  //    EXPECT_EQ(locations[0].block, reverse_locations[1].block);
-  //    EXPECT_EQ(locations[0].offset, reverse_locations[1].offset);
-  //    EXPECT_EQ(locations[1].block, reverse_locations[0].block);
-  //    EXPECT_EQ(locations[1].offset, reverse_locations[0].offset);
-  //  } else if (index_key_type == UNIQUE_KEY && index_type ==
-  //  INDEX_TYPE_BWTREE) {
-  //    EXPECT_EQ(locations.size(), 1);
-  //  }
-  //
-  //  // setup values
-  //  values[0] = ValueFactory::GetIntegerValue(100);
-  //  values[1] = ValueFactory::GetStringValue("c");
-  //  // setup column id's
-  //  key_column_ids[0] = 0;
-  //  key_column_ids[1] = 1;
-  //  // setup expr's
-  //  expr_types[0] = EXPRESSION_TYPE_COMPARE_EQUAL;
-  //  expr_types[1] = EXPRESSION_TYPE_COMPARE_NOTEQUAL;
-  //  locations = index->Scan(values, key_column_ids, expr_types, direction);
-  //  if (index_key_type == NON_UNIQUE_KEY) {
-  //    EXPECT_EQ(locations.size(), 2);
-  //  } else if (index_key_type == UNIQUE_KEY && index_type ==
-  //  INDEX_TYPE_BWTREE) {
-  //    EXPECT_EQ(locations.size(), 1);
-  //  }
-  //
-  //  // setup values
-  //  values[0] = ValueFactory::GetIntegerValue(100);
-  //  values[1] = ValueFactory::GetStringValue("d");
-  //  // setup column id's
-  //  key_column_ids[0] = 0;
-  //  key_column_ids[1] = 1;
-  //  // setup expr's
-  //  expr_types[0] = EXPRESSION_TYPE_COMPARE_GREATERTHAN;
-  //  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
-  //  locations = index->Scan(values, key_column_ids, expr_types, direction);
-  //  if (index_key_type == NON_UNIQUE_KEY) {
-  //    EXPECT_EQ(locations.size(), 0);
-  //  } else if (index_key_type == UNIQUE_KEY && index_type ==
-  //  INDEX_TYPE_BWTREE) {
-  //    EXPECT_EQ(locations.size(), 0);
-  //  }
-  //
+  size_t footprint_after_delete = index->GetMemoryFootprint();
+  EXPECT_EQ(footprint_after_delete > footprint_after_insert, true);
+
+  locations = index->ScanKey(key0.get());
+  EXPECT_EQ(locations.size(), 0);
+
+  locations = index->ScanKey(key1.get());
+  if (index_key_type == NON_UNIQUE_KEY) {
+    EXPECT_EQ(locations.size(), 2);
+  } else if (index_key_type == UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
+    EXPECT_EQ(locations.size(), 1);
+  }
+
+  locations = index->ScanKey(key2.get());
+  EXPECT_EQ(locations.size(), 1);
+  EXPECT_EQ(locations[0].block, item1.block);
+
+  // setup values
+  values[0] = ValueFactory::GetIntegerValue(100);
+  values[1] = ValueFactory::GetStringValue("b");
+  // setup column id's
+  key_column_ids[0] = 0;
+  key_column_ids[1] = 1;
+  // setup expr's
+  expr_types[0] = EXPRESSION_TYPE_COMPARE_EQUAL;
+  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
+  locations = index->Scan(values, key_column_ids, expr_types, direction);
+  if (index_key_type == NON_UNIQUE_KEY) {
+    EXPECT_EQ(locations.size(), 2);
+  } else if (index_key_type == UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
+    EXPECT_EQ(locations.size(), 1);
+  }
+
+  // THIS TEST IS FOR BWTREE ONLY. Not implemented for btree
+  std::vector<ItemPointer> reverse_locations = index->Scan(
+      values, key_column_ids, expr_types, SCAN_DIRECTION_TYPE_BACKWARD);
+  if (index_key_type == NON_UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
+    EXPECT_EQ(locations.size(), 2);
+    EXPECT_EQ(locations[0].block, reverse_locations[1].block);
+    EXPECT_EQ(locations[0].offset, reverse_locations[1].offset);
+    EXPECT_EQ(locations[1].block, reverse_locations[0].block);
+    EXPECT_EQ(locations[1].offset, reverse_locations[0].offset);
+  } else if (index_key_type == UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
+    EXPECT_EQ(locations.size(), 1);
+  }
+
+  // setup values
+  values[0] = ValueFactory::GetIntegerValue(100);
+  values[1] = ValueFactory::GetStringValue("c");
+  // setup column id's
+  key_column_ids[0] = 0;
+  key_column_ids[1] = 1;
+  // setup expr's
+  expr_types[0] = EXPRESSION_TYPE_COMPARE_EQUAL;
+  expr_types[1] = EXPRESSION_TYPE_COMPARE_NOTEQUAL;
+  locations = index->Scan(values, key_column_ids, expr_types, direction);
+  if (index_key_type == NON_UNIQUE_KEY) {
+    EXPECT_EQ(locations.size(), 2);
+  } else if (index_key_type == UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
+    EXPECT_EQ(locations.size(), 1);
+  }
+
+  // setup values
+  values[0] = ValueFactory::GetIntegerValue(100);
+  values[1] = ValueFactory::GetStringValue("d");
+  // setup column id's
+  key_column_ids[0] = 0;
+  key_column_ids[1] = 1;
+  // setup expr's
+  expr_types[0] = EXPRESSION_TYPE_COMPARE_GREATERTHAN;
+  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
+  locations = index->Scan(values, key_column_ids, expr_types, direction);
+  if (index_key_type == NON_UNIQUE_KEY) {
+    EXPECT_EQ(locations.size(), 0);
+  } else if (index_key_type == UNIQUE_KEY && index_type == INDEX_TYPE_BWTREE) {
+    EXPECT_EQ(locations.size(), 0);
+  }
+
+  index->Cleanup();
+  size_t footprint_after_compress = index->GetMemoryFootprint();
+  EXPECT_EQ(footprint_after_delete > footprint_after_compress, true);
+
   delete tuple_schema;
 }
-/*
 
+/*
 TEST(IndexTests, EpochManagerTest) {
   auto pool = TestingHarness::GetInstance().GetTestingPool();
   auto map = BuildBWTree(NON_UNIQUE_KEY);
@@ -620,12 +626,11 @@ TEST(IndexTests, EpochManagerTest) {
 }
 */
 
-// TEST(IndexTests, DeleteTest) {
-//  for (unsigned int i = 0; i < index_types.size(); i++) {
-//  DeleteTestHelper(index_types[1]);
-//  }
-//}
+TEST(IndexTests, DeleteTest) {
+  DeleteTestHelper(index_types[1]);
+}
 
+/*
 TEST(IndexTests, MultiThreadedTest) {
   auto pool = TestingHarness::GetInstance().GetTestingPool();
   std::vector<ItemPointer> locations;
@@ -745,7 +750,7 @@ TEST(IndexTests, MultiThreadedTest) {
   EXPECT_EQ(locations.size(), 1 * num_threads * scale_factor);
 
   delete tuple_schema;
-}
+}*/
 
 /*
 TEST(IndexTests, SingleThreadedSplitTest) {

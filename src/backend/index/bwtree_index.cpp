@@ -158,6 +158,15 @@ std::string BWTreeIndex<KeyType, ValueType, KeyComparator,
 
 template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
+bool BWTreeIndex<KeyType, ValueType, KeyComparator,
+                 KeyEqualityChecker>::Cleanup() {
+  this->container.CompressAllPages();
+  // TODO also perform merge
+  return true;
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator,
+          class KeyEqualityChecker>
 size_t BWTreeIndex<KeyType, ValueType, KeyComparator,
                    KeyEqualityChecker>::GetMemoryFootprint() {
   return this->container.GetMemoryFootprint();

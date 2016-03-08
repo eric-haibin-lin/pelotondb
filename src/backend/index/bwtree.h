@@ -403,6 +403,8 @@ class MappingTable {
              sizeof(BWTreeNode<KeyType, ValueType, KeyComparator> *);
     return total;
   }
+
+  friend class BWTree<KeyType, ValueType, KeyComparator>;
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -638,6 +640,8 @@ class BWTree {
   void BWTreeCheck();
 
   size_t GetMemoryFootprint();
+
+  void CompressAllPages();
 
   LPID GetRootLPID() { return root_; }
 
