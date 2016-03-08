@@ -72,8 +72,8 @@ void INodeStateBuilder<KeyType, ValueType, KeyComparator>::RemoveChild(
   // if key found
   if ((index == 0 &&
        this->map->CompareKey(children_[0].first, key_to_remove) == 0) ||
-      (index < this->size && index > 0)) {
-    for (int i = index; i < this->size - 1; i++) {
+      (index < (long)this->size && index > 0)) {
+    for (int i = index; i < (long)this->size - 1; i++) {
       children_[i] = children_[i + 1];
     }
     // decrement size
@@ -166,7 +166,7 @@ void LNodeStateBuilder<KeyType, ValueType, KeyComparator>::RemoveLeafData(
   int found_exact_entry_count = 0;
   int dest = index;
   bool key_matches = true;
-  for (int src = index; src >= 0 && src < this->size; src++) {
+  for (int src = index; src >= 0 && src < (long)this->size; src++) {
     std::pair<KeyType, ValueType> pair = locations_[src];
     if (key_matches && this->map->CompareKey(key, pair.first) == 0) {
       if (ItemPointerEquals(pair.second, entry_to_remove.second)) {
@@ -351,7 +351,7 @@ void BWTree<KeyType, ValueType, KeyComparator>::CompressAllPages() {
   auto capacity = this->mapping_table_->mapping_table_cap_;
   BWTreeNode<KeyType, ValueType, KeyComparator> **table =
       this->mapping_table_->mapping_table_;
-  for (int i = 0; i < capacity; i++) {
+  for (int i = 0; i < (long)capacity; i++) {
     if (table[i] != nullptr) {
       Delta<KeyType, ValueType, KeyComparator> *delta =
           dynamic_cast<Delta<KeyType, ValueType, KeyComparator> *>(table[i]);
@@ -419,7 +419,7 @@ std::vector<oid_t> BWTree<KeyType, ValueType, KeyComparator>::ScanKeyInternal(
   }
 
   // try to collect all matching keys. If unique_keys, only one key matches
-  while (index < size) {
+  while (index < (long)size) {
     std::pair<KeyType, ValueType> location = (locations)[index];
     if (CompareKey(location.first, key) == 0) {
       // found a matching key
@@ -472,7 +472,7 @@ LPID BWTree<KeyType, ValueType, KeyComparator>::ScanHelper(
       index = -index;
     }
 
-    for (; index < size; index++) {
+    for (; index < (long)size; index++) {
       std::pair<KeyType, ValueType> pair = locations[index];
       KeyType key = pair.first;
       auto tuple = key.GetTupleForComparison(GetKeySchema());
@@ -488,14 +488,14 @@ LPID BWTree<KeyType, ValueType, KeyComparator>::ScanHelper(
       }
     }
     // reach the end of current LPage, go to next LPage for more results
-    if (index == size) {
+    if (index == (long)size) {
       return right_sibling;
     }
     return INVALID_LPID;
   }
 
   // no constraint for index_key equality check
-  for (; index < size; index++) {
+  for (; index < (long)size; index++) {
     std::pair<KeyType, ValueType> pair = locations[index];
     KeyType key = pair.first;
     auto tuple = key.GetTupleForComparison(GetKeySchema());
@@ -507,7 +507,7 @@ LPID BWTree<KeyType, ValueType, KeyComparator>::ScanHelper(
     }
   }
   // reach the end of current LPage, go to next LPage for more results
-  if (index == size) {
+  if (index == (long)size) {
     return right_sibling;
   }
   return INVALID_LPID;
@@ -667,7 +667,7 @@ bool IPage<KeyType, ValueType, KeyComparator>::InstallParentDelta(
   // LPID child_lpid = GetChild(key, children_, size_);
   auto child_key = children_[child_lpid_index].first;
   bool child_is_infinity =
-      (child_lpid_index == this->size_ - 1 && this->IsInifinity());
+      (child_lpid_index == (long)this->size_ - 1 && this->IsInifinity());
   LPID child_lpid = children_[child_lpid_index].second;
 
   bool key_match = (right_most_key_is_infinity && child_is_infinity) ||
@@ -765,7 +765,7 @@ std::string IPage<KeyType, ValueType, KeyComparator>::Debug(int depth,
     }
   }
   info += "\n";
-  for (int i = 0; i < size_; i++) {
+  for (int i = 0; i < (long)size_; i++) {
     LPID child_id = children_[i].second;
     BWTreeNode<KeyType, ValueType, KeyComparator> *child =
         this->map->GetMappingTable()->GetNode(child_id);
@@ -858,7 +858,7 @@ void IPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self) {
       new IPage<KeyType, ValueType, KeyComparator>(
           this->map, this->right_most_key, this->infinity);
 
-  for (int i = size_ / 2 + 1; i < size_; i++) {
+  for (int i = size_ / 2 + 1; i < (long)size_; i++) {
     newIpage->children_[newPageIndex++] = children_[i];
   }
 
@@ -1951,7 +1951,7 @@ bool LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self) {
       new LPage<KeyType, ValueType, KeyComparator>(
           this->map, this->right_most_key, this->infinity);
 
-  for (int i = size_ / 2 + 1; i < size_; i++) {
+  for (int i = size_ / 2 + 1; i < (long)size_; i++) {
     newLpage->locations_[newPageIndex++] = locations_[i];
   }
 
@@ -1971,7 +1971,7 @@ bool LPage<KeyType, ValueType, KeyComparator>::SplitNodes(LPID self) {
   //  assert(this->map->CompareKey(maxLeftSplitNodeKey, maxRightSplitNodeKey) !=
   //  1);
 
-  for (int i = 0; i <= size_ / 2; i++) {
+  for (int i = 0; i <= (long)size_ / 2; i++) {
     assert(this->map->CompareKey(locations_[i].first, maxLeftSplitNodeKey) <=
            0);
     //    assert(this->map->CompareKey(locations_[i].first,

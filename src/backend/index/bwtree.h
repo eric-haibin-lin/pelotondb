@@ -323,7 +323,7 @@ class MappingTable {
   };
 
   ~MappingTable() {
-    for (int i = 0; i < this->mapping_table_cap_; i++) {
+    for (int i = 0; i < (long)this->mapping_table_cap_; i++) {
       if (mapping_table_[i] != nullptr) {
         mapping_table_[i]->SetCleanUpChildren();
         delete mapping_table_[i];
@@ -393,7 +393,7 @@ class MappingTable {
   size_t GetMemoryFootprint() {
     LOG_INFO("MappingTable::GetMemoryFootprint");
     size_t total = 0;
-    for (int i = 0; i < this->mapping_table_cap_; i++) {
+    for (int i = 0; i < (long)this->mapping_table_cap_; i++) {
       if (mapping_table_[i] != nullptr) {
         total += mapping_table_[i]->GetMemoryFootprint();
       }
