@@ -120,10 +120,7 @@ class NodeStateBuilder {
                     __attribute__((unused))
                     const ScanDirectionType &scan_direction,
                     __attribute__((unused)) std::vector<ValueType> &result,
-                    __attribute__((unused)) const KeyType *index_key) {
-    LOG_WARN("NodeStateBuilder::Scan invoked, Failure may happen");
-    return INVALID_LPID;
-  };
+                    __attribute__((unused)) const KeyType *index_key) = 0;
 
   virtual LPID ScanAllKeys(std::vector<ValueType> &result) = 0;
 
@@ -191,7 +188,11 @@ class INodeStateBuilder
 
   void RemoveLastChild();
 
-  //  void SeparateFromKey(KeyType separator_key, LPID split_new_page_id);
+  LPID Scan(const std::vector<Value> &values,
+            const std::vector<oid_t> &key_column_ids,
+            const std::vector<ExpressionType> &expr_types,
+            const ScanDirectionType &scan_direction,
+            std::vector<ValueType> &result, const KeyType *index_key);
 
   LPID ScanAllKeys(std::vector<ValueType> &result);
 
@@ -591,14 +592,15 @@ class BWTree {
   };
 
   ~BWTree() { delete mapping_table_; }
+
+  int GetChild(KeyType key, std::pair<KeyType, LPID> *children, oid_t len);
+
   // get the index of the first occurrence of the given key
   template <typename PairSecond>
-
   // positive index indicates found, negative indicates not found. 0 could be
   // either case
-  int BinarySearch(KeyType key,
-
-                   std::pair<KeyType, PairSecond> *locations, oid_t len);
+  int BinarySearch(KeyType key, std::pair<KeyType, PairSecond> *locations,
+                   oid_t len);
 
   bool InsertEntry(KeyType key, ValueType location);
 
@@ -741,6 +743,14 @@ class BWTree {
                   const KeyType *index_key, std::vector<ValueType> &result,
                   std::pair<KeyType, ValueType> *locations, oid_t size,
                   LPID right_sibling);
+
+  LPID ScanHelper(const std::vector<Value> &values,
+                  const std::vector<oid_t> &key_column_ids,
+                  const std::vector<ExpressionType> &expr_types,
+                  __attribute__((unused))
+                  const ScanDirectionType &scan_direction,
+                  const KeyType *index_key, std::vector<ValueType> &result,
+                  std::pair<KeyType, LPID> *children, oid_t size);
 
   LPID ScanAllKeysHelper(oid_t size, std::pair<KeyType, ValueType> *locations,
                          oid_t right_sibling, std::vector<ValueType> &result);

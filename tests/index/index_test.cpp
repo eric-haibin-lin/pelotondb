@@ -626,128 +626,126 @@ TEST(IndexTests, EpochManagerTest) {
 //  }
 //}
 
-// TEST(IndexTests, MultiThreadedTest) {
-//  auto pool = TestingHarness::GetInstance().GetTestingPool();
-//  std::vector<ItemPointer> locations;
-//
-//  // INDEX
-//  std::unique_ptr<index::Index> index(BuildIndex(NON_UNIQUE_KEY));
-//
-//  // Parallel Test
-//  size_t num_threads = 1;
-//  size_t scale_factor = 10000;
-//  LaunchParallelTest(num_threads, InsertTest, index.get(), pool,
-//  scale_factor);
-//
-//  locations = index->ScanAllKeys();
-//  EXPECT_EQ(locations.size(), 9 * num_threads * scale_factor);
-//
-//  std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
-//  std::unique_ptr<storage::Tuple> keynonce(
-//      new storage::Tuple(key_schema, true));
-//  std::unique_ptr<storage::Tuple> key1(new storage::Tuple(key_schema, true));
-//  std::unique_ptr<storage::Tuple> key2(new storage::Tuple(key_schema, true));
-//
-//  keynonce->SetValue(0, ValueFactory::GetIntegerValue(1000), pool);
-//  keynonce->SetValue(1, ValueFactory::GetStringValue("f"), pool);
-//
-//  key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
-//  key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
-//  key1->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
-//  key1->SetValue(1, ValueFactory::GetStringValue("b"), pool);
-//  key2->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
-//  key2->SetValue(1, ValueFactory::GetStringValue("c"), pool);
-//
-//  locations = index->ScanKey(keynonce.get());
-//  EXPECT_EQ(locations.size(), 0);
-//
-//  locations = index->ScanKey(key1.get());
-//  EXPECT_EQ(locations.size(), 5 * num_threads);
-//  EXPECT_EQ(locations[0].block, item0.block);
-//
-//  // TEST SCAN
-//  std::vector<peloton::Value> values(2);
-//  std::vector<oid_t> key_column_ids(2);
-//  std::vector<ExpressionType> expr_types(2);
-//  ScanDirectionType direction = SCAN_DIRECTION_TYPE_FORWARD;
-//
-//  // setup values
-//  values[0] = ValueFactory::GetIntegerValue(100);
-//  values[1] = ValueFactory::GetStringValue("b");
-//  // setup column id's
-//  key_column_ids[0] = 0;
-//  key_column_ids[1] = 1;
-//  // setup expr's
-//  expr_types[0] = EXPRESSION_TYPE_COMPARE_EQUAL;
-//  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
-//  locations = index->Scan(values, key_column_ids, expr_types, direction);
-//  // assume non_unique_key
-//  EXPECT_EQ(locations.size(), 5 * num_threads);
-//
-//  // setup values
-//  values[0] = ValueFactory::GetIntegerValue(99);
-//  values[1] = ValueFactory::GetStringValue("d");
-//  // setup column id's
-//  key_column_ids[0] = 0;
-//  key_column_ids[1] = 1;
-//  // setup expr's
-//  expr_types[0] = EXPRESSION_TYPE_COMPARE_GREATERTHAN;
-//  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
-//  locations = index->Scan(values, key_column_ids, expr_types, direction);
-//  // assume non_unique_key
-//  EXPECT_EQ(locations.size(), 1 * num_threads * scale_factor);
-//
-//  // DELETE
-//  //  LaunchParallelTest(num_threads, DeleteTest, index.get(), pool,
-//  //  scale_factor);
-//  //
-//  //  locations = index->ScanKey(key0.get());
-//  //  EXPECT_EQ(locations.size(), 0);
-//  //
-//  //  locations = index->ScanKey(key1.get());
-//  //  EXPECT_EQ(locations.size(), 2 * num_threads);
-//  //
-//  //  locations = index->ScanKey(key2.get());
-//  //  EXPECT_EQ(locations.size(), 1 * num_threads);
-//  //
-//  //  // setup values
-//  //  values[0] = ValueFactory::GetIntegerValue(100);
-//  //  values[1] = ValueFactory::GetStringValue("b");
-//  //  // setup column id's
-//  //  key_column_ids[0] = 0;
-//  //  key_column_ids[1] = 1;
-//  //  // setup expr's
-//  //  expr_types[0] = EXPRESSION_TYPE_COMPARE_EQUAL;
-//  //  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
-//  //  locations = index->Scan(values, key_column_ids, expr_types, direction);
-//  //  EXPECT_EQ(locations.size(), 2 * num_threads);
-//  //
-//  //  // setup values
-//  //  values[0] = ValueFactory::GetIntegerValue(100);
-//  //  values[1] = ValueFactory::GetStringValue("c");
-//  //  // setup column id's
-//  //  key_column_ids[0] = 0;
-//  //  key_column_ids[1] = 1;
-//  //  // setup expr's
-//  //  expr_types[0] = EXPRESSION_TYPE_COMPARE_EQUAL;
-//  //  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
-//  //  locations = index->Scan(values, key_column_ids, expr_types, direction);
-//  //  EXPECT_EQ(locations.size(), 1 * num_threads);
-//  //
-//  //  // setup values
-//  //  values[0] = ValueFactory::GetIntegerValue(99);
-//  //  values[1] = ValueFactory::GetStringValue("c");
-//  //  // setup column id's
-//  //  key_column_ids[0] = 0;
-//  //  key_column_ids[1] = 1;
-//  //  // setup expr's
-//  //  expr_types[0] = EXPRESSION_TYPE_COMPARE_GREATERTHAN;
-//  //  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
-//  //  locations = index->Scan(values, key_column_ids, expr_types, direction);
-//  //  EXPECT_EQ(locations.size(), 1 * num_threads * scale_factor);
-//  //
-//  //  delete tuple_schema;
-//}
+TEST(IndexTests, MultiThreadedTest) {
+  auto pool = TestingHarness::GetInstance().GetTestingPool();
+  std::vector<ItemPointer> locations;
+
+  // INDEX
+  std::unique_ptr<index::Index> index(BuildIndex(NON_UNIQUE_KEY));
+
+  // Parallel Test
+  size_t num_threads = 1;
+  size_t scale_factor = 2048;
+  LaunchParallelTest(num_threads, InsertTest, index.get(), pool, scale_factor);
+
+  locations = index->ScanAllKeys();
+  EXPECT_EQ(locations.size(), 9 * num_threads * scale_factor);
+
+  std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
+  std::unique_ptr<storage::Tuple> keynonce(
+      new storage::Tuple(key_schema, true));
+  std::unique_ptr<storage::Tuple> key1(new storage::Tuple(key_schema, true));
+  std::unique_ptr<storage::Tuple> key2(new storage::Tuple(key_schema, true));
+
+  keynonce->SetValue(0, ValueFactory::GetIntegerValue(1000), pool);
+  keynonce->SetValue(1, ValueFactory::GetStringValue("f"), pool);
+
+  key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+  key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
+  key1->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+  key1->SetValue(1, ValueFactory::GetStringValue("b"), pool);
+  key2->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+  key2->SetValue(1, ValueFactory::GetStringValue("c"), pool);
+
+  locations = index->ScanKey(keynonce.get());
+  EXPECT_EQ(locations.size(), 0);
+
+  locations = index->ScanKey(key1.get());
+  EXPECT_EQ(locations.size(), 5 * num_threads);
+  EXPECT_EQ(locations[0].block, item0.block);
+
+  // TEST SCAN
+  std::vector<peloton::Value> values(2);
+  std::vector<oid_t> key_column_ids(2);
+  std::vector<ExpressionType> expr_types(2);
+  ScanDirectionType direction = SCAN_DIRECTION_TYPE_FORWARD;
+
+  // setup values
+  values[0] = ValueFactory::GetIntegerValue(100);
+  values[1] = ValueFactory::GetStringValue("b");
+  // setup column id's
+  key_column_ids[0] = 0;
+  key_column_ids[1] = 1;
+  // setup expr's
+  expr_types[0] = EXPRESSION_TYPE_COMPARE_EQUAL;
+  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
+  locations = index->Scan(values, key_column_ids, expr_types, direction);
+  // assume non_unique_key
+  EXPECT_EQ(locations.size(), 5 * num_threads);
+
+  // setup values
+  values[0] = ValueFactory::GetIntegerValue(99);
+  values[1] = ValueFactory::GetStringValue("d");
+  // setup column id's
+  key_column_ids[0] = 0;
+  key_column_ids[1] = 1;
+  // setup expr's
+  expr_types[0] = EXPRESSION_TYPE_COMPARE_GREATERTHAN;
+  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
+  locations = index->Scan(values, key_column_ids, expr_types, direction);
+  // assume non_unique_key
+  EXPECT_EQ(locations.size(), 1 * num_threads * scale_factor);
+
+  // DELETE
+  LaunchParallelTest(num_threads, DeleteTest, index.get(), pool, scale_factor);
+
+  locations = index->ScanKey(key0.get());
+  EXPECT_EQ(locations.size(), 0);
+
+  locations = index->ScanKey(key1.get());
+  EXPECT_EQ(locations.size(), 2 * num_threads);
+
+  locations = index->ScanKey(key2.get());
+  EXPECT_EQ(locations.size(), 1 * num_threads);
+
+  // setup values
+  values[0] = ValueFactory::GetIntegerValue(100);
+  values[1] = ValueFactory::GetStringValue("b");
+  // setup column id's
+  key_column_ids[0] = 0;
+  key_column_ids[1] = 1;
+  // setup expr's
+  expr_types[0] = EXPRESSION_TYPE_COMPARE_EQUAL;
+  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
+  locations = index->Scan(values, key_column_ids, expr_types, direction);
+  EXPECT_EQ(locations.size(), 2 * num_threads);
+
+  // setup values
+  values[0] = ValueFactory::GetIntegerValue(100);
+  values[1] = ValueFactory::GetStringValue("c");
+  // setup column id's
+  key_column_ids[0] = 0;
+  key_column_ids[1] = 1;
+  // setup expr's
+  expr_types[0] = EXPRESSION_TYPE_COMPARE_EQUAL;
+  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
+  locations = index->Scan(values, key_column_ids, expr_types, direction);
+  EXPECT_EQ(locations.size(), 1 * num_threads);
+
+  // setup values
+  values[0] = ValueFactory::GetIntegerValue(99);
+  values[1] = ValueFactory::GetStringValue("c");
+  // setup column id's
+  key_column_ids[0] = 0;
+  key_column_ids[1] = 1;
+  // setup expr's
+  expr_types[0] = EXPRESSION_TYPE_COMPARE_GREATERTHAN;
+  expr_types[1] = EXPRESSION_TYPE_COMPARE_EQUAL;
+  locations = index->Scan(values, key_column_ids, expr_types, direction);
+  EXPECT_EQ(locations.size(), 1 * num_threads * scale_factor);
+
+  delete tuple_schema;
+}
 
 /*
 TEST(IndexTests, SingleThreadedSplitTest) {
@@ -1420,30 +1418,24 @@ void BWTreeIPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
   std::vector<ItemPointer> locations;
   // Insert a bunch of keys based on scale itr
 
-  EXPECT_EQ(
-      baseNode->children_[baseNode->GetChild(index_key0, baseNode->children_,
-                                             baseNode->size_)].second,
-      2000);
-  EXPECT_EQ(
-      baseNode->children_[baseNode->GetChild(index_key1, baseNode->children_,
-                                             baseNode->size_)].second,
-      2000);
-  EXPECT_EQ(
-      baseNode->children_[baseNode->GetChild(index_key2, baseNode->children_,
-                                             baseNode->size_)].second,
-      2000);
-  EXPECT_EQ(
-      baseNode->children_[baseNode->GetChild(index_key3, baseNode->children_,
-                                             baseNode->size_)].second,
-      2000);
-  EXPECT_EQ(
-      baseNode->children_[baseNode->GetChild(index_key4, baseNode->children_,
-                                             baseNode->size_)].second,
-      2000);
-  EXPECT_EQ(
-      baseNode->children_[baseNode->GetChild(index_nonce, baseNode->children_,
-                                             baseNode->size_)].second,
-      2000);
+  EXPECT_EQ(baseNode->children_[map->GetChild(index_key0, baseNode->children_,
+                                              baseNode->size_)].second,
+            2000);
+  EXPECT_EQ(baseNode->children_[map->GetChild(index_key1, baseNode->children_,
+                                              baseNode->size_)].second,
+            2000);
+  EXPECT_EQ(baseNode->children_[map->GetChild(index_key2, baseNode->children_,
+                                              baseNode->size_)].second,
+            2000);
+  EXPECT_EQ(baseNode->children_[map->GetChild(index_key3, baseNode->children_,
+                                              baseNode->size_)].second,
+            2000);
+  EXPECT_EQ(baseNode->children_[map->GetChild(index_key4, baseNode->children_,
+                                              baseNode->size_)].second,
+            2000);
+  EXPECT_EQ(baseNode->children_[map->GetChild(index_nonce, baseNode->children_,
+                                              baseNode->size_)].second,
+            2000);
   // perform many inserts
   index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *prev =
       baseNode;
@@ -1472,46 +1464,46 @@ void BWTreeIPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
       index::IPage<TestKeyType, TestValueType, TestComparatorType> *>(
       map->GetMappingTable()->GetNode(lpid));
   EXPECT_EQ(newBaseNode->size_, 6);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key0, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2000);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key1, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2004);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key4, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2004);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key8, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2008);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key12, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2012);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key13, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2016);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key14, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2016);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key15, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2016);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key16, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2016);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_nonce, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2020);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key0, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2000);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key1, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2004);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key4, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2004);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key8, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2008);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key12, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2012);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key13, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2016);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key14, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2016);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key15, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2016);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key16, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2016);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_nonce, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2020);
   prev = newBaseNode;
   prev = new index::IPageUpdateDelta<TestKeyType, TestValueType,
                                      TestComparatorType>(
@@ -1533,70 +1525,70 @@ void BWTreeIPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
       index::IPage<TestKeyType, TestValueType, TestComparatorType> *>(
       map->GetMappingTable()->GetNode(lpid));
   EXPECT_EQ(newBaseNode->size_, 9);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key0, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2000);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key1, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2004);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key2, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2004);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key3, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            3000);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key4, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            3000);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key5, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2008);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key8, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2008);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key12, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2012);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key13, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2016);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key14, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2016);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key15, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2014);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key16, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2014);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key17, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2020);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key18, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2020);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key19, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2021);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_nonce, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2021);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key0, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2000);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key1, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2004);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key2, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2004);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key3, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      3000);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key4, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      3000);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key5, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2008);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key8, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2008);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key12, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2012);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key13, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2016);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key14, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2016);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key15, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2014);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key16, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2014);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key17, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2020);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key18, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2020);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key19, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2021);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_nonce, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2021);
   for (unsigned int i = 0; i < newBaseNode->size_; i++) {
     LOG_INFO("%s , %lu", map->ToString(newBaseNode->children_[i].first).c_str(),
              newBaseNode->children_[i].second);
@@ -1632,50 +1624,50 @@ void BWTreeIPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
   EXPECT_EQ(map->CompareKey(newBaseNode->GetRightMostKey(), index_key8), 0);
   EXPECT_FALSE(newBaseNode->IsInifinity());
 
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key0, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2000);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key1, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2004);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key2, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2004);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key3, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            3000);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key4, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            3000);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key5, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2008);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key6, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            2008);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key7, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            4006);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key8, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            4006);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_key9, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            4006);
-  EXPECT_EQ(newBaseNode->children_[baseNode->GetChild(
-                                       index_nonce, newBaseNode->children_,
-                                       newBaseNode->size_)].second,
-            4006);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key0, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2000);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key1, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2004);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key2, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2004);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key3, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      3000);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key4, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      3000);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key5, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2008);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key6, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      2008);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key7, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      4006);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key8, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      4006);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_key9, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      4006);
+  EXPECT_EQ(
+      newBaseNode->children_[map->GetChild(index_nonce, newBaseNode->children_,
+                                           newBaseNode->size_)].second,
+      4006);
 
   size_t prev_mem_footprint = map->GetMemoryFootprint();
   map->GetMappingTable()->RemovePage(lpid);
