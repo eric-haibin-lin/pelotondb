@@ -61,8 +61,7 @@ class BWTreeIndex : public Index {
   // TODO: Implement this
   bool Cleanup() { return true; }
 
-  // TODO: Implement this
-  size_t GetMemoryFootprint() { return 0; }
+  size_t GetMemoryFootprint();
 
   void Debug();
 

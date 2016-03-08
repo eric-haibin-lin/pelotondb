@@ -44,6 +44,7 @@ enum BWTreeNodeType {
 #define LPAGE_SPLIT_THRESHOLD 4
 #define IPAGE_SPLIT_THRESHOLD 4
 
+#define MAPPING_TABLE_INITIAL_CAP 128
 #define INVALID_LPID ULLONG_MAX
 
 #define LPAGE_DELTA_CHAIN_LIMIT 2
@@ -81,10 +82,6 @@ class EpochManager;
 //===--------------------------------------------------------------------===//
 // NodeStateBuilder
 //===--------------------------------------------------------------------===//
-// TODO add access methods for LNode scan
-// TODO add methods for use by split deltas, etc
-// TODO add constructors to LNode and INode to build node based on state
-// TODO add methods on each node to build the NodeState
 /**
  * Builder for a node state, to be used with Delta Compression and
  * scans on indexes with multiple keys
@@ -115,22 +112,23 @@ class NodeStateBuilder {
 
   virtual BWTreeNode<KeyType, ValueType, KeyComparator> *GetPage() = 0;
 
-  virtual void Scan(__attribute__((unused)) const std::vector<Value> &values,
+  virtual LPID Scan(__attribute__((unused)) const std::vector<Value> &values,
                     __attribute__((unused))
                     const std::vector<oid_t> &key_column_ids,
-
                     __attribute__((unused))
                     const std::vector<ExpressionType> &expr_types,
                     __attribute__((unused))
                     const ScanDirectionType &scan_direction,
                     __attribute__((unused)) std::vector<ValueType> &result,
-                    __attribute__((unused)) const KeyType *index_key){};
+                    __attribute__((unused)) const KeyType *index_key) = 0;
 
-  virtual void ScanAllKeys(std::vector<ValueType> &result) = 0;
+  virtual LPID ScanAllKeys(std::vector<ValueType> &result) = 0;
 
-  virtual void ScanKey(__attribute__((unused)) KeyType key,
-                       __attribute__((unused))
-                       std::vector<ValueType> &result){};
+  virtual LPID ScanKey(__attribute__((unused)) KeyType key,
+                       __attribute__((unused)) std::vector<ValueType> &result) {
+    LOG_WARN("NodeStateBuilder::ScanKey invoked, Failure may happen");
+    return INVALID_LPID;
+  };
 
   void SetInfinity(bool infinity) { this->infinity = infinity; }
 
@@ -190,9 +188,13 @@ class INodeStateBuilder
 
   void RemoveLastChild();
 
-  //  void SeparateFromKey(KeyType separator_key, LPID split_new_page_id);
+  LPID Scan(const std::vector<Value> &values,
+            const std::vector<oid_t> &key_column_ids,
+            const std::vector<ExpressionType> &expr_types,
+            const ScanDirectionType &scan_direction,
+            std::vector<ValueType> &result, const KeyType *index_key);
 
-  void ScanAllKeys(std::vector<ValueType> &result);
+  LPID ScanAllKeys(std::vector<ValueType> &result);
 
   friend class LPage<KeyType, ValueType, KeyComparator>;
 };
@@ -246,16 +248,16 @@ class LNodeStateBuilder
   /*
    * Methods for Scan
    */
-  void Scan(const std::vector<Value> &values,
+  LPID Scan(const std::vector<Value> &values,
             const std::vector<oid_t> &key_column_ids,
 
             const std::vector<ExpressionType> &expr_types,
             const ScanDirectionType &scan_direction,
             std::vector<ValueType> &result, const KeyType *index_key);
 
-  void ScanAllKeys(std::vector<ValueType> &result);
+  LPID ScanAllKeys(std::vector<ValueType> &result);
 
-  void ScanKey(KeyType key, std::vector<ValueType> &result);
+  LPID ScanKey(KeyType key, std::vector<ValueType> &result);
 
  private:
   bool ItemPointerEquals(ValueType v1, ValueType v2);
@@ -305,7 +307,7 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 class MappingTable {
  private:
   // the mapping table
-  unsigned int mapping_table_cap_ = 128;
+  unsigned int mapping_table_cap_ = MAPPING_TABLE_INITIAL_CAP;
   unsigned int mapping_table_size_ = 0;
 
   BWTreeNode<KeyType, ValueType, KeyComparator> **mapping_table_;
@@ -364,6 +366,11 @@ class MappingTable {
     return newLPID;
   }
 
+  void RemovePage(LPID id) {
+    delete mapping_table_[id];
+    mapping_table_[id] = nullptr;
+  }
+
   bool SwapNode(LPID id, BWTreeNode<KeyType, ValueType, KeyComparator> *oldNode,
                 BWTreeNode<KeyType, ValueType, KeyComparator> *newNode) {
     LOG_INFO("swapping node for LPID: %lu into mapping table", id);
@@ -381,6 +388,20 @@ class MappingTable {
     auto ret = mapping_table_[id];
     latch_.ReleaseRead();
     return ret;
+  }
+
+  size_t GetMemoryFootprint() {
+    LOG_INFO("MappingTable::GetMemoryFootprint");
+    size_t total = 0;
+    for (int i = 0; i < this->mapping_table_cap_; i++) {
+      if (mapping_table_[i] != nullptr) {
+        total += mapping_table_[i]->GetMemoryFootprint();
+      }
+    }
+    total += sizeof(MappingTable<KeyType, ValueType, KeyComparator>);
+    total += mapping_table_cap_ *
+             sizeof(BWTreeNode<KeyType, ValueType, KeyComparator> *);
+    return total;
   }
 };
 
@@ -571,14 +592,15 @@ class BWTree {
   };
 
   ~BWTree() { delete mapping_table_; }
+
+  int GetChild(KeyType key, std::pair<KeyType, LPID> *children, oid_t len);
+
   // get the index of the first occurrence of the given key
   template <typename PairSecond>
-
   // positive index indicates found, negative indicates not found. 0 could be
   // either case
-  int BinarySearch(KeyType key,
-
-                   std::pair<KeyType, PairSecond> *locations, oid_t len);
+  int BinarySearch(KeyType key, std::pair<KeyType, PairSecond> *locations,
+                   oid_t len);
 
   bool InsertEntry(KeyType key, ValueType location);
 
@@ -614,6 +636,8 @@ class BWTree {
   void Debug();
 
   void BWTreeCheck();
+
+  size_t GetMemoryFootprint();
 
   LPID GetRootLPID() { return root_; }
 
@@ -711,18 +735,27 @@ class BWTree {
                                      std::pair<KeyType, ValueType> *locations,
                                      oid_t size);
 
-  void ScanHelper(const std::vector<Value> &values,
+  LPID ScanHelper(const std::vector<Value> &values,
                   const std::vector<oid_t> &key_column_ids,
                   const std::vector<ExpressionType> &expr_types,
+                  __attribute__((unused))
                   const ScanDirectionType &scan_direction,
                   const KeyType *index_key, std::vector<ValueType> &result,
                   std::pair<KeyType, ValueType> *locations, oid_t size,
                   LPID right_sibling);
 
-  void ScanAllKeysHelper(oid_t size, std::pair<KeyType, ValueType> *locations,
+  LPID ScanHelper(const std::vector<Value> &values,
+                  const std::vector<oid_t> &key_column_ids,
+                  const std::vector<ExpressionType> &expr_types,
+                  __attribute__((unused))
+                  const ScanDirectionType &scan_direction,
+                  const KeyType *index_key, std::vector<ValueType> &result,
+                  std::pair<KeyType, LPID> *children, oid_t size);
+
+  LPID ScanAllKeysHelper(oid_t size, std::pair<KeyType, ValueType> *locations,
                          oid_t right_sibling, std::vector<ValueType> &result);
 
-  void ScanKeyHelper(KeyType key, oid_t size,
+  LPID ScanKeyHelper(KeyType key, oid_t size,
                      std::pair<KeyType, ValueType> *locations,
                      oid_t right_sibling, std::vector<ValueType> &result);
 
@@ -762,16 +795,16 @@ class BWTreeNode {
   //  virtual bool AddINodeSplit(KeyType key, LPID value, int
   //  modified_index){return false;};
 
-  virtual void Scan(const std::vector<Value> &values,
+  virtual LPID Scan(const std::vector<Value> &values,
                     const std::vector<oid_t> &key_column_ids,
                     const std::vector<ExpressionType> &expr_types,
                     const ScanDirectionType &scan_direction,
                     std::vector<ValueType> &result,
                     const KeyType *index_key) = 0;
 
-  virtual void ScanAllKeys(std::vector<ValueType> &result) = 0;
+  virtual LPID ScanAllKeys(std::vector<ValueType> &result) = 0;
 
-  virtual void ScanKey(KeyType key, std::vector<ValueType> &result) = 0;
+  virtual LPID ScanKey(KeyType key, std::vector<ValueType> &result) = 0;
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState() {
     return this->BuildNodeState(-1);
@@ -788,6 +821,8 @@ class BWTreeNode {
   }
 
   virtual void BWTreeCheck() = 0;
+
+  virtual size_t GetMemoryFootprint() = 0;
 
   // Each sub-class will have to implement this function to return their type
   virtual BWTreeNodeType GetTreeNodeType() const = 0;
@@ -885,15 +920,15 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   bool DeleteEntry(KeyType key, ValueType location, LPID self, bool);
 
-  void Scan(const std::vector<Value> &values,
+  LPID Scan(const std::vector<Value> &values,
             const std::vector<oid_t> &key_column_ids,
             const std::vector<ExpressionType> &expr_types,
             const ScanDirectionType &scan_direction,
             std::vector<ValueType> &result, const KeyType *index_key);
 
-  void ScanAllKeys(std::vector<ValueType> &result);
+  LPID ScanAllKeys(std::vector<ValueType> &result);
 
-  void ScanKey(KeyType key, std::vector<ValueType> &result);
+  LPID ScanKey(KeyType key, std::vector<ValueType> &result);
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
       int max_index);
@@ -908,6 +943,12 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   std::string Debug(int depth, LPID self);
 
   void BWTreeCheck();
+
+  size_t GetMemoryFootprint() {
+    LOG_INFO("IPage::GetMemoryFootprint");
+    auto size = sizeof(IPage<KeyType, ValueType, KeyComparator>);
+    return size;
+  }
 
   // get the index of the child at next level, which contains the given key
   int GetChild(KeyType key, std::pair<KeyType, LPID> *children, oid_t len);
@@ -941,15 +982,15 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     }
   };
 
-  void Scan(const std::vector<Value> &values,
+  LPID Scan(const std::vector<Value> &values,
             const std::vector<oid_t> &key_column_ids,
             const std::vector<ExpressionType> &expr_types,
             const ScanDirectionType &scan_direction,
             std::vector<ValueType> &result, const KeyType *index_key);
 
-  void ScanAllKeys(std::vector<ValueType> &result);
+  LPID ScanAllKeys(std::vector<ValueType> &result);
 
-  void ScanKey(KeyType key, std::vector<ValueType> &result);
+  LPID ScanKey(KeyType key, std::vector<ValueType> &result);
 
   void SetModifiedNode(
       BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node) {
@@ -1023,7 +1064,7 @@ class IPageSplitDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
 
   bool DeleteEntry(KeyType key, ValueType location, LPID self, bool);
 
-  void ScanKey(KeyType key, std::vector<ValueType> &result);
+  LPID ScanKey(KeyType key, std::vector<ValueType> &result);
 
   bool InstallParentDelta(
       LPID self, IPageUpdateDelta<KeyType, ValueType, KeyComparator> *delta,
@@ -1038,6 +1079,13 @@ class IPageSplitDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
   std::string Debug(int depth, LPID self);
 
   void BWTreeCheck();
+
+  size_t GetMemoryFootprint() {
+    LOG_INFO("IPageSplitDelta::GetMemoryFootprint");
+    size_t size = sizeof(IPageSplitDelta<KeyType, ValueType, KeyComparator>);
+    size += this->modified_node->GetMemoryFootprint();
+    return size;
+  }
 
  private:
   // This key excluded in left child, included in the right child
@@ -1103,7 +1151,7 @@ class LPageSplitDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
 
   bool DeleteEntry(KeyType key, ValueType location, LPID self, bool);
 
-  void ScanKey(KeyType key, std::vector<ValueType> &result);
+  LPID ScanKey(KeyType key, std::vector<ValueType> &result);
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
       int max_index);
@@ -1111,6 +1159,14 @@ class LPageSplitDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
   std::string Debug(int depth, LPID self);
 
   void BWTreeCheck();
+
+  size_t GetMemoryFootprint() {
+    LOG_INFO("LPageSplitDelta::GetMemoryFootprint");
+    size_t size = sizeof(LPageSplitDelta<KeyType, ValueType, KeyComparator>);
+    // calculate left page only
+    size += this->modified_node->GetMemoryFootprint();
+    return size;
+  }
 
   BWTreeNode<KeyType, ValueType, KeyComparator> *GetModifiedNode() {
     return this->modified_node;
@@ -1153,7 +1209,7 @@ class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
 
   bool DeleteEntry(KeyType key, ValueType location, LPID my_lpid, bool);
 
-  void ScanKey(KeyType key, std::vector<ValueType> &result);
+  LPID ScanKey(KeyType key, std::vector<ValueType> &result);
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
       int max_index);
@@ -1167,6 +1223,13 @@ class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
   std::string Debug(int depth, LPID self);
 
   void BWTreeCheck();
+
+  size_t GetMemoryFootprint() {
+    LOG_INFO("LPageUpdateDelta::GetMemoryFootprint");
+    size_t size = sizeof(LPageUpdateDelta<KeyType, ValueType, KeyComparator>);
+    size += this->modified_node->GetMemoryFootprint();
+    return size;
+  }
 
   inline void SetShouldSplit(bool should_split) {
     this->should_split_ = should_split;
@@ -1203,7 +1266,12 @@ class LPageRemoveDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
                    __attribute__((unused)) ValueType location, LPID my_lpid,
                    bool);
 
-  void ScanKey(KeyType key, std::vector<ValueType> &result);
+  LPID ScanKey(KeyType key, std::vector<ValueType> &result);
+
+  size_t GetMemoryFootprint() {
+    // assume we never call GetFootprint on Remove Delta
+    return 0;
+  }
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
       int max_index);
@@ -1232,7 +1300,12 @@ class LPageMergeDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
                    __attribute__((unused)) ValueType location, LPID my_lpid,
                    bool);
 
-  void ScanKey(KeyType key, std::vector<ValueType> &result);
+  LPID ScanKey(KeyType key, std::vector<ValueType> &result);
+
+  size_t GetMemoryFootprint() {
+    // assume we never call GetFootprint on Merge Delta
+    return 0;
+  }
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
       int max_index);
@@ -1279,7 +1352,7 @@ class IPageUpdateDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
 
   bool DeleteEntry(KeyType key, ValueType location, LPID self, bool);
 
-  void ScanKey(KeyType key, std::vector<ValueType> &result);
+  LPID ScanKey(KeyType key, std::vector<ValueType> &result);
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
       int max_index);
@@ -1287,6 +1360,13 @@ class IPageUpdateDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
   std::string Debug(int depth, LPID self);
 
   void BWTreeCheck();
+
+  size_t GetMemoryFootprint() {
+    LOG_INFO("IPageUpdateDelta::GetMemoryFootprint");
+    size_t size = sizeof(IPageUpdateDelta<KeyType, ValueType, KeyComparator>);
+    size += this->modified_node->GetMemoryFootprint();
+    return size;
+  }
 
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_IPAGE; };
 
@@ -1368,19 +1448,25 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   bool DeleteEntry(KeyType key, ValueType location, LPID self, bool);
 
-  void Scan(const std::vector<Value> &values,
+  LPID Scan(const std::vector<Value> &values,
             const std::vector<oid_t> &key_column_ids,
             const std::vector<ExpressionType> &expr_types,
             const ScanDirectionType &scan_direction,
             std::vector<ValueType> &result, const KeyType *index_key);
 
-  void ScanAllKeys(std::vector<ValueType> &result);
+  LPID ScanAllKeys(std::vector<ValueType> &result);
 
-  void ScanKey(KeyType key, std::vector<ValueType> &result);
+  LPID ScanKey(KeyType key, std::vector<ValueType> &result);
 
   std::string Debug(int depth, LPID self);
 
   void BWTreeCheck();
+
+  size_t GetMemoryFootprint() {
+    LOG_INFO("LPage::GetMemoryFootprint");
+    auto size = sizeof(LPage<KeyType, ValueType, KeyComparator>);
+    return size;
+  }
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
       int max_index);
