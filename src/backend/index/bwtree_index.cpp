@@ -81,7 +81,8 @@ BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Scan(
     const std::vector<Value> &values, const std::vector<oid_t> &key_column_ids,
     const std::vector<ExpressionType> &expr_types,
     const ScanDirectionType &scan_direction) {
-  std::cout << "Scan invoked, key_type: " << this->HasUniqueKeys() << std::endl;
+  std::cout << "Scan invoked, key_type: " << this->HasUniqueKeys()
+            << " Scan Direction " << scan_direction << std::endl;
   std::vector<ItemPointer> result;
   KeyType index_key;
   // Check if we have leading (leftmost) column equality
@@ -153,6 +154,22 @@ template <typename KeyType, typename ValueType, class KeyComparator,
 std::string BWTreeIndex<KeyType, ValueType, KeyComparator,
                         KeyEqualityChecker>::GetTypeName() const {
   return "BWTree";
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator,
+          class KeyEqualityChecker>
+bool BWTreeIndex<KeyType, ValueType, KeyComparator,
+                 KeyEqualityChecker>::Cleanup() {
+  this->container.CompressAllPages();
+  // TODO also perform merge
+  return true;
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator,
+          class KeyEqualityChecker>
+size_t BWTreeIndex<KeyType, ValueType, KeyComparator,
+                   KeyEqualityChecker>::GetMemoryFootprint() {
+  return this->container.GetMemoryFootprint();
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator,
