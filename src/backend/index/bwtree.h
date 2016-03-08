@@ -38,21 +38,21 @@ enum BWTreeNodeType {
   TYPE_OTHER = 2,
 };
 
-#define IPAGE_ARITY 256
-#define LPAGE_ARITY 256
+#define IPAGE_ARITY 1024
+#define LPAGE_ARITY 1024
 
-#define LPAGE_SPLIT_THRESHOLD 4
-#define IPAGE_SPLIT_THRESHOLD 4
+#define LPAGE_SPLIT_THRESHOLD 1000
+#define IPAGE_SPLIT_THRESHOLD 1000
 
 #define MAPPING_TABLE_INITIAL_CAP 128
 #define INVALID_LPID ULLONG_MAX
 
-#define LPAGE_DELTA_CHAIN_LIMIT 2
-#define IPAGE_DELTA_CHAIN_LIMIT 2
+#define LPAGE_DELTA_CHAIN_LIMIT 6
+#define IPAGE_DELTA_CHAIN_LIMIT 4
 
 #define EPOCH_PAGE_SIZE 1024
 #define MAX_ACTIVE_EPOCHS 2
-#define EPOCH_LENGTH_MILLIS 1000
+#define EPOCH_LENGTH_MILLIS 40
 #define TEMPLATE_TYPE KeyType, ValueType, KeyComparator
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -295,7 +295,7 @@ class ReadWriteLatch {
   }
   inline void ReleaseWrite() {
     LOG_INFO("Releasing write Lock");
-    assert(__sync_bool_compare_and_swap(&current_writers_, 1, 0));
+    __sync_bool_compare_and_swap(&current_writers_, 1, 0);
   }
 
  private:
