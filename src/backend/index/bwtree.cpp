@@ -345,6 +345,24 @@ size_t BWTree<KeyType, ValueType, KeyComparator>::GetMemoryFootprint() {
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator>
+void BWTree<KeyType, ValueType, KeyComparator>::CompressAllPages() {
+  LOG_INFO("BWTree::CompressAllPages");
+  auto capacity = this->mapping_table_->mapping_table_cap_;
+  BWTreeNode<KeyType, ValueType, KeyComparator> **table =
+      this->mapping_table_->mapping_table_;
+  for (int i = 0; i < capacity; i++) {
+    if (table[i] != nullptr) {
+      Delta<KeyType, ValueType, KeyComparator> *delta =
+          dynamic_cast<Delta<KeyType, ValueType, KeyComparator> *>(table[i]);
+      // test if the page is a delta
+      if (delta != nullptr) {
+        CompressDeltaChain(i, table[i], table[i]);
+      }
+    }
+  }
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator>
 template <typename PairSecond>
 int BWTree<KeyType, ValueType, KeyComparator>::BinarySearch(
     KeyType key, std::pair<KeyType, PairSecond> *locations, oid_t len) {

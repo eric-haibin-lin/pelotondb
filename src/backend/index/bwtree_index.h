@@ -58,8 +58,7 @@ class BWTreeIndex : public Index {
 
   std::string GetTypeName() const;
 
-  // TODO: Implement this
-  bool Cleanup() { return true; }
+  bool Cleanup();
 
   size_t GetMemoryFootprint();
 
