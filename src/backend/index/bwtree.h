@@ -757,7 +757,8 @@ class BWTree {
 
   LPID ScanKeyHelper(KeyType key, oid_t size,
                      std::pair<KeyType, ValueType> *locations,
-                     oid_t right_sibling, std::vector<ValueType> &result);
+                     oid_t right_sibling, std::vector<ValueType> &result,
+                     bool page_is_infinity, KeyType page_right_most_key);
 
  private:
   bool MatchLeadingColumn(const AbstractTuple &index_key,

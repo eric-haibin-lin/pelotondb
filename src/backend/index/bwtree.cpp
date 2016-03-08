@@ -241,7 +241,7 @@ LPID LNodeStateBuilder<KeyType, ValueType, KeyComparator>::ScanKey(
     KeyType key, std::vector<ValueType> &result) {
   LOG_INFO("LNodeStateBuilder::ScanKey, size: %lu", this->size);
   return this->map->ScanKeyHelper(key, this->size, locations_, right_sibling_,
-                                  result);
+                                  result, this->infinity, this->right_most_key);
 }
 //===--------------------------------------------------------------------===//
 // BWTree Methods
@@ -513,7 +513,8 @@ LPID BWTree<KeyType, ValueType, KeyComparator>::ScanAllKeysHelper(
 template <typename KeyType, typename ValueType, class KeyComparator>
 LPID BWTree<KeyType, ValueType, KeyComparator>::ScanKeyHelper(
     KeyType key, oid_t size, std::pair<KeyType, ValueType> *locations,
-    oid_t right_sibling, std::vector<ValueType> &result) {
+    oid_t right_sibling, std::vector<ValueType> &result, bool page_is_infinity,
+    KeyType page_right_most_key) {
   std::vector<oid_t> indices = ScanKeyInternal(key, locations, size);
   // we only need the values
   oid_t index;
@@ -523,7 +524,7 @@ LPID BWTree<KeyType, ValueType, KeyComparator>::ScanKeyHelper(
   }
   LOG_INFO("BWTree::ScanKeyHelper found %lu results", indices.size());
   // reach the end of current LPage, go to next LPage for more results
-  if (indices.size() > 0 && indices[indices.size() - 1] == size - 1) {
+  if (!page_is_infinity && CompareKey(key, page_right_most_key) <= 0) {
     LOG_INFO("BWTree::ScanKeyHelper go to the right sibling for more result");
     return right_sibling;
   }
@@ -1789,7 +1790,8 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 LPID LPage<KeyType, ValueType, KeyComparator>::ScanKey(
     KeyType key, std::vector<ValueType> &result) {
   LOG_INFO("LPage::ScanKey");
-  return this->map->ScanKeyHelper(key, size_, locations_, right_sib_, result);
+  return this->map->ScanKeyHelper(key, size_, locations_, right_sib_, result,
+                                  this->IsInifinity(), this->GetRightMostKey());
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
