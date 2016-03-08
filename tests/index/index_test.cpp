@@ -564,8 +564,8 @@ TEST(IndexTests, EpochManagerTest) {
   LOG_INFO("Woke up.. Nodes should hopefully have been cleaned up");
   //
 
-//  delete map->GetMappingTable()->GetNode(0);
-//  delete map->GetMappingTable()->GetNode(1);
+  //  delete map->GetMappingTable()->GetNode(0);
+  //  delete map->GetMappingTable()->GetNode(1);
   delete metadata_ptr;
 
   // delete key_schema;
@@ -574,17 +574,17 @@ TEST(IndexTests, EpochManagerTest) {
   delete map;
 
   //	  LOG_INFO("Now Trying to test multiple epochs without deleting the
-  //epoch manager");
+  // epoch manager");
 
   //	  delete map;
 
   //	  epoch_manager_
   //	  	  = new index::EpochManager<TestKeyType, TestValueType,
-  //TestComparatorType>;
+  // TestComparatorType>;
   //
   //	  auto baseNode =
   //			  new index::LPage<TestKeyType, TestValueType,
-  //TestComparatorType>(
+  // TestComparatorType>(
   //					  map, index_key4, true);
   //
   //	  index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType>
@@ -593,39 +593,39 @@ TEST(IndexTests, EpochManagerTest) {
   //	  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
   //			  TestComparatorType>(
   //					  map, prev, index_key0, item0, index_key4, true,
-  //INVALID_LPID);
+  // INVALID_LPID);
   //	  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
   //			  TestComparatorType>(
   //					  map, prev, index_key1, item1, index_key4, true,
-  //INVALID_LPID);
+  // INVALID_LPID);
   //	  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
   //			  TestComparatorType>(
   //					  map, prev, index_key1, item2, index_key4, true,
-  //INVALID_LPID);
+  // INVALID_LPID);
   //	  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
   //			  TestComparatorType>(
   //					  map, prev, index_key1, item1, index_key4, true,
-  //INVALID_LPID);
+  // INVALID_LPID);
   //	  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
   //			  TestComparatorType>(
   //					  map, prev, index_key1, item1, index_key4, true,
-  //INVALID_LPID);
+  // INVALID_LPID);
   //	  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
   //			  TestComparatorType>(
   //					  map, prev, index_key1, item0, index_key4, true,
-  //INVALID_LPID);
+  // INVALID_LPID);
   //	  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
   //			  TestComparatorType>(
   //					  map, prev, index_key2, item1, index_key4, true,
-  //INVALID_LPID);
+  // INVALID_LPID);
   //	  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
   //			  TestComparatorType>(
   //					  map, prev, index_key3, item1, index_key4, true,
-  //INVALID_LPID);
+  // INVALID_LPID);
   //	  prev = new index::LPageUpdateDelta<TestKeyType, TestValueType,
   //			  TestComparatorType>(
   //					  map, prev, index_key4, item1, index_key4, true,
-  //INVALID_LPID);
+  // INVALID_LPID);
   //
   //	  LOG_INFO("Sleeping..");
   //	 	  std::this_thread::sleep_for(
