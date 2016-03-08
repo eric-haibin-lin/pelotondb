@@ -475,7 +475,6 @@ void DeleteTestHelper(INDEX_KEY_TYPE index_key_type) {
   delete tuple_schema;
 }
 
-/*
 TEST(IndexTests, EpochManagerTest) {
   auto pool = TestingHarness::GetInstance().GetTestingPool();
   auto map = BuildBWTree(NON_UNIQUE_KEY);
@@ -563,8 +562,8 @@ TEST(IndexTests, EpochManagerTest) {
   LOG_INFO("Woke up.. Nodes should hopefully have been cleaned up");
   //
 
-  delete map->GetMappingTable()->GetNode(0);
-  delete map->GetMappingTable()->GetNode(1);
+//  delete map->GetMappingTable()->GetNode(0);
+//  delete map->GetMappingTable()->GetNode(1);
   delete metadata_ptr;
 
   // delete key_schema;
@@ -632,7 +631,7 @@ TEST(IndexTests, EpochManagerTest) {
   ////hopefully
   //
 }
-*/
+
 
 TEST(IndexTests, DeleteTest) { DeleteTestHelper(index_types[1]); }
 
