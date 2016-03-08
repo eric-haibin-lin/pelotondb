@@ -934,9 +934,13 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
         BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
         KeyType right_most_key, bool infinity)
       : BWTreeNode<KeyType, ValueType, KeyComparator>(
-            map, modified_node->GetDeltaChainLen() + 1, right_most_key,
+            map, 0, right_most_key,
             infinity),
-        modified_node(modified_node){};
+        modified_node(modified_node){
+	  if (this->modified_node != nullptr){
+		  this->delta_chain_len_ = modified_node->GetDeltaChainLen() + 1;
+	  }
+  };
 
   void Scan(const std::vector<Value> &values,
             const std::vector<oid_t> &key_column_ids,
@@ -951,6 +955,7 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   void SetModifiedNode(
       BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node) {
     this->modified_node = modified_node;
+    this->delta_chain_len_ = modified_node->GetDeltaChainLen()+1;
   }
 
   BWTreeNode<KeyType, ValueType, KeyComparator> *GetModifiedNode() {

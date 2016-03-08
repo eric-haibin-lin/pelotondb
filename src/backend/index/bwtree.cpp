@@ -593,7 +593,7 @@ bool IPage<KeyType, ValueType, KeyComparator>::InstallParentDelta(
   LOG_INFO("Got child_lpid_index as %d", child_lpid_index);
   // LPID child_lpid = GetChild(key, children_, size_);
   auto child_key = children_[child_lpid_index].first;
-  bool child_is_infinity = child_lpid_index == this->size_ - 1;
+  bool child_is_infinity = (child_lpid_index == this->size_ - 1 && this->IsInifinity());
   LPID child_lpid = children_[child_lpid_index].second;
 
   bool key_match = (right_most_key_is_infinity && child_is_infinity) ||
@@ -972,7 +972,7 @@ bool IPageSplitDelta<KeyType, ValueType, KeyComparator>::AddINodeEntry(
     LOG_INFO("Returning early because split in progress");
     return false;
   }
-
+  new_delta->SetModifiedNode(this->modified_node);
   new_delta->SetRightMostKey(this->GetRightMostKey());
   	new_delta->SetInfinity(this->IsInifinity());
   BWTreeNode<KeyType, ValueType, KeyComparator> *old_child_node_hard_ptr =
@@ -1491,7 +1491,7 @@ bool IPageUpdateDelta<KeyType, ValueType, KeyComparator>::InstallParentDelta(
     KeyType right_most_key, bool right_most_key_is_infinity, LPID search_lpid) {
   LOG_INFO("Delta chain len: %d", this->GetDeltaChainLen());
   if (!this->infinity &&
-      this->map->CompareKey(right_most_key, this->right_most_key) > 0) {
+      !right_most_key_is_infinity && this->map->CompareKey(right_most_key, this->right_most_key) > 0) {
     return false;
   }
   LOG_INFO("Inside IPageUpdateDelta InsertEntry");
@@ -1499,8 +1499,16 @@ bool IPageUpdateDelta<KeyType, ValueType, KeyComparator>::InstallParentDelta(
       this->map->CompareKey(right_most_key, max_key_left_split_node_) <=
           0)  // should go to the underlying Ipage
   {
+	  // TODO add check if equal to right key, if so, install here
+	  bool key_match =(!right_most_key_is_infinity &&
+	           this->map->CompareKey(max_key_left_split_node_, right_most_key) == 0);
+	      bool lpid_match = left_split_node_lpid_ == search_lpid;
+	      if (key_match && lpid_match){
+	    	  return delta->GetModifiedNode()->AddINodeEntry(self, delta);
+	      }else{
     return this->modified_node->InstallParentDelta(
         self, delta, right_most_key, right_most_key_is_infinity, search_lpid);
+	      }
   }
   if (right_node_is_infinity_ ||
       (!right_most_key_is_infinity &&
