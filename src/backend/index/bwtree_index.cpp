@@ -157,6 +157,13 @@ std::string BWTreeIndex<KeyType, ValueType, KeyComparator,
 
 template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
+size_t BWTreeIndex<KeyType, ValueType, KeyComparator,
+                   KeyEqualityChecker>::GetMemoryFootprint() {
+  return this->container.GetMemoryFootprint();
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator,
+          class KeyEqualityChecker>
 void BWTreeIndex<KeyType, ValueType, KeyComparator,
                  KeyEqualityChecker>::Debug() {
   this->container.Debug();

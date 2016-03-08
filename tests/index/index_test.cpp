@@ -28,10 +28,10 @@ namespace test {
 // Index Tests
 //===--------------------------------------------------------------------===//
 
-#define TestKeyType index::GenericKey<256>
+#define TestKeyType index::GenericKey<12>
 #define TestValueType ItemPointer
-#define TestComparatorType index::GenericComparator<256>
-#define TestEqualityChecker index::GenericEqualityChecker<256>
+#define TestComparatorType index::GenericComparator<12>
+#define TestEqualityChecker index::GenericEqualityChecker<12>
 
 catalog::Schema *key_schema = nullptr;
 catalog::Schema *tuple_schema = nullptr;
@@ -164,7 +164,13 @@ void BasicTestHelper(INDEX_KEY_TYPE index_key_type) {
   locations = index->Scan(values, key_column_ids, expr_types, direction);
   EXPECT_EQ(locations.size(), 0);
 
-  // index->Debug();
+  size_t footprint = 0;
+  footprint += sizeof(index::IPage<TestKeyType, TestValueType, TestComparatorType>);
+  footprint += sizeof(index::LPageUpdateDelta<TestKeyType, TestValueType, TestComparatorType>);
+  footprint += sizeof(index::LPage<TestKeyType, TestValueType, TestComparatorType>);
+  footprint += sizeof(index::MappingTable<TestKeyType, TestValueType, TestComparatorType>);
+  footprint += sizeof(index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *) * MAPPING_TABLE_INITIAL_CAP;
+  EXPECT_EQ(index->GetMemoryFootprint(), footprint);
 
   // DELETE
   index->DeleteEntry(key0.get(), item0);
@@ -189,6 +195,9 @@ void BasicTestHelper(INDEX_KEY_TYPE index_key_type) {
   locations = index->Scan(values, key_column_ids, expr_types, direction);
   EXPECT_EQ(locations.size(), 0);
   assert(locations.size() == 0);
+
+  footprint += sizeof(index::LPageUpdateDelta<TestKeyType, TestValueType, TestComparatorType>);
+  EXPECT_EQ(index->GetMemoryFootprint(), footprint);
 
   delete tuple_schema;
 
@@ -2053,14 +2062,13 @@ void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
 
   delete map;
 }*/
-/*
 
+/*
 TEST(IndexTests, BWTreeLPageDeltaConsilidationTest) {
   for (unsigned int i = 0; i < index_types.size(); i++) {
     BWTreeLPageDeltaConsilidationTestHelper(index_types[i]);
   }
-}
-*/
+}*/
 
 /*TEST(IndexTests, BWTreeLPageSplitTest) {
   auto pool = TestingHarness::GetInstance().GetTestingPool();
@@ -2185,5 +2193,9 @@ TEST(IndexTests, BWTreeLPageDeltaConsilidationTest) {
   delete map;
 }
 */
+
+
+
+
 }  // End test namespace
 }  // End peloton namespace

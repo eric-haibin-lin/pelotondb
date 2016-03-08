@@ -317,6 +317,11 @@ void BWTree<KeyType, ValueType, KeyComparator>::BWTreeCheck() {
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator>
+size_t BWTree<KeyType, ValueType, KeyComparator>::GetMemoryFootprint() {
+  return this->mapping_table_->GetMemoryFootprint();
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator>
 template <typename PairSecond>
 int BWTree<KeyType, ValueType, KeyComparator>::BinarySearch(
     KeyType key, std::pair<KeyType, PairSecond> *locations, oid_t len) {

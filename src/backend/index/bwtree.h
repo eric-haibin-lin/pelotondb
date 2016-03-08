@@ -44,6 +44,7 @@ enum BWTreeNodeType {
 #define LPAGE_SPLIT_THRESHOLD 1000
 #define IPAGE_SPLIT_THRESHOLD 1000
 
+#define MAPPING_TABLE_INITIAL_CAP 128
 #define INVALID_LPID ULLONG_MAX
 
 #define LPAGE_DELTA_CHAIN_LIMIT 5
@@ -78,10 +79,6 @@ class EpochManager;
 //===--------------------------------------------------------------------===//
 // NodeStateBuilder
 //===--------------------------------------------------------------------===//
-// TODO add access methods for LNode scan
-// TODO add methods for use by split deltas, etc
-// TODO add constructors to LNode and INode to build node based on state
-// TODO add methods on each node to build the NodeState
 /**
  * Builder for a node state, to be used with Delta Compression and
  * scans on indexes with multiple keys
@@ -302,7 +299,7 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 class MappingTable {
  private:
   // the mapping table
-  unsigned int mapping_table_cap_ = 128;
+  unsigned int mapping_table_cap_ = MAPPING_TABLE_INITIAL_CAP;
   unsigned int mapping_table_size_ = 0;
 
   BWTreeNode<KeyType, ValueType, KeyComparator> **mapping_table_;
@@ -361,6 +358,8 @@ class MappingTable {
     return newLPID;
   }
 
+  void RemovePage(LPID id) { mapping_table_[id] = nullptr; }
+
   bool SwapNode(LPID id, BWTreeNode<KeyType, ValueType, KeyComparator> *oldNode,
                 BWTreeNode<KeyType, ValueType, KeyComparator> *newNode) {
     LOG_INFO("swapping node for LPID: %lu into mapping table", id);
@@ -378,6 +377,20 @@ class MappingTable {
     auto ret = mapping_table_[id];
     latch_.ReleaseRead();
     return ret;
+  }
+
+  size_t GetMemoryFootprint() {
+    LOG_INFO("MappingTable::GetMemoryFootprint");
+    size_t total = 0;
+    for (int i = 0; i < this->mapping_table_cap_; i++) {
+      if (mapping_table_[i] != nullptr) {
+        total += mapping_table_[i]->GetMemoryFootprint();
+      }
+    }
+    total += sizeof(MappingTable<KeyType, ValueType, KeyComparator>);
+    total += mapping_table_cap_ *
+             sizeof(BWTreeNode<KeyType, ValueType, KeyComparator> *);
+    return total;
   }
 };
 
@@ -607,6 +620,8 @@ class BWTree {
 
   void BWTreeCheck();
 
+  size_t GetMemoryFootprint();
+
  public:
   // whether unique key is required
   bool unique_keys;
@@ -786,6 +801,8 @@ class BWTreeNode {
 
   virtual void BWTreeCheck() = 0;
 
+  virtual size_t GetMemoryFootprint() = 0;
+
   // Each sub-class will have to implement this function to return their type
   virtual BWTreeNodeType GetTreeNodeType() const = 0;
 
@@ -875,6 +892,12 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   std::string Debug(int depth, LPID self);
 
   void BWTreeCheck();
+
+  size_t GetMemoryFootprint() {
+    LOG_INFO("IPage::GetMemoryFootprint");
+    auto size = sizeof(IPage<KeyType, ValueType, KeyComparator>);
+    return size;
+  }
 
   // get the index of the child at next level, which contains the given key
   int GetChild(KeyType key, std::pair<KeyType, LPID> *children, oid_t len);
@@ -1006,6 +1029,13 @@ class IPageSplitDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
 
   void BWTreeCheck();
 
+  size_t GetMemoryFootprint() {
+    LOG_INFO("IPageSplitDelta::GetMemoryFootprint");
+    size_t size = sizeof(IPageSplitDelta<KeyType, ValueType, KeyComparator>);
+    size += this->modified_node->GetMemoryFootprint();
+    return size;
+  }
+
  private:
   // This key excluded in left child, included in the right child
   KeyType modified_key_;
@@ -1073,6 +1103,14 @@ class LPageSplitDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
 
   void BWTreeCheck();
 
+  size_t GetMemoryFootprint() {
+    LOG_INFO("LPageSplitDelta::GetMemoryFootprint");
+    size_t size = sizeof(LPageSplitDelta<KeyType, ValueType, KeyComparator>);
+    // calculate left page only
+    size += this->modified_node->GetMemoryFootprint();
+    return size;
+  }
+
   BWTreeNode<KeyType, ValueType, KeyComparator> *GetModifiedNode() {
     return this->modified_node;
   }
@@ -1129,6 +1167,13 @@ class LPageUpdateDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
 
   void BWTreeCheck();
 
+  size_t GetMemoryFootprint() {
+    LOG_INFO("LPageUpdateDelta::GetMemoryFootprint");
+    size_t size = sizeof(LPageUpdateDelta<KeyType, ValueType, KeyComparator>);
+    size += this->modified_node->GetMemoryFootprint();
+    return size;
+  }
+
   inline void SetShouldSplit(bool should_split) {
     this->should_split_ = should_split;
   }
@@ -1167,6 +1212,11 @@ class LPageRemoveDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
 
   void ScanKey(KeyType key, std::vector<ValueType> &result);
 
+  size_t GetMemoryFootprint() {
+    // assume we never call GetFootprint on Remove Delta
+    return 0;
+  }
+
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
       int max_index);
 
@@ -1196,6 +1246,11 @@ class LPageMergeDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
                    LPID parent);
 
   void ScanKey(KeyType key, std::vector<ValueType> &result);
+
+  size_t GetMemoryFootprint() {
+    // assume we never call GetFootprint on Merge Delta
+    return 0;
+  }
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
       int max_index);
@@ -1251,6 +1306,13 @@ class IPageUpdateDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
   std::string Debug(int depth, LPID self);
 
   void BWTreeCheck();
+
+  size_t GetMemoryFootprint() {
+    LOG_INFO("IPageUpdateDelta::GetMemoryFootprint");
+    size_t size = sizeof(IPageUpdateDelta<KeyType, ValueType, KeyComparator>);
+    size += this->modified_node->GetMemoryFootprint();
+    return size;
+  }
 
   inline BWTreeNodeType GetTreeNodeType() const { return TYPE_IPAGE; };
 
@@ -1334,6 +1396,12 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   std::string Debug(int depth, LPID self);
 
   void BWTreeCheck();
+
+  size_t GetMemoryFootprint() {
+    LOG_INFO("LPage::GetMemoryFootprint");
+    auto size = sizeof(LPage<KeyType, ValueType, KeyComparator>);
+    return size;
+  }
 
   NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
       int max_index);
