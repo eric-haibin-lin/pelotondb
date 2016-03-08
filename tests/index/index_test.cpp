@@ -165,11 +165,18 @@ void BasicTestHelper(INDEX_KEY_TYPE index_key_type) {
   EXPECT_EQ(locations.size(), 0);
 
   size_t footprint = 0;
-  footprint += sizeof(index::IPage<TestKeyType, TestValueType, TestComparatorType>);
-  footprint += sizeof(index::LPageUpdateDelta<TestKeyType, TestValueType, TestComparatorType>);
-  footprint += sizeof(index::LPage<TestKeyType, TestValueType, TestComparatorType>);
-  footprint += sizeof(index::MappingTable<TestKeyType, TestValueType, TestComparatorType>);
-  footprint += sizeof(index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *) * MAPPING_TABLE_INITIAL_CAP;
+  footprint +=
+      sizeof(index::IPage<TestKeyType, TestValueType, TestComparatorType>);
+  footprint += sizeof(
+      index::LPageUpdateDelta<TestKeyType, TestValueType, TestComparatorType>);
+  footprint +=
+      sizeof(index::LPage<TestKeyType, TestValueType, TestComparatorType>);
+  footprint += sizeof(
+      index::MappingTable<TestKeyType, TestValueType, TestComparatorType>);
+  footprint +=
+      sizeof(
+          index::BWTreeNode<TestKeyType, TestValueType, TestComparatorType> *) *
+      MAPPING_TABLE_INITIAL_CAP;
   EXPECT_EQ(index->GetMemoryFootprint(), footprint);
 
   // DELETE
@@ -196,11 +203,11 @@ void BasicTestHelper(INDEX_KEY_TYPE index_key_type) {
   EXPECT_EQ(locations.size(), 0);
   assert(locations.size() == 0);
 
-  footprint += sizeof(index::LPageUpdateDelta<TestKeyType, TestValueType, TestComparatorType>);
+  footprint += sizeof(
+      index::LPageUpdateDelta<TestKeyType, TestValueType, TestComparatorType>);
   EXPECT_EQ(index->GetMemoryFootprint(), footprint);
 
   delete tuple_schema;
-
   //  delete values;
 }
 
@@ -1284,7 +1291,7 @@ TEST(IndexTests, BWTreeMappingTableTest) {
 //    IPageScanTestHelper(index_types[i]);
 //  }
 //}
-/*
+
 void BWTreeIPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
   auto pool = TestingHarness::GetInstance().GetTestingPool();
   auto map = BuildBWTree(index_key_type);
@@ -1669,15 +1676,22 @@ void BWTreeIPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
                                        index_nonce, newBaseNode->children_,
                                        newBaseNode->size_)].second,
             4006);
+
+  size_t prev_mem_footprint = map->GetMemoryFootprint();
+  map->GetMappingTable()->RemovePage(lpid);
+  size_t current_mem_footprint = map->GetMemoryFootprint();
+  EXPECT_EQ(
+      prev_mem_footprint - current_mem_footprint,
+      sizeof(index::IPage<TestKeyType, TestValueType, TestComparatorType>));
+
   delete map;
 }
-*/
-/*
+
 TEST(IndexTests, BWTreeIPageDeltaConsilidationTest) {
   for (unsigned int i = 0; i < index_types.size(); i++) {
     BWTreeIPageDeltaConsilidationTestHelper(index_types[1]);
   }
-}*/
+}
 /*
 void BWTreeLPageDeltaConsilidationTestHelper(INDEX_KEY_TYPE index_key_type) {
   auto pool = TestingHarness::GetInstance().GetTestingPool();
@@ -2193,9 +2207,6 @@ TEST(IndexTests, BWTreeLPageDeltaConsilidationTest) {
   delete map;
 }
 */
-
-
-
 
 }  // End test namespace
 }  // End peloton namespace
