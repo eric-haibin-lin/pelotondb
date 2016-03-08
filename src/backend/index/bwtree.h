@@ -933,13 +933,12 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   Delta(BWTree<KeyType, ValueType, KeyComparator> *map,
         BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node,
         KeyType right_most_key, bool infinity)
-      : BWTreeNode<KeyType, ValueType, KeyComparator>(
-            map, 0, right_most_key,
-            infinity),
-        modified_node(modified_node){
-	  if (this->modified_node != nullptr){
-		  this->delta_chain_len_ = modified_node->GetDeltaChainLen() + 1;
-	  }
+      : BWTreeNode<KeyType, ValueType, KeyComparator>(map, 0, right_most_key,
+                                                      infinity),
+        modified_node(modified_node) {
+    if (this->modified_node != nullptr) {
+      this->delta_chain_len_ = modified_node->GetDeltaChainLen() + 1;
+    }
   };
 
   void Scan(const std::vector<Value> &values,
@@ -955,7 +954,7 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   void SetModifiedNode(
       BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node) {
     this->modified_node = modified_node;
-    this->delta_chain_len_ = modified_node->GetDeltaChainLen()+1;
+    this->delta_chain_len_ = modified_node->GetDeltaChainLen() + 1;
   }
 
   BWTreeNode<KeyType, ValueType, KeyComparator> *GetModifiedNode() {
@@ -1295,13 +1294,11 @@ class IPageUpdateDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
     return this->modified_node;
   }
 
-  void SetRightMostKey(KeyType right_most_key){
-	  this->right_most_key = right_most_key;
+  void SetRightMostKey(KeyType right_most_key) {
+    this->right_most_key = right_most_key;
   }
 
-  void SetInfinity(bool infinity){
-	  this->infinity = infinity;
-  }
+  void SetInfinity(bool infinity) { this->infinity = infinity; }
 
   bool InstallParentDelta(
       LPID self, IPageUpdateDelta<KeyType, ValueType, KeyComparator> *delta,
