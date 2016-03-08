@@ -179,6 +179,8 @@ void BasicTestHelper(INDEX_KEY_TYPE index_key_type) {
       MAPPING_TABLE_INITIAL_CAP;
   EXPECT_EQ(index->GetMemoryFootprint(), footprint);
 
+  index->BWTreeCheck();
+
   // DELETE
   index->DeleteEntry(key0.get(), item0);
 
@@ -207,11 +209,14 @@ void BasicTestHelper(INDEX_KEY_TYPE index_key_type) {
   footprint += sizeof(
       index::LPageUpdateDelta<TestKeyType, TestValueType, TestComparatorType>);
   EXPECT_EQ(index->GetMemoryFootprint(), footprint);
+  index->BWTreeCheck();
 
+  // Clean up
   index->Cleanup();
   footprint -= 2 * sizeof(index::LPageUpdateDelta<TestKeyType, TestValueType,
                                                   TestComparatorType>);
   EXPECT_EQ(index->GetMemoryFootprint(), footprint);
+  index->BWTreeCheck();
 
   delete tuple_schema;
   //  delete values;
@@ -308,6 +313,7 @@ void DeleteTestHelper(INDEX_KEY_TYPE index_key_type) {
   size_t scale_factor = 200;
   LaunchParallelTest(1, InsertTest, index.get(), pool, scale_factor);
 
+  index->BWTreeCheck();
   size_t footprint_after_insert = index->GetMemoryFootprint();
   EXPECT_EQ(footprint_after_insert > footprint_before_insert, true);
 
@@ -382,6 +388,7 @@ void DeleteTestHelper(INDEX_KEY_TYPE index_key_type) {
 
   LaunchParallelTest(1, DeleteTest, index.get(), pool, scale_factor);
 
+  index->BWTreeCheck();
   size_t footprint_after_delete = index->GetMemoryFootprint();
   EXPECT_EQ(footprint_after_delete > footprint_after_insert, true);
 
@@ -461,6 +468,7 @@ void DeleteTestHelper(INDEX_KEY_TYPE index_key_type) {
   }
 
   index->Cleanup();
+  index->BWTreeCheck();
   size_t footprint_after_compress = index->GetMemoryFootprint();
   EXPECT_EQ(footprint_after_delete > footprint_after_compress, true);
 
@@ -626,9 +634,7 @@ TEST(IndexTests, EpochManagerTest) {
 }
 */
 
-TEST(IndexTests, DeleteTest) {
-  DeleteTestHelper(index_types[1]);
-}
+TEST(IndexTests, DeleteTest) { DeleteTestHelper(index_types[1]); }
 
 /*
 TEST(IndexTests, MultiThreadedTest) {
