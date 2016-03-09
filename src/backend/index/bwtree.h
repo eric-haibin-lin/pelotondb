@@ -733,10 +733,10 @@ class BWTree {
   // perform cleanup to reduce memory footprint
   bool Cleanup() {
     auto epochnum = epoch_manager_.GetCurrentEpoch();
-//    std::cout << "Cleanup attempt 1:" << std::endl;
+    //    std::cout << "Cleanup attempt 1:" << std::endl;
     GetMappingTable()->GetNode(root_)->Cleanup();
 
-//    std::cout << "Cleanup attempt 2:" << std::endl;
+    //    std::cout << "Cleanup attempt 2:" << std::endl;
     GetMappingTable()->GetNode(root_)->Cleanup();
 
     // for now, do twice to handle if multiple adjacent nodes can be merged
