@@ -938,7 +938,6 @@ LPID Delta<KeyType, ValueType, KeyComparator>::ScanAllKeys(
   return next_page;
 };
 
-// TODO Remove this method. It should not be used
 template <typename KeyType, typename ValueType, class KeyComparator>
 LPID Delta<KeyType, ValueType, KeyComparator>::ScanKey(
     __attribute__((unused)) KeyType key,
@@ -956,7 +955,7 @@ LPID Delta<KeyType, ValueType, KeyComparator>::ScanKey(
 template <typename KeyType, typename ValueType, class KeyComparator>
 bool IPageSplitDelta<KeyType, ValueType, KeyComparator>::AddINodeEntry(
     LPID self, IPageUpdateDelta<KeyType, ValueType, KeyComparator> *new_delta) {
-  // TODO Is this flag useful??
+  // check if any split is not finished yet
   if (!this->split_completed_) {
     LOG_INFO("Returning early because split in progress");
     return false;
@@ -974,7 +973,6 @@ bool IPageSplitDelta<KeyType, ValueType, KeyComparator>::AddINodeEntry(
   }
 
   // This Delta must now be inserted BELOW this delta
-
   bool status = __sync_bool_compare_and_swap(
       &(this->modified_node), old_child_node_hard_ptr, new_delta);
   return status;
@@ -991,6 +989,7 @@ IPageSplitDelta<KeyType, ValueType, KeyComparator>::BuildNodeState(
   int index =
       this->map->BinarySearch(modified_key_, builder->children_, builder->size);
   assert(index > 0);
+  // split the IPage
   builder->size = index + 1;
   builder->SetInfinity(false);
   builder->SetRightMostKey(modified_key_);
@@ -1055,13 +1054,11 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 bool IPageSplitDelta<KeyType, ValueType, KeyComparator>::DeleteEntry(
     KeyType key, ValueType location, LPID self, bool) {
   // This function will just call delete entry on the appropriate child
-
   if (!this->infinity && this->map->CompareKey(key, this->right_most_key) > 0) {
     return false;
   }
-  if (this->map->CompareKey(key, modified_key_) >
-      0)  // this key is greater than split key
-  {
+  // this key is greater than split key
+  if (this->map->CompareKey(key, modified_key_) > 0) {
     return this->map->GetMappingTable()
         ->GetNode(modified_val_)
         ->DeleteEntry(key, location, modified_val_);
@@ -1077,9 +1074,8 @@ bool IPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
     return false;
   }
   // This function will just call delete entry on the appropriate child
-  if (this->map->CompareKey(key, modified_key_) >
-      0)  // this key is greater than split key
-  {
+  // this key is greater than split key
+  if (this->map->CompareKey(key, modified_key_) > 0) {
     return this->map->GetMappingTable()
         ->GetNode(modified_val_)
         ->InsertEntry(key, location, modified_val_);
@@ -1092,15 +1088,14 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 bool IPageSplitDelta<KeyType, ValueType, KeyComparator>::InstallParentDelta(
     LPID self, IPageUpdateDelta<KeyType, ValueType, KeyComparator> *delta,
     KeyType right_most_key, bool right_most_key_is_infinity, LPID search_lpid) {
+  // check the responsibility
   if (!this->infinity && !right_most_key_is_infinity &&
       this->map->CompareKey(right_most_key, this->right_most_key) > 0) {
     return false;
   }
   // This function will just call delete entry on the appropriate child
   if (right_most_key_is_infinity ||
-      this->map->CompareKey(right_most_key, modified_key_) >
-          0)  // this key is greater than split key
-  {
+      this->map->CompareKey(right_most_key, modified_key_) > 0) {
     auto right_node = this->map->GetMappingTable()->GetNode(modified_val_);
     delta->SetModifiedNode(right_node);
     return right_node->InstallParentDelta(modified_val_, delta, right_most_key,
@@ -1111,7 +1106,6 @@ bool IPageSplitDelta<KeyType, ValueType, KeyComparator>::InstallParentDelta(
   return this->modified_node->InstallParentDelta(
       self, delta, right_most_key, right_most_key_is_infinity, search_lpid);
 }
-
 //===--------------------------------------------------------------------===//
 // IPageSplitDelta Methods End
 //===--------------------------------------------------------------------===//

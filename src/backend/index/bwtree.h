@@ -1297,7 +1297,7 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 };
 
 //===--------------------------------------------------------------------===//
-// Delta
+// Delta is the abstract class for all deltas.
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
 class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
@@ -1323,6 +1323,7 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   LPID ScanKey(KeyType key, std::vector<ValueType> &result);
 
+  // set the linked modified node and increment the chain length
   void SetModifiedNode(
       BWTreeNode<KeyType, ValueType, KeyComparator> *modified_node) {
     this->modified_node = modified_node;
@@ -1333,9 +1334,9 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     return this->modified_node;
   }
   virtual ~Delta() {
-    // LOG_INFO("Inside Delta Destructor");
+    LOG_TRACE("Inside Delta Destructor");
     if (this->clean_up_children_) {
-      // LOG_INFO("Have to clean up children, passing along the delete below");
+      LOG_TRACE("Have to clean up children, passing along the delete below");
       this->modified_node->SetCleanUpChildren();
       delete modified_node;
     }
@@ -1354,7 +1355,7 @@ class Delta : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 };
 
 //===--------------------------------------------------------------------===//
-// IPageDelta
+// IPageDelta is the abstract class of all delta's on IPages
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
 class IPageDelta : public Delta<KeyType, ValueType, KeyComparator> {
@@ -1371,7 +1372,7 @@ class IPageDelta : public Delta<KeyType, ValueType, KeyComparator> {
 };
 
 //===--------------------------------------------------------------------===//
-// IPageSplitDelta
+// IPageSplitDelta stores the information of split on an IPage
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
 class IPageSplitDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
@@ -1424,6 +1425,7 @@ class IPageSplitDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
 
   // The LPID of the new LPage
   LPID modified_val_;
+
   // index of last key in the left child;
   int modified_index_;
 
