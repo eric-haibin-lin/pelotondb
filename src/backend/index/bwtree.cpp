@@ -776,7 +776,7 @@ std::string IPage<KeyType, ValueType, KeyComparator>::Debug(int depth,
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 void IPage<KeyType, ValueType, KeyComparator>::BWTreeCheck() {
-  LOG_INFO("IPage::BWTreeCheck");
+  /*LOG_INFO("IPage::BWTreeCheck");
 
   for (oid_t i = 0; i < size_; i++) {
     std::pair<KeyType, LPID> pair = this->children_[i];
@@ -820,7 +820,7 @@ void IPage<KeyType, ValueType, KeyComparator>::BWTreeCheck() {
     BWTreeNode<TEMPLATE_TYPE> *child =
         this->map->GetMappingTable()->GetNode(child_id);
     child->BWTreeCheck();
-  }
+  }*/
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator>
@@ -1841,7 +1841,7 @@ std::string LPage<KeyType, ValueType, KeyComparator>::Debug(int depth,
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 void LPage<KeyType, ValueType, KeyComparator>::BWTreeCheck() {
-  LOG_INFO("LPage::BWTreeCheck");
+  /*LOG_INFO("LPage::BWTreeCheck");
   for (oid_t i = 0; i < size_; i++) {
     KeyType key = this->locations_[i].first;
     // 1. check responsibility
@@ -1853,7 +1853,7 @@ void LPage<KeyType, ValueType, KeyComparator>::BWTreeCheck() {
     if (i + 2 < size_) {
       assert(this->map->CompareKey(key, this->locations_[i + 1].first) <= 0);
     }
-  }
+  }*/
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator>

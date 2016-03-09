@@ -984,7 +984,7 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     LPage<KeyType, ValueType, KeyComparator> *left_lnode, *right_lnode;
     IPage<KeyType, ValueType, KeyComparator> *left_inode, *right_inode;
     LPID left_lpid, right_lpid;
-    int i;
+    int i = 0;
     LOG_INFO("Cleanup invoked, size is %d", (int)this->size_);
     std::pair<KeyType, LPID> new_children[IPAGE_ARITY];
     int new_children_size = 0;
