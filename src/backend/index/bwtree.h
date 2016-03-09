@@ -644,15 +644,14 @@ class BWTree {
   void BWTreeCheck();
 
   bool Cleanup() {
-
-	  std::cout << "Cleanup attempt 1:" << std::endl;
+    std::cout << "Cleanup attempt 1:" << std::endl;
 
     GetMappingTable()->GetNode(root_)->Cleanup();
 
-	  std::cout << "Cleanup attempt 2:" << std::endl;
+    std::cout << "Cleanup attempt 2:" << std::endl;
 
     GetMappingTable()->GetNode(root_)->Cleanup();  // for now, do twice to
-                                                 // handle if multiple
+                                                   // handle if multiple
                                                    // adjacent nodes can be
                                                    // merged
     return true;
