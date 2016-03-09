@@ -1453,8 +1453,8 @@ NodeStateBuilder<KeyType, ValueType, KeyComparator> *IPageUpdateDelta<
   // delete delta
   if (is_delete_) {
     if (right_node_is_infinity_ ||
-        this->map->CompareKey(this->GetRightMostKey(),
-                              max_key_right_split_node_) == 0) {
+        (!this->IsInifinity() && this->map->CompareKey(this->GetRightMostKey(),
+                              max_key_right_split_node_)== 0)) {
       builder->RemoveLastChild();
     } else {
       builder->RemoveChild(max_key_right_split_node_);
@@ -1462,15 +1462,15 @@ NodeStateBuilder<KeyType, ValueType, KeyComparator> *IPageUpdateDelta<
   } else {
     // insert delta
     if (right_node_is_infinity_ ||
-        this->map->CompareKey(this->GetRightMostKey(),
-                              max_key_right_split_node_) == 0) {
+        (!this->IsInifinity() && this->map->CompareKey(this->GetRightMostKey(),
+                              max_key_right_split_node_) == 0)) {
       builder->ReplaceLastChild(right_split_node_lpid_);
     } else {
       std::pair<KeyType, LPID> right_pair(max_key_right_split_node_,
                                           right_split_node_lpid_);
       builder->AddChild(right_pair);
     }
-    if (this->map->CompareKey(this->GetRightMostKey(),
+    if (!this->IsInifinity() && this->map->CompareKey(this->GetRightMostKey(),
                               max_key_left_split_node_) == 0) {
       builder->ReplaceLastChild(right_split_node_lpid_);
     } else {
