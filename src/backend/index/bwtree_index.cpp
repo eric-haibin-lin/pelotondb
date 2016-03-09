@@ -162,6 +162,7 @@ bool BWTreeIndex<KeyType, ValueType, KeyComparator,
                  KeyEqualityChecker>::Cleanup() {
   LOG_INFO("Inside BWTreeIndex Cleanup");
   LOG_INFO("Invoking CompressAllPages");
+  std::cout << "Cleanup invoked" << std::endl;
   this->container.CompressAllPages();
   LOG_INFO("Done Compressing All pages");
   this->container.Cleanup();

@@ -44,8 +44,8 @@ enum BWTreeNodeType {
 #define LPAGE_SPLIT_THRESHOLD 1000
 #define IPAGE_SPLIT_THRESHOLD 1000
 
-#define IPAGE_MERGE_THRESHOLD 1024
-#define LPAGE_MERGE_THRESHOLD 1024
+#define IPAGE_MERGE_THRESHOLD 800
+#define LPAGE_MERGE_THRESHOLD 800
 
 #define MAPPING_TABLE_INITIAL_CAP 128
 #define INVALID_LPID ULLONG_MAX
@@ -644,9 +644,15 @@ class BWTree {
   void BWTreeCheck();
 
   bool Cleanup() {
+
+	  std::cout << "Cleanup attempt 1:" << std::endl;
+
     GetMappingTable()->GetNode(root_)->Cleanup();
+
+	  std::cout << "Cleanup attempt 2:" << std::endl;
+
     GetMappingTable()->GetNode(root_)->Cleanup();  // for now, do twice to
-                                                   // handle if multiple
+                                                 // handle if multiple
                                                    // adjacent nodes can be
                                                    // merged
     return true;
@@ -984,7 +990,7 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     LPage<KeyType, ValueType, KeyComparator> *left_lnode, *right_lnode;
     IPage<KeyType, ValueType, KeyComparator> *left_inode, *right_inode;
     LPID left_lpid, right_lpid;
-    int i = 0;
+    int i;
     LOG_INFO("Cleanup invoked, size is %d", (int)this->size_);
     std::pair<KeyType, LPID> new_children[IPAGE_ARITY];
     int new_children_size = 0;
