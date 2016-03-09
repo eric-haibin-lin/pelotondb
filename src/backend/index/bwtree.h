@@ -331,10 +331,10 @@ class ReadWriteLatch {
 
  private:
   // number of readers
-  int current_readers_ = 0;
+  volatile int current_readers_ = 0;
 
   // number of writers
-  int current_writers_ = 0;
+  volatile int current_writers_ = 0;
 };
 
 /*
@@ -733,10 +733,10 @@ class BWTree {
   // perform cleanup to reduce memory footprint
   bool Cleanup() {
     auto epochnum = epoch_manager_.GetCurrentEpoch();
-    std::cout << "Cleanup attempt 1:" << std::endl;
+    //    std::cout << "Cleanup attempt 1:" << std::endl;
     GetMappingTable()->GetNode(root_)->Cleanup();
 
-    std::cout << "Cleanup attempt 2:" << std::endl;
+    //    std::cout << "Cleanup attempt 2:" << std::endl;
     GetMappingTable()->GetNode(root_)->Cleanup();
 
     // for now, do twice to handle if multiple adjacent nodes can be merged
