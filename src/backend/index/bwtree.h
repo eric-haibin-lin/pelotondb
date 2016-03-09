@@ -289,10 +289,12 @@ class LNodeStateBuilder
 };
 
 //===--------------------------------------------------------------------===//
-// ReadWriteLatch
+// ReadWriteLatch is an implementation of read write lock using compare and
+// swap intrinsics
 //===--------------------------------------------------------------------===//
 class ReadWriteLatch {
  public:
+  // acquire the read lock
   inline void AquireRead() {
     LOG_INFO("Aquiring read Lock");
     while (true) {
@@ -305,10 +307,14 @@ class ReadWriteLatch {
         __sync_add_and_fetch(&current_readers_, -1);
     }
   }
+
+  // release the read lock
   inline void ReleaseRead() {
     LOG_INFO("Releasing read Lock");
     __sync_add_and_fetch(&current_readers_, -1);
   }
+
+  // acquire the write lock
   inline void AquireWrite() {
     LOG_INFO("Aquiring write Lock");
     while (!__sync_bool_compare_and_swap(&current_writers_, 0, 1))
@@ -316,28 +322,46 @@ class ReadWriteLatch {
     while (current_readers_ > 0)
       ;
   }
+
+  // release the write lock
   inline void ReleaseWrite() {
     LOG_INFO("Releasing write Lock");
     __sync_bool_compare_and_swap(&current_writers_, 1, 0);
   }
 
  private:
+  // number of readers
   int current_readers_ = 0;
+
+  // number of writers
   int current_writers_ = 0;
 };
 
+/*
+ * The mapping table from LPID to BWTreeNode pointers. Updating the table
+ * requires the acquisition of the read write latch. The table is initialized
+ * with MAPPING_TABLE_INITIAL_CAP and double its capacity when its full
+ */
 template <typename KeyType, typename ValueType, class KeyComparator>
 class MappingTable {
  private:
-  // the mapping table
+  // the capacity of mapping table
   unsigned int mapping_table_cap_ = MAPPING_TABLE_INITIAL_CAP;
+
+  // the size of the mapping table
   unsigned int mapping_table_size_ = 0;
 
+  // the content of the table
   BWTreeNode<KeyType, ValueType, KeyComparator> **mapping_table_;
+
+  // next available LPID
   LPID next_LPID_ = 0;
+
+  // the read write latch
   ReadWriteLatch latch_;
 
  public:
+  // initialize an empty mapping table
   MappingTable() {
     LOG_INFO("Constructing Mapping Table with initial capacity %d",
              mapping_table_cap_);
@@ -345,6 +369,7 @@ class MappingTable {
                                     KeyComparator> *[mapping_table_cap_]();
   };
 
+  // clean up all the bwtree nodes in the table
   ~MappingTable() {
     for (int i = 0; i < (long)this->mapping_table_cap_; i++) {
       if (mapping_table_[i] != nullptr) {
@@ -355,19 +380,22 @@ class MappingTable {
     delete[] mapping_table_;
   }
 
+  // install a new page with the next available LPID to the mapping table
   LPID InstallPage(BWTreeNode<KeyType, ValueType, KeyComparator> *node) {
     LOG_INFO("Installing page in mapping table");
     LPID newLPID = __sync_fetch_and_add(&next_LPID_, 1);
+
     // table grew too large, expand it
     while (newLPID >= mapping_table_cap_) {
       LOG_INFO("mapping table has grown too large");
+
       // only one thread should expand the table
       latch_.AquireWrite();
       if (newLPID < mapping_table_cap_) {
         latch_.ReleaseWrite();
         break;
       }
-
+      // doubling the capacity
       int new_mapping_table_cap = mapping_table_cap_ * 2;
       LOG_INFO("doubling size of mapping table capacity from %d to %d",
                mapping_table_cap_, new_mapping_table_cap);
@@ -389,12 +417,14 @@ class MappingTable {
     return newLPID;
   }
 
+  // remove a bwtree node associated with the given LPID
   void RemovePage(LPID id) {
     LOG_INFO("Inside RemovePage for LPID %d", (int)id);
     delete mapping_table_[id];
     mapping_table_[id] = nullptr;
   }
 
+  // swap an entry in the mapping table using CAS
   bool SwapNode(LPID id, BWTreeNode<KeyType, ValueType, KeyComparator> *oldNode,
                 BWTreeNode<KeyType, ValueType, KeyComparator> *newNode) {
     LOG_INFO("swapping node for LPID: %lu into mapping table", id);
@@ -405,7 +435,7 @@ class MappingTable {
     return ret;
   }
 
-  // assumes that LPID is valid
+  // return the bwtree node pointer of the given LPID
   BWTreeNode<KeyType, ValueType, KeyComparator> *GetNode(LPID id) {
     LOG_INFO("getting node for LPID: %lu from mapping table", id);
     latch_.AquireRead();
@@ -414,6 +444,8 @@ class MappingTable {
     return ret;
   }
 
+  // calculating the memory footprint by aggregating all bwtree nodes in
+  // the mapping table
   size_t GetMemoryFootprint() {
     LOG_INFO("MappingTable::GetMemoryFootprint");
     size_t total = 0;
@@ -422,6 +454,7 @@ class MappingTable {
         total += mapping_table_[i]->GetMemoryFootprint();
       }
     }
+    // also take into account of the size of the mapping table
     total += sizeof(MappingTable<KeyType, ValueType, KeyComparator>);
     total += mapping_table_cap_ *
              sizeof(BWTreeNode<KeyType, ValueType, KeyComparator> *);
@@ -431,6 +464,8 @@ class MappingTable {
   friend class BWTree<KeyType, ValueType, KeyComparator>;
 };
 
+// an internal structure of the epoch linked list, where each list node
+// is an array of the bwtree node pointer to be free'd
 template <typename KeyType, typename ValueType, class KeyComparator>
 struct EpochPage {
   BWTreeNode<KeyType, ValueType, KeyComparator> *pointers[EPOCH_PAGE_SIZE];
@@ -438,11 +473,15 @@ struct EpochPage {
 };
 
 //===--------------------------------------------------------------------===//
-// EpochManager
+// EpochManager keeps track of all the pages to be collected and the number
+// of active thread per epoch. The pages are garbage collected once there're
+// no active thread in the current epoch. Epoch page is the internal structure
+// to keep track of all the pages.
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
 class EpochManager {
  public:
+  // initialize resources for epoch manager
   EpochManager() {
     // should start GC pthread
     current_epoch_ = 0;
@@ -455,22 +494,27 @@ class EpochManager {
     pthread_create(&management_pthread_, nullptr, &epoch_management, this);
   }
 
+  // join the garbage collection thread
   ~EpochManager() {
     destructor_called_ = true;
     LOG_INFO("set destructor called flag");
     pthread_join(management_pthread_, nullptr);
   }
 
+  // get the current epoch number
   unsigned long GetCurrentEpoch() {
     auto current_epoch = current_epoch_;
     __sync_add_and_fetch(&epoch_users_[current_epoch], 1);
     LOG_INFO("Got current epoch %lu", current_epoch);
     return current_epoch;
   }
+
+  // release the current epoch
   void ReleaseEpoch(unsigned long i) {
     __sync_add_and_fetch(&epoch_users_[i], -1);
   }
 
+  // add a page to current epoch table
   void AddNodeToEpoch(
       BWTreeNode<KeyType, ValueType, KeyComparator> *node_to_destroy) {
     LOG_INFO("Adding node to epoch");
@@ -484,6 +528,7 @@ class EpochManager {
       // LOG_INFO("Epoch Page Full, getting child page");
       LOG_INFO("At page number: %d", (int)i);
       if (curr_page->next_page == nullptr) {
+        // allocate a new epoch page
         EpochPage<KeyType, ValueType, KeyComparator> *new_page =
             new EpochPage<KeyType, ValueType, KeyComparator>();
         if (!__sync_bool_compare_and_swap(&(curr_page->next_page), nullptr,
@@ -493,19 +538,26 @@ class EpochManager {
       }
       curr_page = curr_page->next_page;
     }
+    // add the node to the epoch page
     curr_page->pointers[write_pos % EPOCH_PAGE_SIZE] = node_to_destroy;
   }
 
  private:
   EpochPage<KeyType, ValueType, KeyComparator> *first_pages_[MAX_ACTIVE_EPOCHS];
   int epoch_size_[MAX_ACTIVE_EPOCHS];
+
+  // the number of active users in each epoch
   int epoch_users_[MAX_ACTIVE_EPOCHS];
+
+  // the current epoch number
   unsigned long current_epoch_;
+
   bool destructor_called_;
+
+  // the thread responsible for garbage collection
   pthread_t management_pthread_;
 
   // private internal methods for GC pthread
-
   static inline void CollectGarbageForPage(
       EpochPage<KeyType, ValueType, KeyComparator> *top_page) {
     auto curr_epoch_page = top_page;
@@ -524,6 +576,7 @@ class EpochManager {
       curr_epoch_page = next_epoch_page;
     }
   }
+
   static void *epoch_management(__attribute__((unused)) void *args) {
     auto manager =
         reinterpret_cast<EpochManager<KeyType, ValueType, KeyComparator> *>(
