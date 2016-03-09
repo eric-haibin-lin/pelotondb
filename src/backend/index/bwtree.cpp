@@ -332,6 +332,9 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 void BWTree<KeyType, ValueType, KeyComparator>::CompressAllPages() {
   // assume there's no delta for merges
   LOG_INFO("BWTree::CompressAllPages");
+
+  auto epochnum = epoch_manager_.GetCurrentEpoch();
+
   auto capacity = this->mapping_table_->mapping_table_cap_;
   BWTreeNode<KeyType, ValueType, KeyComparator> **table =
       this->mapping_table_->mapping_table_;
@@ -345,6 +348,7 @@ void BWTree<KeyType, ValueType, KeyComparator>::CompressAllPages() {
       }
     }
   }
+  epoch_manager_.ReleaseEpoch(epochnum);
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator>

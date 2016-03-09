@@ -664,6 +664,8 @@ class BWTree {
   void BWTreeCheck();
 
   bool Cleanup() {
+    auto epochnum = epoch_manager_.GetCurrentEpoch();
+
     std::cout << "Cleanup attempt 1:" << std::endl;
 
     GetMappingTable()->GetNode(root_)->Cleanup();
@@ -674,6 +676,8 @@ class BWTree {
                                                    // handle if multiple
                                                    // adjacent nodes can be
                                                    // merged
+    epoch_manager_.ReleaseEpoch(epochnum);
+
     return true;
   }
   size_t GetMemoryFootprint();
@@ -1009,7 +1013,7 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     LPage<KeyType, ValueType, KeyComparator> *left_lnode, *right_lnode;
     IPage<KeyType, ValueType, KeyComparator> *left_inode, *right_inode;
     LPID left_lpid, right_lpid;
-    int i;
+    int i = 0;
     LOG_INFO("Cleanup invoked, size is %d", (int)this->size_);
     std::pair<KeyType, LPID> new_children[IPAGE_ARITY];
     int new_children_size = 0;
@@ -1088,8 +1092,8 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
               new_children[new_children_size].second = left_lpid;
               new_children_size++;
 
-              assert(this->map->GetMappingTable()->SwapNode(
-                  left_lpid, left_lnode, new_merged_lpage));
+              this->map->GetMappingTable()->SwapNode(left_lpid, left_lnode,
+                                                     new_merged_lpage);
               // TODO delete in chain, the two old lpages
               // TODO reclaim right lpid!
               i++;  // skip the merged node!
@@ -1159,8 +1163,8 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
               new_children_size++;
               LOG_INFO("New children size is %d", (int)new_children_size);
 
-              assert(this->map->GetMappingTable()->SwapNode(
-                  left_lpid, left_inode, new_merged_ipage));
+              this->map->GetMappingTable()->SwapNode(left_lpid, left_inode,
+                                                     new_merged_ipage);
 
               delete left_inode;
               // delete right_inode;
