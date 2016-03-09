@@ -1196,6 +1196,12 @@ void LPageSplitDelta<KeyType, ValueType, KeyComparator>::BWTreeCheck() {
   delete page;
 }
 
+/* This method will either try to create a delta on top of itself, if the
+  current key is less
+  than or equal to the modified_key_, or it will simply call InsertEntry on
+  the LPID of the
+  newly created right_split_page_lpid */
+
 template <typename KeyType, typename ValueType, class KeyComparator>
 bool LPageSplitDelta<KeyType, ValueType, KeyComparator>::InsertEntry(
     KeyType key, ValueType location, LPID self) {
