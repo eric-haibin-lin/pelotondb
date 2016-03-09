@@ -39,6 +39,7 @@ class BWTreeIndex : public Index {
   typedef BWTree<KeyType, ValueType, KeyComparator> MapType;
 
  public:
+  // Define all methods to be overridden from the parent
   BWTreeIndex(IndexMetadata *metadata);
 
   ~BWTreeIndex();
@@ -58,7 +59,6 @@ class BWTreeIndex : public Index {
 
   std::string GetTypeName() const;
 
-  // TODO: Implement this
   bool Cleanup();
 
   size_t GetMemoryFootprint();

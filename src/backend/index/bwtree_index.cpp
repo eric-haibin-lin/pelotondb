@@ -34,9 +34,7 @@ BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::BWTreeIndex(
 template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
 BWTreeIndex<KeyType, ValueType, KeyComparator,
-            KeyEqualityChecker>::~BWTreeIndex() {
-  // Add your implementation here
-}
+            KeyEqualityChecker>::~BWTreeIndex() {}
 
 template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
@@ -48,10 +46,8 @@ bool BWTreeIndex<KeyType, ValueType, KeyComparator,
   index_key.SetFromKey(key);
   ValueType value(location);
   LOG_INFO("Inside BWTreeIndex InsertEntry");
+  // call InsertEntry on BWTree for the given key-value pair
   auto result = container.InsertEntry(index_key, value);
-  //
-  //	container.Debug();
-  //	container.BWTreeCheck();
 
   return result;
 }
@@ -65,8 +61,8 @@ bool BWTreeIndex<KeyType, ValueType, KeyComparator,
   KeyType index_key;
   index_key.SetFromKey(key);
   ValueType value(location);
+  // call DeleteEntry on BWTree for the given key-value pair
   auto result = container.DeleteEntry(index_key, value);
-  //  container.Debug();
   return result;
 }
 
@@ -77,8 +73,6 @@ BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Scan(
     const std::vector<Value> &values, const std::vector<oid_t> &key_column_ids,
     const std::vector<ExpressionType> &expr_types,
     const ScanDirectionType &scan_direction) {
-  //  std::cout << "Scan invoked, key_type: " << this->HasUniqueKeys()
-  //            << " Scan Direction " << scan_direction << std::endl;
   std::vector<ItemPointer> result;
   KeyType index_key;
   // Check if we have leading (leftmost) column equality
@@ -122,6 +116,7 @@ template <typename KeyType, typename ValueType, class KeyComparator,
 std::vector<ItemPointer> BWTreeIndex<KeyType, ValueType, KeyComparator,
                                      KeyEqualityChecker>::ScanAllKeys() {
   std::vector<ItemPointer> result;
+  // call ScanAllKeys on BWTree
   result = container.ScanAllKeys();
   return result;
 }
@@ -154,11 +149,11 @@ bool BWTreeIndex<KeyType, ValueType, KeyComparator,
                  KeyEqualityChecker>::Cleanup() {
   LOG_INFO("Inside BWTreeIndex Cleanup");
   LOG_INFO("Invoking CompressAllPages");
-  //  std::cout << "Cleanup invoked" << std::endl;
+  // First Compress all pages to free up some space, then call cleanup to merge
+  // nodes with underflow
   this->container.CompressAllPages();
   LOG_INFO("Done Compressing All pages");
   this->container.Cleanup();
-  // TODO also perform merge
   return true;
 }
 
