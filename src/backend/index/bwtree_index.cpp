@@ -44,8 +44,6 @@ bool BWTreeIndex<KeyType, ValueType, KeyComparator,
                  KeyEqualityChecker>::InsertEntry(const storage::Tuple *key,
 
                                                   const ItemPointer location) {
-  /*std::cout << "InsertEntry invoked, key_type: " << this->HasUniqueKeys()
-            << std::endl;*/
   KeyType index_key;
   index_key.SetFromKey(key);
   ValueType value(location);
@@ -64,8 +62,6 @@ bool BWTreeIndex<KeyType, ValueType, KeyComparator,
                  KeyEqualityChecker>::DeleteEntry(const storage::Tuple *key,
 
                                                   const ItemPointer location) {
-  //  std::cout << "DeleteEntry invoked, key_type: " << this->HasUniqueKeys()
-  //            << std::endl;
   KeyType index_key;
   index_key.SetFromKey(key);
   ValueType value(location);
@@ -125,8 +121,6 @@ template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
 std::vector<ItemPointer> BWTreeIndex<KeyType, ValueType, KeyComparator,
                                      KeyEqualityChecker>::ScanAllKeys() {
-  std::cout << "ScanAllKeys invoked, key_type: " << this->HasUniqueKeys()
-            << std::endl;
   std::vector<ItemPointer> result;
   result = container.ScanAllKeys();
   return result;
@@ -140,8 +134,6 @@ template <typename KeyType, typename ValueType, class KeyComparator,
 std::vector<ItemPointer>
 BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::ScanKey(
     const storage::Tuple *key) {
-  std::cout << "ScanKey invoked, key_type: " << this->HasUniqueKeys()
-            << std::endl;
   std::vector<ItemPointer> result;
   KeyType index_key;
   index_key.SetFromKey(key);

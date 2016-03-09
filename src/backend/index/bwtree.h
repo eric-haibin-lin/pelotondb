@@ -38,21 +38,27 @@ enum BWTreeNodeType {
   TYPE_OTHER = 2,
 };
 
+// The default capacity of each page
 #define IPAGE_ARITY 1024
 #define LPAGE_ARITY 1024
 
+// The threshold above which pages get split
 #define LPAGE_SPLIT_THRESHOLD 1000
 #define IPAGE_SPLIT_THRESHOLD 1000
 
+// The threshold under which pages get merged
 #define IPAGE_MERGE_THRESHOLD 800
 #define LPAGE_MERGE_THRESHOLD 800
 
+// The initial capacity of the mapping table
 #define MAPPING_TABLE_INITIAL_CAP 128
 #define INVALID_LPID ULLONG_MAX
 
+// The length limit of the delta chain to be compressed
 #define LPAGE_DELTA_CHAIN_LIMIT 6
 #define IPAGE_DELTA_CHAIN_LIMIT 4
 
+// The size of each page which epoch manager manages
 #define EPOCH_PAGE_SIZE 1024
 #define MAX_ACTIVE_EPOCHS 2
 #define EPOCH_LENGTH_MILLIS 40
@@ -87,25 +93,34 @@ class EpochManager;
 //===--------------------------------------------------------------------===//
 /**
  * Builder for a node state, to be used with Delta Compression and
- * scans on indexes with multiple keys
+ * scans on indexes
  */
 template <typename KeyType, typename ValueType, class KeyComparator>
 class NodeStateBuilder {
  protected:
-  // number of k-v pairs. everything after size is ignored
+  // number of k-v pairs. everything after index (size - 1) is ignored
   oid_t size;
 
   // pointer to the mapping table
   BWTree<KeyType, ValueType, KeyComparator> *map;
 
+  // whether this page is separated from a certain key
   bool is_separated = false;
 
+  // the key which splits the original page
   KeyType separator_key;
+
+  // the LPID of the new split page
   LPID split_new_page_id = 0;
+
+  // the right most key of the page to build
   KeyType right_most_key;
+
+  // whether the page to build has infinity as right most key
   bool infinity = false;
 
  public:
+  // construct an empty node state
   NodeStateBuilder(oid_t size, BWTree<KeyType, ValueType, KeyComparator> *map,
                    KeyType right_most_key, bool infinity)
       : size(size),
@@ -113,57 +128,52 @@ class NodeStateBuilder {
         right_most_key(right_most_key),
         infinity(infinity){};
 
+  // materialize the page to build
   virtual BWTreeNode<KeyType, ValueType, KeyComparator> *GetPage() = 0;
 
-  virtual LPID Scan(__attribute__((unused)) const std::vector<Value> &values,
-                    __attribute__((unused))
+  // perform scan operation on a page builder
+  virtual LPID Scan(const std::vector<Value> &values,
                     const std::vector<oid_t> &key_column_ids,
-                    __attribute__((unused))
                     const std::vector<ExpressionType> &expr_types,
-                    __attribute__((unused))
                     const ScanDirectionType &scan_direction,
-                    __attribute__((unused)) std::vector<ValueType> &result,
-                    __attribute__((unused)) const KeyType *index_key) = 0;
+                    std::vector<ValueType> &result,
+                    const KeyType *index_key) = 0;
 
+  // perform scan all keys operation on a page builder
   virtual LPID ScanAllKeys(std::vector<ValueType> &result) = 0;
 
-  virtual LPID ScanKey(__attribute__((unused)) KeyType key,
-                       __attribute__((unused)) std::vector<ValueType> &result) {
-    LOG_WARN("NodeStateBuilder::ScanKey invoked, Failure may happen");
-    return INVALID_LPID;
-  };
+  // set whether this page to build has right most key as infinity
+  inline void SetInfinity(bool infinity) { this->infinity = infinity; }
 
-  void SetInfinity(bool infinity) { this->infinity = infinity; }
-
-  void SetRightMostKey(KeyType right_most_key) {
+  // set the right most key
+  inline void SetRightMostKey(KeyType right_most_key) {
     this->right_most_key = right_most_key;
   }
 
+  // whether this page was split
   inline bool IsSeparated() { return is_separated; }
 
-  inline KeyType GetSeparatorKey() { return separator_key; }
-
+  // get the LPID of the new split right page
   inline LPID GetSplitNewPageId() { return split_new_page_id; }
 
-  virtual ~NodeStateBuilder() { ; };
+  virtual ~NodeStateBuilder() {}
 
   friend class LPage<KeyType, ValueType, KeyComparator>;
   friend class IPage<KeyType, ValueType, KeyComparator>;
 };
 
+/**
+ * Builder for the node state of an IPage
+ */
 template <typename KeyType, typename ValueType, class KeyComparator>
 class INodeStateBuilder
     : public NodeStateBuilder<KeyType, ValueType, KeyComparator> {
-  friend class IPage<KeyType, ValueType, KeyComparator>;
-  friend class IPageUpdateDelta<KeyType, ValueType, KeyComparator>;
-  friend class IPageSplitDelta<KeyType, ValueType, KeyComparator>;
-
  private:
   // IPage children nodes
   std::pair<KeyType, LPID> children_[IPAGE_ARITY + IPAGE_DELTA_CHAIN_LIMIT];
 
  public:
-  // IPage constructor
+  // Construct an IPage builder from an IPage
   INodeStateBuilder(std::pair<KeyType, LPID> *children, int children_len,
                     BWTree<KeyType, ValueType, KeyComparator> *map,
                     KeyType right_most_key, bool infinity)
@@ -175,20 +185,23 @@ class INodeStateBuilder
 
   BWTreeNode<KeyType, ValueType, KeyComparator> *GetPage();
 
-  ~INodeStateBuilder(){};
+  ~INodeStateBuilder() {}
 
   //***************************************************
   // IPage Methods
   //***************************************************
 
-  /* AddChild adds a new <key, LPID> pair to its children if key is not
-   * found. Otherwise overwrite the pair with the same key */
+  // add a new <key, LPID> pair to its children if key is not
+  // found. Otherwise overwrite the pair with the same key
   void AddChild(std::pair<KeyType, LPID> &new_pair);
 
+  // replace the last <key, LPID> pair from the IPage
   void ReplaceLastChild(LPID &inf_LPID);
 
+  // remove an <key, LPID> pair from the IPage
   void RemoveChild(KeyType &key_to_remove);
 
+  // remove the last <key, LPID> pair from the IPage
   void RemoveLastChild();
 
   LPID Scan(const std::vector<Value> &values,
@@ -200,23 +213,30 @@ class INodeStateBuilder
   LPID ScanAllKeys(std::vector<ValueType> &result);
 
   friend class LPage<KeyType, ValueType, KeyComparator>;
+  friend class IPage<KeyType, ValueType, KeyComparator>;
+  friend class IPageUpdateDelta<KeyType, ValueType, KeyComparator>;
+  friend class IPageSplitDelta<KeyType, ValueType, KeyComparator>;
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 class LNodeStateBuilder
     : public NodeStateBuilder<KeyType, ValueType, KeyComparator> {
  private:
-  // LPage members
+  // the LPID of the left sibling
   LPID left_sibling_ = INVALID_LPID;
+
+  // the LPID of the right sibling
   LPID right_sibling_ = INVALID_LPID;
+
+  // the index of the separator key
   int separator_index_ = -1;
 
-  // LPage members
+  // <key, value> pairs
   std::pair<KeyType, ValueType>
       locations_[IPAGE_ARITY + LPAGE_DELTA_CHAIN_LIMIT];
 
  public:
-  // LPage constructor
+  // construct a builder from an LPage
   LNodeStateBuilder(LPID left_sibling, LPID right_sibling,
                     std::pair<KeyType, ValueType> *locations, int location_len,
                     BWTree<KeyType, ValueType, KeyComparator> *map,
@@ -237,20 +257,18 @@ class LNodeStateBuilder
   // LPage Methods
   //***************************************************
 
+  // set the value of left sibling LPID
   void UpdateLeftSib(LPID new_left_sib) { left_sibling_ = new_left_sib; }
 
+  // set the value of right sibling LPID
   void UpdateRightSib(LPID new_right_sib) { right_sibling_ = new_right_sib; }
 
+  // add a <key, value> pair
   void AddLeafData(std::pair<KeyType, ValueType> &new_pair);
 
+  // remove a <key, value> pair
   void RemoveLeafData(std::pair<KeyType, ValueType> &entry_to_remove);
 
-  void SeparateFromKey(KeyType separator_key, int index,
-                       LPID split_new_page_id);
-
-  /*
-   * Methods for Scan
-   */
   LPID Scan(const std::vector<Value> &values,
             const std::vector<oid_t> &key_column_ids,
 
@@ -260,9 +278,11 @@ class LNodeStateBuilder
 
   LPID ScanAllKeys(std::vector<ValueType> &result);
 
+  // perform scan key on the page to build
   LPID ScanKey(KeyType key, std::vector<ValueType> &result);
 
  private:
+  // returns true if the two item pointers are equal
   bool ItemPointerEquals(ValueType v1, ValueType v2);
 
   friend class LPage<KeyType, ValueType, KeyComparator>;
