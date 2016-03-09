@@ -1071,7 +1071,7 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     std::pair<KeyType, LPID> new_children[IPAGE_ARITY];
     int new_children_size = 0;
 
-    for (int i = 0; i < this->size_; i++) {
+    for (int i = 0; i < (long)this->size_; i++) {
       this->map->GetMappingTable()
           ->GetNode(this->children_[i].second)
           ->Cleanup();
@@ -1085,7 +1085,7 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
                   ->GetTreeNodeType()) {
         case TYPE_LPAGE:
           LOG_INFO("Children are LPages");
-          for (i = 0; i < this->size_ - 1; i++) {
+          for (i = 0; i < (long)this->size_ - 1; i++) {
             left_lpid = this->children_[i].second;
             right_lpid = this->children_[i + 1].second;
 
@@ -1122,11 +1122,11 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
               right_lnode->GetLocationsList(right_node_list);
 
               int new_lpage_size = 0;
-              for (int index = 0; index < left_node_list.size(); index++)
+              for (int index = 0; index < (long)left_node_list.size(); index++)
                 new_merged_lpage->GetLocationsArray()[new_lpage_size++] =
                     left_node_list[index];
 
-              for (int index = 0; index < right_node_list.size(); index++)
+              for (int index = 0; index < (long)right_node_list.size(); index++)
                 new_merged_lpage->GetLocationsArray()[new_lpage_size++] =
                     right_node_list[index];
 
@@ -1167,7 +1167,7 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
         case TYPE_IPAGE:
           LOG_INFO("Children are IPages");
-          for (i = 0; i < this->size_ - 1; i++) {
+          for (i = 0; i < (long)this->size_ - 1; i++) {
             left_lpid = this->children_[i].second;
             right_lpid = this->children_[i + 1].second;
 
@@ -1199,11 +1199,11 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
                       right_inode->IsInifinity());
 
               int new_ipage_size = 0;
-              for (int index = 0; index < left_inode->size_; index++)
+              for (int index = 0; index < (long)left_inode->size_; index++)
                 new_merged_ipage->children_[new_ipage_size++] =
                     left_inode->children_[index];
 
-              for (int index = 0; index < right_inode->size_; index++)
+              for (int index = 0; index < (long)right_inode->size_; index++)
                 new_merged_ipage->children_[new_ipage_size++] =
                     right_inode->children_[index];
 
@@ -1240,7 +1240,7 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
           assert(1 == 0);
           break;
       }
-      if (i == size_ - 1)
+      if (i == (long)size_ - 1)
         new_children[new_children_size++] = children_[size_ - 1];
 
       LOG_INFO("All merges done! Size of new children array is %d",
@@ -1748,7 +1748,7 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   void GetLocationsList(
       std::vector<std::pair<KeyType, ValueType>> &children_list) {
-    for (int i = 0; i < size_; i++) {
+    for (int i = 0; i < (long)size_; i++) {
       children_list.push_back(locations_[i]);
     }
 
