@@ -618,16 +618,25 @@ class EpochManager {
 };
 
 //===--------------------------------------------------------------------===//
-// BWTree
+// BWTree holds the mapping table and schema information of the index. For
+// each scan/insert/delete operation, it pass the operation to the root.
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTree {
  private:
   // the logical page id for the root node
   LPID root_;
+
+  // the metadata of the index
   IndexMetadata *metadata_;
+
+  // the key comparator
   KeyComparator comparator_;
+
+  // the mapping table
   MappingTable<KeyType, ValueType, KeyComparator> *mapping_table_;
+
+  // the epoch manager
   EpochManager<KeyType, ValueType, KeyComparator> epoch_manager_;
 
  public:
@@ -642,50 +651,51 @@ class BWTree {
         unique_keys(metadata->unique_keys) {
     LOG_INFO("Inside BWTree Constructor");
     mapping_table_ = new MappingTable<KeyType, ValueType, KeyComparator>();
-
+    // create the root IPage
     KeyType dummy_key;
     IPage<KeyType, ValueType, KeyComparator> *root =
         new IPage<KeyType, ValueType, KeyComparator>(this, dummy_key, true);
-
+    // install root IPage
     root_ = GetMappingTable()->InstallPage(root);
-
     LOG_INFO("Root got LPID: %lu", root_);
 
+    // create the first LPage
     LPage<KeyType, ValueType, KeyComparator> *first_lpage =
         new LPage<KeyType, ValueType, KeyComparator>(this, dummy_key, true);
 
     std::pair<KeyType, LPID> first_lpage_pair;
-
     LPID first_lpage_lpid;
 
+    // install the first LPage
     first_lpage_lpid = GetMappingTable()->InstallPage(first_lpage);
-
     LOG_INFO("The first LPage got LPID: %d", (int)first_lpage_lpid);
-    first_lpage_pair.second = first_lpage_lpid;
 
+    first_lpage_pair.second = first_lpage_lpid;
     root->GetChildren()[0] = first_lpage_pair;
 
     LOG_INFO("Leaving BWTree constructor");
-
-    // with the given comparator
   };
 
   ~BWTree() { delete mapping_table_; }
 
+  // get the index of the child at next level, which contains the given key
   int GetChild(KeyType key, std::pair<KeyType, LPID> *children, oid_t len);
 
-  // get the index of the first occurrence of the given key
   template <typename PairSecond>
-  // positive index indicates found, negative indicates not found. 0 could be
-  // either case
+  // get the index of the first occurrence of the given key
+  // positive index indicates found, negative indicates not found.
+  // 0 could be either case
   int BinarySearch(KeyType key, std::pair<KeyType, PairSecond> *locations,
                    oid_t len);
 
+  // insert an entry to bwtree
   bool InsertEntry(KeyType key, ValueType location);
 
+  // delete an entry from bwtree
   bool DeleteEntry(KeyType key, ValueType location) {
     LPID child_lpid;
     bool complete = false;
+    // retry delete until it succeeds
     while (!complete) {
       LOG_INFO("BWtree::DeleteEntry - %s", ToString(key).c_str());
       auto epochNum = epoch_manager_.GetCurrentEpoch();
@@ -693,7 +703,6 @@ class BWTree {
       complete = GetMappingTable()
                      ->GetNode(child_lpid)
                      ->DeleteEntry(key, location, child_lpid);
-
       epoch_manager_.ReleaseEpoch(epochNum);
     }
     return true;
@@ -704,46 +713,49 @@ class BWTree {
                               const std::vector<ExpressionType> &expr_types,
                               const ScanDirectionType &scan_direction,
                               const KeyType *index_key);
+
   std::vector<ValueType> ScanAllKeys();
+
   std::vector<ValueType> ScanKey(KeyType key);
 
+  // install a delta on a given node
   bool InstallParentDelta(
       IPageUpdateDelta<KeyType, ValueType, KeyComparator> *delta,
       KeyType right_most_key, bool right_most_key_is_infinity,
       LPID search_lpid);
 
+  // print debug function
   void Debug();
 
+  // check the integrity of the bwtree
   void BWTreeCheck();
 
+  // perform cleanup to reduce memory footprint
   bool Cleanup() {
     auto epochnum = epoch_manager_.GetCurrentEpoch();
-
     std::cout << "Cleanup attempt 1:" << std::endl;
-
     GetMappingTable()->GetNode(root_)->Cleanup();
 
     std::cout << "Cleanup attempt 2:" << std::endl;
+    GetMappingTable()->GetNode(root_)->Cleanup();
 
-    GetMappingTable()->GetNode(root_)->Cleanup();  // for now, do twice to
-                                                   // handle if multiple
-                                                   // adjacent nodes can be
-                                                   // merged
+    // for now, do twice to handle if multiple adjacent nodes can be merged
     epoch_manager_.ReleaseEpoch(epochnum);
-
     return true;
   }
+
+  // get the memory footprint of the bwtree
   size_t GetMemoryFootprint();
 
+  // compress all the delta chains in the bwtree
   void CompressAllPages();
 
-  LPID GetRootLPID() { return root_; }
+  // get the LPID of the root page
+  inline LPID GetRootLPID() { return root_; }
 
  public:
   // whether unique key is required
   bool unique_keys;
-
-  // return 0 if the page install is not successful
 
   inline MappingTable<KeyType, ValueType, KeyComparator> *GetMappingTable() {
     return mapping_table_;
@@ -761,19 +773,25 @@ class BWTree {
     return prefix;
   }
 
+  // get a string representation of the item pointer
   inline std::string ToString(ValueType val) {
     return "(" + std::to_string(val.block) + "," + std::to_string(val.offset) +
            ")";
   }
 
+  // get a string representation of the key
   inline std::string ToString(KeyType key) {
+    // assume it's a generic key, with an integer type as first column,
+    // and varchar type as second column
     auto tuple = key.GetTupleForComparison(GetKeySchema());
     const Value &k1 = tuple.GetValue(0);
     const Value &k2 = tuple.GetValue(1);
     auto k1_str = k1.Debug();
     k1_str.erase(0, 9);
+
     auto k2_str = k2.Debug();
     k2_str.erase(0, 9);
+    // remove type information
     k2_str = k2_str.substr(0, k2_str.find_last_of('['));
     k2_str = k2_str.substr(k2_str.find_first_of(']') + 1);
     if (k2_str.size() == 0) {
@@ -798,6 +816,7 @@ class BWTree {
     return 1;
   }
 
+  // returns true if the key is not greater than the right most key
   inline bool KeyNotGreaterThan(KeyType key, KeyType right_most_key, bool inf) {
     return inf || CompareKey(key, right_most_key) <= 0;
   }
@@ -813,7 +832,6 @@ class BWTree {
 
     // delete the temporary state
     delete new_node_state;
-
     bool completed = GetMappingTable()->SwapNode(page_to_compress, old_node_ptr,
                                                  new_node_ptr);
     // if we didn't failed to install we should clean up the page we created
@@ -833,6 +851,7 @@ class BWTree {
                                      std::pair<KeyType, ValueType> *locations,
                                      oid_t size);
 
+  // helper function to perform scan on LPage
   LPID ScanHelper(const std::vector<Value> &values,
                   const std::vector<oid_t> &key_column_ids,
                   const std::vector<ExpressionType> &expr_types,
@@ -842,6 +861,7 @@ class BWTree {
                   std::pair<KeyType, ValueType> *locations, oid_t size,
                   LPID right_sibling);
 
+  // helper function to perform scan on IPage
   LPID ScanHelper(const std::vector<Value> &values,
                   const std::vector<oid_t> &key_column_ids,
                   const std::vector<ExpressionType> &expr_types,
@@ -850,24 +870,25 @@ class BWTree {
                   const KeyType *index_key, std::vector<ValueType> &result,
                   std::pair<KeyType, LPID> *children, oid_t size);
 
+  // helper function to perform scan all keys
   LPID ScanAllKeysHelper(oid_t size, std::pair<KeyType, ValueType> *locations,
                          oid_t right_sibling, std::vector<ValueType> &result);
 
+  // helper function to perform scan key
   LPID ScanKeyHelper(KeyType key, oid_t size,
                      std::pair<KeyType, ValueType> *locations,
                      oid_t right_sibling, std::vector<ValueType> &result,
                      bool page_is_infinity, KeyType page_right_most_key);
 
  private:
+  // check if the leading column is equal to the given key
   bool MatchLeadingColumn(const AbstractTuple &index_key,
                           const std::vector<oid_t> &key_column_ids,
                           const std::vector<Value> &values);
 };
 
 //===--------------------------------------------------------------------===//
-// BWTreeNode
-// Look up the stx btree interface for background.
-// peloton/third_party/stx/btree.h
+// BWTreeNode is the abstract class for all tree nodes in the bwtree
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTreeNode {
@@ -879,8 +900,6 @@ class BWTreeNode {
         right_most_key(right_most_key),
         infinity(infinity){};
 
-  // These are virtual methods which child classes have to implement.
-  // They also have to be redeclared in the child classes
   virtual bool InsertEntry(KeyType key, ValueType location, LPID self) = 0;
 
   virtual bool DeleteEntry(KeyType key, ValueType location, LPID self,
@@ -890,9 +909,6 @@ class BWTreeNode {
       LPID, IPageUpdateDelta<KeyType, ValueType, KeyComparator> *) {
     return false;
   };
-
-  //  virtual bool AddINodeSplit(KeyType key, LPID value, int
-  //  modified_index){return false;};
 
   virtual LPID Scan(const std::vector<Value> &values,
                     const std::vector<oid_t> &key_column_ids,
@@ -909,6 +925,7 @@ class BWTreeNode {
     return this->BuildNodeState(-1);
   }
 
+  // build the new state of the node given the LPage/IPage/Delta
   virtual NodeStateBuilder<KeyType, ValueType, KeyComparator> *BuildNodeState(
       int max_index) = 0;
 
@@ -947,12 +964,15 @@ class BWTreeNode {
       LPID search_lpid) = 0;
 
  protected:
+  // perform delta insertion
   bool PerformDeltaInsert(
       LPID my_lpid, Delta<KeyType, ValueType, KeyComparator> *new_delta,
       BWTreeNode<KeyType, ValueType, KeyComparator> *old_delta) {
     bool status;
     LOG_INFO("Inside PerformDeltaChainInsert with new_delta len = %d",
              new_delta->GetDeltaChainLen());
+
+    // check if it's over the delta chain length limit
     if (new_delta->GetDeltaChainLen() > new_delta->GetDeltaChainLimit()) {
       status = this->map->CompressDeltaChain(my_lpid, old_delta, new_delta);
       if (status) {
@@ -964,10 +984,12 @@ class BWTreeNode {
     }
     return status;
   }
+
   bool PerformDeltaInsert(LPID my_lpid,
                           Delta<KeyType, ValueType, KeyComparator> *new_delta) {
     return this->PerformDeltaInsert(my_lpid, new_delta, this);
   }
+
   // the handler to the mapping table
   BWTree<KeyType, ValueType, KeyComparator> *map;
 
@@ -977,6 +999,7 @@ class BWTreeNode {
   bool clean_up_children_ = false;
 
   KeyType right_most_key;
+
   bool infinity = false;
 };
 
@@ -997,23 +1020,24 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     should_split_ = false;
   };
 
+  // construct an IPage from a IPage Builder
   IPage(BWTree<KeyType, ValueType, KeyComparator> *map,
         NodeStateBuilder<KeyType, ValueType, KeyComparator> *state)
       : BWTreeNode<KeyType, ValueType, KeyComparator>(
             map, 0, state->right_most_key, state->infinity) {
     size_ = state->size;
-    INodeStateBuilder<KeyType, ValueType, KeyComparator> *istate =
+    INodeStateBuilder<KeyType, ValueType, KeyComparator> *ibuilder =
         reinterpret_cast<
             INodeStateBuilder<KeyType, ValueType, KeyComparator> *>(state);
     assert(size_ <= IPAGE_ARITY);
-    memcpy(children_, istate->children_,
+    // copy the children over
+    memcpy(children_, ibuilder->children_,
            size_ * sizeof(std::pair<KeyType, LPID>));
+    // set the split flag if threshold is exceeded
     should_split_ = size_ > IPAGE_SPLIT_THRESHOLD;
   };
 
-  ~IPage(){
-      // LOG_INFO("Destroying an IPage");
-  };
+  ~IPage() {}
 
   bool AddINodeEntry(
       LPID self,
@@ -1056,8 +1080,11 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   // get the index of the child at next level, which contains the given key
   int GetChild(KeyType key, std::pair<KeyType, LPID> *children, oid_t len);
 
-  std::pair<KeyType, LPID> *GetChildren() { return children_; }
+  inline std::pair<KeyType, LPID> *GetChildren() { return children_; }
 
+  // split the IPage by creating a new IPage at right, installing a delta on
+  // parent
+  // and a split delta on top of itself
   void SplitNodes(LPID self);
 
   bool Cleanup() {
@@ -1260,10 +1287,12 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
   }
 
  private:
+  // the <key, LPID> pair of IPage's children
   std::pair<KeyType, LPID> children_[IPAGE_ARITY];
 
   oid_t size_;
 
+  // a flag indicating whether split should be triggered on this IPage
   bool should_split_;
 };
 
