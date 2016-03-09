@@ -44,8 +44,8 @@ enum BWTreeNodeType {
 #define LPAGE_SPLIT_THRESHOLD 1000
 #define IPAGE_SPLIT_THRESHOLD 1000
 
-#define IPAGE_MERGE_THRESHOLD 7
-#define LPAGE_MERGE_THRESHOLD 7
+#define IPAGE_MERGE_THRESHOLD 1024
+#define LPAGE_MERGE_THRESHOLD 1024
 
 #define MAPPING_TABLE_INITIAL_CAP 128
 #define INVALID_LPID ULLONG_MAX
@@ -370,6 +370,7 @@ class MappingTable {
   }
 
   void RemovePage(LPID id) {
+    LOG_INFO("Inside RemovePage for LPID %d", (int)id);
     delete mapping_table_[id];
     mapping_table_[id] = nullptr;
   }
@@ -644,6 +645,10 @@ class BWTree {
 
   bool Cleanup() {
     GetMappingTable()->GetNode(root_)->Cleanup();
+    GetMappingTable()->GetNode(root_)->Cleanup();  // for now, do twice to
+                                                   // handle if multiple
+                                                   // adjacent nodes can be
+                                                   // merged
     return true;
   }
   size_t GetMemoryFootprint();
@@ -980,15 +985,15 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
     IPage<KeyType, ValueType, KeyComparator> *left_inode, *right_inode;
     LPID left_lpid, right_lpid;
     int i;
-    LOG_INFO("Cleanup invoked");
+    LOG_INFO("Cleanup invoked, size is %d", (int)this->size_);
     std::pair<KeyType, LPID> new_children[IPAGE_ARITY];
     int new_children_size = 0;
-    //
-    //    for (int i = 0; i < this->size_; i++) {
-    //      this->map->GetMappingTable()
-    //          ->GetNode(this->children_[i].second)
-    //          ->Cleanup();
-    //    }
+
+    for (int i = 0; i < this->size_; i++) {
+      this->map->GetMappingTable()
+          ->GetNode(this->children_[i].second)
+          ->Cleanup();
+    }
 
     if (size_ >= 2)  // merges possible
     {
@@ -1064,6 +1069,11 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
               // TODO reclaim right lpid!
               i++;  // skip the merged node!
 
+              left_lnode->DestroyRightSiblings();
+              right_lnode->DestroyRightSiblings();
+              this->map->GetMappingTable()->RemovePage(right_lpid);
+              delete left_lnode;
+
             } else {
               new_children[new_children_size].first =
                   left_lnode->GetRightMostKey();
@@ -1128,9 +1138,9 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
                   left_lpid, left_inode, new_merged_ipage));
 
               delete left_inode;
-              delete right_inode;
+              // delete right_inode;
               i++;  // skip the merged node!
-              // TODO mark the right_lpid as available!
+              this->map->GetMappingTable()->RemovePage(right_lpid);
 
             } else {
               new_children[new_children_size].first =
@@ -1767,6 +1777,25 @@ class LPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
         break;
     }
     return curr_right_sibling_lpid;
+  }
+
+  void DestroyRightSiblings() {
+    LPID curr_right_sibling_lpid, old_right_sibling;
+    curr_right_sibling_lpid = right_sib_;
+    LPage<KeyType, ValueType, KeyComparator> *sibling;
+
+    while (curr_right_sibling_lpid != INVALID_LPID) {
+      sibling = reinterpret_cast<LPage<KeyType, ValueType, KeyComparator> *>(
+          this->map->GetMappingTable()->GetNode(curr_right_sibling_lpid));
+
+      if (this->map->CompareKey(this->right_most_key,
+                                sibling->right_most_key) == 0) {
+        old_right_sibling = curr_right_sibling_lpid;
+        curr_right_sibling_lpid = sibling->right_sib_;
+        this->map->GetMappingTable()->RemovePage(old_right_sibling);
+      } else
+        break;
+    }
   }
 
  private:

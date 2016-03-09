@@ -160,7 +160,11 @@ template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
 bool BWTreeIndex<KeyType, ValueType, KeyComparator,
                  KeyEqualityChecker>::Cleanup() {
+  LOG_INFO("Inside BWTreeIndex Cleanup");
+  LOG_INFO("Invoking CompressAllPages");
   this->container.CompressAllPages();
+  LOG_INFO("Done Compressing All pages");
+  this->container.Cleanup();
   // TODO also perform merge
   return true;
 }

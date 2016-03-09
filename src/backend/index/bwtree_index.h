@@ -59,11 +59,7 @@ class BWTreeIndex : public Index {
   std::string GetTypeName() const;
 
   // TODO: Implement this
-  bool Cleanup() {
-    std::cout << "Clean up invoked! Start merging nodes." << std::endl;
-    container.Cleanup();
-    return true;
-  }
+  bool Cleanup();
 
   size_t GetMemoryFootprint();
 
