@@ -1060,31 +1060,52 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
 
   void SplitNodes(LPID self);
 
+  // This method does the task of merging its children/locations if there is an
+  // underflow
+  // between two consecutive children. This method is called inside
+  // BWTree::Cleanup(), which
+  // then cascades down the tree in a recursive fashion.
   bool Cleanup() {
+    // sizes of the two pages
     int left_size, right_size;
+
+    // node pointers
     BWTreeNode<KeyType, ValueType, KeyComparator> *left_node, *right_node;
     LPage<KeyType, ValueType, KeyComparator> *left_lnode, *right_lnode;
     IPage<KeyType, ValueType, KeyComparator> *left_inode, *right_inode;
+
+    // the LPIDs of the two children currently being considered
     LPID left_lpid, right_lpid;
-    int i = 0;
-    LOG_INFO("Cleanup invoked, size is %d", (int)this->size_);
+
+    // the new list of children, which is used to replace the current
+    // list if required
     std::pair<KeyType, LPID> new_children[IPAGE_ARITY];
     int new_children_size = 0;
 
+    int i = 0;
+
+    LOG_INFO("Cleanup invoked, size is %d", (int)this->size_);
+
+    // first recursively call cleanup on all children!
     for (int i = 0; i < (long)this->size_; i++) {
       this->map->GetMappingTable()
           ->GetNode(this->children_[i].second)
           ->Cleanup();
     }
 
-    if (size_ >= 2)  // merges possible
-    {
+    // merges possible, only of there are at least two entries in the current
+    // children list
+    if (size_ >= 2) {
       LOG_INFO("Merge possible, size_ = %d", (int)size_);
+
+      // Two cases, based on whether children are IPages or LPages
       switch (this->map->GetMappingTable()
                   ->GetNode(this->children_[0].second)
                   ->GetTreeNodeType()) {
+        // consider LPages
         case TYPE_LPAGE:
           LOG_INFO("Children are LPages");
+
           for (i = 0; i < (long)this->size_ - 1; i++) {
             left_lpid = this->children_[i].second;
             right_lpid = this->children_[i + 1].second;
@@ -1102,14 +1123,22 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
                 reinterpret_cast<LPage<KeyType, ValueType, KeyComparator> *>(
                     right_node);
 
+            // for cleanup, we need the cumulative size of all siblings with the
+            // same right_most_key... for that, we need to iteratively traverse
+            // along the chain of siblings until we hit some node with a
+            // different
+            // right_most_key.
             left_size = left_lnode->GetSizeForCleanup();
             right_size = right_lnode->GetSizeForCleanup();
 
             LOG_INFO("Left Lnode size is %d", (int)left_size);
             LOG_INFO("Right Lnode size is %d", (int)right_size);
 
+            // check possibility of merge
             if (left_size + right_size < LPAGE_MERGE_THRESHOLD) {
               LOG_INFO("Can merge!");
+
+              // create a new LPage
               LPage<KeyType, ValueType, KeyComparator> *new_merged_lpage =
                   new LPage<KeyType, ValueType, KeyComparator>(
                       this->map, right_lnode->GetRightMostKey(),
@@ -1118,10 +1147,19 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
               std::vector<std::pair<KeyType, ValueType>> left_node_list;
               std::vector<std::pair<KeyType, ValueType>> right_node_list;
 
+              // just as for size, we need the locations list for all siblings
+              // with
+              // the same right_most_key, for that we need to iteratively
+              // traverse
+              // the chain of sibling LPages until we hit a page that has a
+              // different
+              // right_most_key.
               left_lnode->GetLocationsList(left_node_list);
               right_lnode->GetLocationsList(right_node_list);
 
               int new_lpage_size = 0;
+
+              // copy over the two lists
               for (int index = 0; index < (long)left_node_list.size(); index++)
                 new_merged_lpage->GetLocationsArray()[new_lpage_size++] =
                     left_node_list[index];
@@ -1130,6 +1168,7 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
                 new_merged_lpage->GetLocationsArray()[new_lpage_size++] =
                     right_node_list[index];
 
+              // set size of new merged page
               new_merged_lpage->SetSize(new_lpage_size);
 
               // now set the right sibling of this newly created LPage
@@ -1140,23 +1179,33 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
               LOG_INFO("It's right most sibling is %d",
                        (int)new_merged_lpage->GetRightSiblingLPID());
 
+              // create a new entry in the new list of children!
+              // the right_most_key is the same as the right_most_key
+              // of the right child, and the LPID of the left child can
+              // be reused!
               new_children[new_children_size].first =
                   right_lnode->GetRightMostKey();
               new_children[new_children_size].second = left_lpid;
               new_children_size++;
 
+              // swap this new LPage
               this->map->GetMappingTable()->SwapNode(left_lpid, left_lnode,
                                                      new_merged_lpage);
-              // TODO delete in chain, the two old lpages
-              // TODO reclaim right lpid!
               i++;  // skip the merged node!
 
+              // Delete/Free all siblings of the merged LPages which have
+              // the same right_most_key (just like GetSizeForCleanup() and
+              // GetLocationsList()
               left_lnode->DestroyRightSiblings();
               right_lnode->DestroyRightSiblings();
+
+              // mark the right lpid as available for further reuse, if required
               this->map->GetMappingTable()->RemovePage(right_lpid);
               delete left_lnode;
 
             } else {
+              // no merge possible here, just copy over the values of the left
+              // child
               new_children[new_children_size].first =
                   left_lnode->GetRightMostKey();
               new_children[new_children_size].second = left_lpid;
@@ -1166,6 +1215,7 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
           break;
 
         case TYPE_IPAGE:
+          // consider LPages
           LOG_INFO("Children are IPages");
           for (i = 0; i < (long)this->size_ - 1; i++) {
             left_lpid = this->children_[i].second;
@@ -1185,20 +1235,30 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
                 reinterpret_cast<IPage<KeyType, ValueType, KeyComparator> *>(
                     right_node);
 
+            // for cleanup, we need the sizes of the IPages. For that, just call
+            // GetSize on both children!
+            // this is not as complicated as it is for LPages
             left_size = left_inode->GetSize();
             right_size = right_inode->GetSize();
 
             LOG_INFO("Left size is %d", (int)left_size);
             LOG_INFO("Right size is %d", (int)right_size);
 
+            // see if there is an underflow
             if (left_size + right_size < IPAGE_MERGE_THRESHOLD) {
               LOG_INFO("Can Merge!");
+
+              // create a new IPage. Its infinity and right most key are the
+              // same as
+              // that of the right child
               IPage<KeyType, ValueType, KeyComparator> *new_merged_ipage =
                   new IPage<KeyType, ValueType, KeyComparator>(
                       this->map, right_inode->GetRightMostKey(),
                       right_inode->IsInifinity());
 
               int new_ipage_size = 0;
+
+              // copy over the lists of the children
               for (int index = 0; index < (long)left_inode->size_; index++)
                 new_merged_ipage->children_[new_ipage_size++] =
                     left_inode->children_[index];
@@ -1207,24 +1267,33 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
                 new_merged_ipage->children_[new_ipage_size++] =
                     right_inode->children_[index];
 
+              // set the size of the new IPage
               new_merged_ipage->size_ = new_ipage_size;
               LOG_INFO("New IPage size is %d", (int)new_merged_ipage->size_);
 
+              // create a new entry in the IPage children list
               new_children[new_children_size].first =
                   right_inode->GetRightMostKey();
               new_children[new_children_size].second = left_lpid;
               new_children_size++;
+
               LOG_INFO("New children size is %d", (int)new_children_size);
 
+              // swap in this new IPage
               this->map->GetMappingTable()->SwapNode(left_lpid, left_inode,
                                                      new_merged_ipage);
 
               delete left_inode;
               // delete right_inode;
               i++;  // skip the merged node!
+
+              // mark the right child as available, if required, we can reuse
+              // the LPID
               this->map->GetMappingTable()->RemovePage(right_lpid);
 
             } else {
+              // no merge possible here, just copy over the values of the left
+              // child
               new_children[new_children_size].first =
                   left_inode->GetRightMostKey();
               new_children[new_children_size].second = left_lpid;
@@ -1234,20 +1303,32 @@ class IPage : public BWTreeNode<KeyType, ValueType, KeyComparator> {
           break;
 
         default:
+          // something has gone wrong in the compression step of cleanup! The
+          // cleanup method cannot proceed in this case.
+          // (we will never hit this case, this has just been added to keep GCC
+          // happy ;))
           LOG_INFO(
               "Compression at some place has not been done! Can't merge. "
               "Self-Destruct...");
           assert(1 == 0);
           break;
       }
+      // if we were unable to consider the last entry in the children array
+      // because
+      // it didn't have another child to be merged with, just add it over!
       if (i == (long)size_ - 1)
         new_children[new_children_size++] = children_[size_ - 1];
 
       LOG_INFO("All merges done! Size of new children array is %d",
                (int)new_children_size);
+
+      // now that all merges are done, overwrite the current children array with
+      // the new children array generated during merges
       for (int i = 0; i < new_children_size; i++) {
         this->children_[i] = new_children[i];
       }
+
+      // set new size of children array
       this->size_ = new_children_size;
     }
 
@@ -1404,6 +1485,8 @@ class IPageSplitDelta : public IPageDelta<KeyType, ValueType, KeyComparator> {
 //===--------------------------------------------------------------------===//
 // LPageDelta
 //===--------------------------------------------------------------------===//
+/* This class is derived from the Delta class, and forms the base class for all
+ * deltas that can be installed on top of LPages */
 template <typename KeyType, typename ValueType, class KeyComparator>
 class LPageDelta : public Delta<KeyType, ValueType, KeyComparator> {
  public:
@@ -1429,6 +1512,9 @@ class LPageDelta : public Delta<KeyType, ValueType, KeyComparator> {
 };
 //===--------------------------------------------------------------------===//
 // LPageSplitDelta
+// This class is derived from the LPageDelta class. An LPageSplitDelta is
+// installed on an LPage when it is split. It helps us redirect queries to
+// the appropriate child.
 //===--------------------------------------------------------------------===//
 template <typename KeyType, typename ValueType, class KeyComparator>
 class LPageSplitDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
@@ -1444,13 +1530,14 @@ class LPageSplitDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
         right_split_page_lpid_(rightSplitPage),
         split_completed_(false){};
 
-  // This method will either try to create a delta on top of itself, if the
-  // current key is less
-  // than or equal to the modified_key_, or it will simply call InsertEntry on
-  // the LPID of the
-  // newly created right_split_page_lpid
+  // insert entry on split delta directs inserts to either the newly created
+  // LPage,
+  // or installs an update delta
   bool InsertEntry(KeyType key, ValueType location, LPID self);
 
+  // delete entry on split delta directs inserts to either the newly created
+  // LPage,
+  // or installs an update delta
   bool DeleteEntry(KeyType key, ValueType location, LPID self, bool);
 
   LPID ScanKey(KeyType key, std::vector<ValueType> &result);
@@ -1462,6 +1549,7 @@ class LPageSplitDelta : public LPageDelta<KeyType, ValueType, KeyComparator> {
 
   void BWTreeCheck();
 
+  // recursively return the size of this delta chain
   size_t GetMemoryFootprint() {
     LOG_INFO("LPageSplitDelta::GetMemoryFootprint");
     size_t size = sizeof(LPageSplitDelta<KeyType, ValueType, KeyComparator>);
